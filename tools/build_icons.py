@@ -24,7 +24,14 @@ import cairosvg
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC_SVG = ROOT / "frontend" / "public" / "logo-hwalker.svg"
+# Full-detail master — used for large sizes (≥64) where every tick / grid
+# line / cue-circle is legible.
+SRC_FULL = ROOT / "frontend" / "public" / "logo-hwalker.svg"
+# Simplified master — grid + horizontal baseline + H-ticks dropped, stroke
+# thickened. Used for tiny tab/favicon sizes where the full mark would
+# render as an indistinct blob (the "purple lightning" artifact).
+SRC_TINY = ROOT / "frontend" / "public" / "favicon.svg"
+
 OUT_ICNS = ROOT / "AppIcon.icns"
 OUT_ICO = ROOT / "frontend" / "public" / "AppIcon.ico"
 OUT_FAVICON = ROOT / "frontend" / "public" / "favicon.png"
@@ -34,14 +41,22 @@ OUT_DESKTOP_PNG = ROOT / "desktop" / "icon.png"
 ICNS_SIZES = (16, 32, 64, 128, 256, 512, 1024)
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
-# Full catalog the frontend might reference
 PNG_SIZES = sorted(set(ICNS_SIZES) | set(ICO_SIZES) | {192, 384})
+
+# Sizes below this use the simplified SRC_TINY source.
+TINY_CUTOFF = 48
 
 
 def rasterize(size: int) -> Image.Image:
-    """Rasterize the master SVG at `size`×`size` px."""
+    """Rasterize the right master SVG at `size`×`size` px.
+
+    Below TINY_CUTOFF we use the simplified mark so the stride curve
+    stays legible; at larger sizes we use the full mark with grid +
+    H-ticks.
+    """
+    src = SRC_TINY if size < TINY_CUTOFF else SRC_FULL
     png_bytes = cairosvg.svg2png(
-        url=str(SRC_SVG),
+        url=str(src),
         output_width=size,
         output_height=size,
     )
@@ -50,8 +65,10 @@ def rasterize(size: int) -> Image.Image:
 
 
 def main() -> None:
-    if not SRC_SVG.exists():
-        raise SystemExit(f"master SVG missing: {SRC_SVG}")
+    if not SRC_FULL.exists():
+        raise SystemExit(f"master SVG missing: {SRC_FULL}")
+    if not SRC_TINY.exists():
+        raise SystemExit(f"simplified favicon SVG missing: {SRC_TINY}")
 
     # 1. Individual PNGs
     OUT_PNG_DIR.mkdir(parents=True, exist_ok=True)
@@ -96,13 +113,16 @@ def main() -> None:
     # 6. Sanity summary
     print()
     print("Icon generation complete.")
-    print(f"  master SVG  : {SRC_SVG}  ({SRC_SVG.stat().st_size} bytes)")
+    print(f"  full SVG    : {SRC_FULL.relative_to(ROOT)}  ({SRC_FULL.stat().st_size} bytes)")
+    print(f"  tiny SVG    : {SRC_TINY.relative_to(ROOT)}  ({SRC_TINY.stat().st_size} bytes)")
     print(f"  .icns       : {OUT_ICNS.relative_to(ROOT)}  "
           f"({OUT_ICNS.stat().st_size:,} bytes)")
     print(f"  .ico        : {OUT_ICO.relative_to(ROOT)}  "
           f"({OUT_ICO.stat().st_size:,} bytes)")
     print(f"  png rasters : {len(PNG_SIZES)} sizes in "
           f"{OUT_PNG_DIR.relative_to(ROOT)}")
+    shutil_unused = shutil  # kept imported for future cleanup ops
+    _ = shutil_unused
 
 
 if __name__ == "__main__":

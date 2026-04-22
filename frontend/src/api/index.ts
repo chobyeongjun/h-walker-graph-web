@@ -43,6 +43,15 @@ export const saveMapping = (id: string, columns: Record<string, string>) =>
     body: JSON.stringify({ columns }),
   });
 
+// Phase 2 · study-level tags
+export const updateDatasetMeta = (
+  id: string,
+  meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date'>>,
+) => json<Dataset>(`/api/datasets/${id}/meta`, {
+  method: 'PATCH',
+  body: JSON.stringify(meta),
+});
+
 // ============================================================
 // Analyze (GET /api/analyze/{ds_id})
 // ============================================================

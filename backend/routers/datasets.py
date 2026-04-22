@@ -25,6 +25,64 @@ router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 _REGISTRY: dict[str, dict[str, Any]] = {}
 
 
+# Phase 2: filename auto-parsing regex list. Tries each pattern in order;
+# first match wins. Named groups drive the Dataset.{group, subject_id,
+# condition} fields. Keep these case-insensitive and tolerant of
+# separators (_, -, .).
+import re
+_FILENAME_PATTERNS = [
+    # explicit labels: subject=s01 · condition=pre · date=2024-05-01
+    re.compile(r'(?i)(?:subj(?:ect)?[_-]?)?(?P<subject_id>s\d+)[_\-.]+'
+               r'(?P<condition>pre|post|control|experimental|baseline|'
+               r'treatment|treadmill|overground|\w{2,12})'
+               r'(?:[_\-.]+(?P<date>\d{4}[_\-.]?\d{2}[_\-.]?\d{2}))?'),
+    # condition first: pre_s01_… / control-subj02-…
+    re.compile(r'(?i)^(?P<condition>pre|post|control|experimental|baseline|'
+               r'treatment|fast|slow|natural|\w{3,10})'
+               r'[_\-.]+(?:subj(?:ect)?[_-]?)?(?P<subject_id>s\d+|\d{1,3})'),
+    # numeric only: 001_pre_…
+    re.compile(r'(?i)^(?P<subject_id>\d{1,3})[_\-.]+(?P<condition>[a-z]{3,15})'),
+    # trial_N style (keep existing recipe behavior, not really a group)
+    re.compile(r'(?i)(?P<subject_id>trial[_-]?\d+)'),
+]
+
+_CONDITION_CANONICAL = {
+    'pre': 'Pre', 'post': 'Post', 'control': 'Control',
+    'experimental': 'Experimental', 'baseline': 'Baseline',
+    'treatment': 'Treatment', 'treadmill': 'Treadmill',
+    'overground': 'Overground', 'fast': 'Fast', 'slow': 'Slow',
+    'natural': 'Natural',
+}
+
+
+def _parse_filename(fname: str) -> dict[str, str]:
+    """Extract {subject_id, condition, group, date} from a filename.
+
+    Falls back to empty dict for unrecognized patterns. The user can
+    always override via PATCH /api/datasets/{id}/meta.
+    """
+    import os
+    stem = os.path.splitext(os.path.basename(fname))[0]
+    for pat in _FILENAME_PATTERNS:
+        m = pat.search(stem)
+        if not m:
+            continue
+        out: dict[str, str] = {}
+        gd = m.groupdict()
+        if gd.get('subject_id'):
+            out['subject_id'] = gd['subject_id'].lower()
+        if gd.get('condition'):
+            cond = gd['condition'].lower()
+            out['condition'] = _CONDITION_CANONICAL.get(cond, cond.title())
+            # Group defaults to condition (user can override)
+            out['group'] = out['condition']
+        if gd.get('date'):
+            out['date'] = gd['date']
+        if out:
+            return out
+    return {}
+
+
 _UNIT_HINTS = [
     ('force', 'N'), ('_n', 'N'),
     ('pitch', '°'), ('roll', '°'), ('yaw', '°'),
@@ -132,6 +190,9 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
     except Exception:
         pass
 
+    # Phase 2: auto-parse filename for subject/condition/group
+    parsed = _parse_filename(file.filename)
+
     ds = {
         'id': ds_id,
         'name': file.filename,
@@ -143,6 +204,10 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         'cols': cols,
         'active': False,
         'recipeState': {},
+        'subject_id': parsed.get('subject_id', ''),
+        'condition': parsed.get('condition', ''),
+        'group': parsed.get('group', ''),
+        'date': parsed.get('date', ''),
         '_path': tmp.name,
     }
     _REGISTRY[ds_id] = ds
@@ -184,6 +249,18 @@ def delete_dataset(ds_id: str) -> Response:
         except Exception:
             pass
     return Response(status_code=204)
+
+
+@router.patch("/{ds_id}/meta")
+def update_meta(ds_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Phase 2 · Update dataset's group/subject/condition tags."""
+    if ds_id not in _REGISTRY:
+        raise HTTPException(status_code=404, detail="dataset not found")
+    d = _REGISTRY[ds_id]
+    for key in ('subject_id', 'condition', 'group', 'date'):
+        if key in payload:
+            d[key] = str(payload[key] or '')
+    return {k: v for k, v in d.items() if not k.startswith('_')}
 
 
 @router.post("/{ds_id}/mapping")

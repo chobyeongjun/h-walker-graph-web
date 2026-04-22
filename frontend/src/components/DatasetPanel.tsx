@@ -10,6 +10,7 @@ export default function DatasetPanel() {
   const applyRecipes = useWorkspace((s) => s.applyRecipes);
   const toggleRecipe = useWorkspace((s) => s.toggleRecipe);
   const addDataset = useWorkspace((s) => s.addDataset);
+  const setDatasetMeta = useWorkspace((s) => s.setDatasetMeta);
   const showToast = useWorkspace((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -86,6 +87,28 @@ export default function DatasetPanel() {
                 <span style={{ color: '#f87171' }}>· err: {d.analyzeError.slice(0, 40)}</span>
               )}
             </div>
+            <div className="ds-tags" onClick={(e) => e.stopPropagation()}>
+              <DatasetTag
+                label="subj"
+                value={d.subject_id || ''}
+                placeholder="s01"
+                onChange={(v) => setDatasetMeta(d.id, { subject_id: v })}
+              />
+              <DatasetTag
+                label="cond"
+                value={d.condition || ''}
+                placeholder="Pre / Post / Control"
+                onChange={(v) => setDatasetMeta(d.id, { condition: v, group: v })}
+              />
+              {d.group && d.group !== d.condition && (
+                <DatasetTag
+                  label="group"
+                  value={d.group}
+                  placeholder="—"
+                  onChange={(v) => setDatasetMeta(d.id, { group: v })}
+                />
+              )}
+            </div>
             <div className="ds-cols">
               {d.cols.slice(0, 5).map((c, i) => (
                 <span key={i} className={`ds-col${c.mapped && c.mapped !== '—' ? ' mapped' : ''}`}>
@@ -154,5 +177,25 @@ export default function DatasetPanel() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Phase 2 · inline tag editor for subject/condition/group. */
+function DatasetTag({ label, value, placeholder, onChange }: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <span className={`ds-tag-ed${value ? ' set' : ''}`}>
+      <span className="ds-tag-lbl">{label}</span>
+      <input
+        className="ds-tag-inp"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </span>
   );
 }

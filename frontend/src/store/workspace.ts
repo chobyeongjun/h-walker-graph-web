@@ -5,7 +5,7 @@ import { SEED_CELLS } from '../data/seedCells';
 import { SEED_DATASETS } from '../data/seedDatasets';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import {
-  analyzeDataset, computeMetric, renderGraph, runStats,
+  analyzeDataset, computeMetric, renderGraph, runStats, updateDatasetMeta,
   type ComputeMetricKey, type StatOpKey, type StatsResponse, type ComputeResponse,
   type AnalyzeResponse, type AnalysisPayload,
 } from '../api';
@@ -59,6 +59,11 @@ export interface Dataset {
   cols: DatasetColumn[];
   active: boolean;
   recipeState: Record<string, boolean>;
+  // Phase 2: study-level tags (auto-parsed from filename, user-editable)
+  subject_id?: string;
+  condition?: string;
+  group?: string;
+  date?: string;
   // Phase 2B: analysis state
   analysis?: AnalyzeResponse;
   analyzing?: boolean;
@@ -104,6 +109,7 @@ interface WorkspaceState {
   toggleRecipe: (dsId: string, recipeId: string) => void;
   applyRecipes: (dsId: string) => Promise<void>;
   analyzeIfNeeded: (dsId: string) => Promise<AnalyzeResponse | undefined>;
+  setDatasetMeta: (dsId: string, meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date'>>) => Promise<void>;
 
   runCompute: (cellId: string) => Promise<void>;
   runStat: (cellId: string) => Promise<void>;
@@ -223,6 +229,24 @@ export const useWorkspace = create<WorkspaceState>()(
           d.id === dsId ? { ...d, recipeState: { ...d.recipeState, [recipeId]: !d.recipeState[recipeId] } } : d,
         ),
       })),
+      setDatasetMeta: async (dsId, meta) => {
+        // Optimistic update
+        set((s) => ({
+          datasets: s.datasets.map((d) =>
+            d.id === dsId ? { ...d, ...meta } : d,
+          ),
+        }));
+        try {
+          await updateDatasetMeta(dsId, meta);
+          get().logHistory({
+            kind: 'tool', actor: 'you',
+            label: `Tagged ${get().datasets.find((d) => d.id === dsId)?.name}: ` +
+              Object.entries(meta).map(([k, v]) => `${k}=${v}`).join(', '),
+          });
+        } catch (e) {
+          get().showToast(`Tag update failed: ${(e as Error).message}`);
+        }
+      },
 
       analyzeIfNeeded: async (dsId) => {
         const ds = get().datasets.find((d) => d.id === dsId);

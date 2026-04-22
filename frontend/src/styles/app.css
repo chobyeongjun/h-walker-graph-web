@@ -753,3 +753,26 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   max-width:520px;margin:0 auto;
 }
 
+/* Phase 2 · inline study-tag editors on each dataset card */
+.ds-tags{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px 2px}
+.ds-tag-ed{
+  display:inline-flex;align-items:center;gap:4px;padding:2px 6px;
+  background:rgba(23,27,94,.4);border:1px solid rgba(255,255,255,.08);
+  border-radius:5px;
+  font:500 10.5px/1 'Pretendard',sans-serif;
+  transition:border-color .1s;
+}
+.ds-tag-ed:hover,.ds-tag-ed:focus-within{border-color:rgba(240,151,8,.35)}
+.ds-tag-ed.set{border-color:rgba(240,151,8,.35);background:rgba(240,151,8,.05)}
+.ds-tag-lbl{
+  font:700 8.5px/1 'JetBrains Mono',monospace;
+  color:#6B7280;letter-spacing:.15em;text-transform:uppercase;
+}
+.ds-tag-ed.set .ds-tag-lbl{color:#F09708}
+.ds-tag-inp{
+  background:transparent;border:none;outline:0;
+  color:#E2E8F0;min-width:60px;max-width:96px;
+  font:inherit;padding:0 2px;
+}
+.ds-tag-inp::placeholder{color:#4B5563;font-style:italic}
+

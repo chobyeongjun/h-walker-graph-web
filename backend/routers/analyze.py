@@ -15,6 +15,10 @@ with descriptive stats only — no crash.
 """
 from __future__ import annotations
 
+import hashlib
+import os
+import pickle
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -29,8 +33,55 @@ from tools.auto_analyzer.analyzer import result_to_dict, AnalysisResult
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
 
 
-# ds_id → (AnalysisResult, payload_dict)
+# In-memory cache: ds_id → (AnalysisResult, payload_dict)
 _CACHE: dict[str, tuple[AnalysisResult, dict[str, Any]]] = {}
+
+# Phase 4 · disk cache for analyzer results. Keyed by CSV content hash
+# (sha256 of first 1 MB + mtime + size) so identical files across
+# sessions / datasets don't re-analyze.
+_DISK_CACHE_DIR = Path(os.path.expanduser("~/.hw_graph/cache/analyze"))
+_DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+_CACHE_VERSION = 1  # bump when AnalysisResult shape changes
+
+
+def _cache_key(path: str) -> str:
+    """Stable key from CSV content + mtime + size. Avoids re-hashing
+    large files by taking the first 1 MB sample."""
+    try:
+        stat = os.stat(path)
+        h = hashlib.sha256()
+        h.update(f"v{_CACHE_VERSION}|size={stat.st_size}|mtime={int(stat.st_mtime)}|".encode())
+        with open(path, "rb") as f:
+            h.update(f.read(1024 * 1024))
+        return h.hexdigest()[:24]
+    except OSError:
+        return ""
+
+
+def _disk_load(path: str) -> tuple[AnalysisResult, dict[str, Any]] | None:
+    key = _cache_key(path)
+    if not key:
+        return None
+    cpath = _DISK_CACHE_DIR / f"{key}.pkl"
+    if not cpath.exists():
+        return None
+    try:
+        with open(cpath, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+
+def _disk_save(path: str, res: AnalysisResult, payload: dict[str, Any]) -> None:
+    key = _cache_key(path)
+    if not key:
+        return
+    cpath = _DISK_CACHE_DIR / f"{key}.pkl"
+    try:
+        with open(cpath, "wb") as f:
+            pickle.dump((res, payload), f, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        pass
 
 
 def _is_hwalker_csv(df: pd.DataFrame) -> bool:
@@ -105,7 +156,13 @@ def _result_payload(res: AnalysisResult) -> dict[str, Any]:
 
 
 def analyze_cached(ds_id: str) -> tuple[AnalysisResult | None, dict[str, Any]]:
-    """Return (AnalysisResult, payload). Result may be None in fallback mode."""
+    """Return (AnalysisResult, payload). Result may be None in fallback mode.
+
+    Cache hierarchy:
+      1. Per-session in-memory (fastest)
+      2. Disk cache keyed by file content hash (survives restarts)
+      3. Fresh analysis via auto_analyzer
+    """
     if ds_id in _CACHE:
         res, payload = _CACHE[ds_id]
         return res, payload
@@ -113,6 +170,12 @@ def analyze_cached(ds_id: str) -> tuple[AnalysisResult | None, dict[str, Any]]:
     path = get_path(ds_id)
     if not path:
         raise HTTPException(status_code=404, detail=f"dataset '{ds_id}' not found")
+
+    # Disk cache — skip the full pipeline when we've seen this file before
+    cached = _disk_load(path)
+    if cached is not None:
+        _CACHE[ds_id] = cached
+        return cached
 
     try:
         df = pd.read_csv(path, nrows=5)
@@ -138,6 +201,7 @@ def analyze_cached(ds_id: str) -> tuple[AnalysisResult | None, dict[str, Any]]:
 
     payload = _result_payload(res)
     _CACHE[ds_id] = (res, payload)
+    _disk_save(path, res, payload)
     return res, payload
 
 
@@ -157,3 +221,33 @@ def drop_cache(ds_id: str) -> dict[str, Any]:
     existed = ds_id in _CACHE
     invalidate_cache(ds_id)
     return {"ds_id": ds_id, "invalidated": existed}
+
+
+@router.get("/cache/stats")
+def cache_stats() -> dict[str, Any]:
+    """Phase 4 · inspect the disk cache size + entry count."""
+    try:
+        files = list(_DISK_CACHE_DIR.glob("*.pkl"))
+        total_bytes = sum(f.stat().st_size for f in files)
+        return {
+            "memory_entries": len(_CACHE),
+            "disk_entries": len(files),
+            "disk_bytes": total_bytes,
+            "disk_mb": round(total_bytes / 1024 / 1024, 2),
+            "cache_dir": str(_DISK_CACHE_DIR),
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@router.delete("/cache")
+def clear_disk_cache() -> dict[str, Any]:
+    """Wipe the entire disk cache (memory cache untouched)."""
+    removed = 0
+    for f in _DISK_CACHE_DIR.glob("*.pkl"):
+        try:
+            f.unlink()
+            removed += 1
+        except Exception:
+            pass
+    return {"removed": removed}

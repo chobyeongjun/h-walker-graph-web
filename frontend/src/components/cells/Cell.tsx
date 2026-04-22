@@ -6,9 +6,16 @@ import LlmCell from './LlmCell';
 import { useWorkspace } from '../../store/workspace';
 import { Copy, Trash2, GripVertical, Expand } from 'lucide-react';
 
-interface Props { cell: CellModel; index: number; }
+interface Props {
+  cell: CellModel;
+  index: number;
+  /** Phase 4 · drag-and-drop listener bag from @dnd-kit; spread onto
+   *  the grip icon so only the handle initiates reorder, not the whole
+   *  cell body. */
+  dragHandle?: Record<string, unknown>;
+}
 
-export default function Cell({ cell, index }: Props) {
+export default function Cell({ cell, index, dragHandle }: Props) {
   const remove = useWorkspace((s) => s.removeCell);
   const dup = useWorkspace((s) => s.duplicateCell);
   const update = useWorkspace((s) => s.updateCell);
@@ -25,7 +32,12 @@ export default function Cell({ cell, index }: Props) {
     <div className={typeClass} id={`cell-${cell.id}`}>
       <div className="cell-head">
         <span className="cell-idx">#{index + 1}</span>
-        <span className="cell-handle"><GripVertical size={14} /></span>
+        <span
+          className="cell-handle"
+          style={{ cursor: dragHandle ? 'grab' : undefined }}
+          {...(dragHandle || {})}
+          title="Drag to reorder"
+        ><GripVertical size={14} /></span>
         <span className="cell-ey">
           {cell.type === 'graph' ? 'GRAPH'
             : cell.type === 'stat' ? 'STATS'

@@ -1,18 +1,18 @@
 import { useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import { uploadDataset, deleteDataset as apiDeleteDataset } from '../api';
 
 export default function DatasetPanel() {
-  const datasets = useWorkspace((s) => s.datasets);
-  const setActive = useWorkspace((s) => s.setActiveDataset);
-  const applyRecipes = useWorkspace((s) => s.applyRecipes);
-  const toggleRecipe = useWorkspace((s) => s.toggleRecipe);
-  const addDataset = useWorkspace((s) => s.addDataset);
-  const removeDataset = useWorkspace((s) => s.removeDataset);
-  const setDatasetMeta = useWorkspace((s) => s.setDatasetMeta);
-  const showToast = useWorkspace((s) => s.showToast);
+  const datasets = usePage((s) => s.datasets);
+  const setActive = usePage((s) => s.setActiveDataset);
+  const applyRecipes = usePage((s) => s.applyRecipes);
+  const toggleRecipe = usePage((s) => s.toggleRecipe);
+  const addDataset = usePage((s) => s.addDataset);
+  const removeDataset = usePage((s) => s.removeDataset);
+  const setDatasetMeta = usePage((s) => s.setDatasetMeta);
+  const showToast = usePage((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -209,7 +209,7 @@ function DatasetTag({ label, value, placeholder, onChange }: {
  * numbers, no user choice needed). Graphs show only the currently-enabled
  * set in a compact chip strip; the user can toggle extras from a
  * "+ more graphs" expandable section. "Apply" button re-runs the active
- * set (skip duplicates thanks to dedup in workspace.applyRecipes).
+ * set (skip duplicates thanks to dedup in page.applyRecipes).
  */
 function AutoRecipes({ recipes, active, onToggle, onApply }: {
   recipes: Array<{ id: string; label: string; default: boolean; type: 'graph' | 'compute'; hint?: string }>;

@@ -1,9 +1,9 @@
-import type { Cell as CellModel } from '../../store/workspace';
+import type { Cell as CellModel } from '../../store/page';
 import GraphCell from './GraphCell';
 import StatCell from './StatCell';
 import ComputeCell from './ComputeCell';
 import LlmCell from './LlmCell';
-import { useWorkspace } from '../../store/workspace';
+import { usePage } from '../../store/page';
 import { Copy, Trash2, GripVertical, Expand } from 'lucide-react';
 
 interface Props {
@@ -16,10 +16,10 @@ interface Props {
 }
 
 export default function Cell({ cell, index, dragHandle }: Props) {
-  const remove = useWorkspace((s) => s.removeCell);
-  const dup = useWorkspace((s) => s.duplicateCell);
-  const update = useWorkspace((s) => s.updateCell);
-  const focusCell = useWorkspace((s) => s.focusCell);
+  const remove = usePage((s) => s.removeCell);
+  const dup = usePage((s) => s.duplicateCell);
+  const update = usePage((s) => s.updateCell);
+  const focusCell = usePage((s) => s.focusCell);
 
   const typeClass = `cell ${cell.type}`;
   const displayTitle = cell.title

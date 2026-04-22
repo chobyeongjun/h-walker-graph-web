@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Trash2, Download, Upload, RefreshCw, RotateCcw, Save, FolderOpen } from 'lucide-react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
 import { claudeHealth } from '../api';
 
@@ -45,14 +45,14 @@ async function runBundle(preset: string, fmt: string, variant: string, cells: un
 }
 
 export default function Drawer() {
-  const kind = useWorkspace((s) => s.drawer);
-  const close = useWorkspace((s) => s.closeDrawer);
-  const addCell = useWorkspace((s) => s.addCell);
-  const showToast = useWorkspace((s) => s.showToast);
-  const cells = useWorkspace((s) => s.cells);
-  const preset = useWorkspace((s) => s.globalPreset);
-  const history = useWorkspace((s) => s.history);
-  const clearHistory = useWorkspace((s) => s.clearHistory);
+  const kind = usePage((s) => s.drawer);
+  const close = usePage((s) => s.closeDrawer);
+  const addCell = usePage((s) => s.addCell);
+  const showToast = usePage((s) => s.showToast);
+  const cells = usePage((s) => s.cells);
+  const preset = usePage((s) => s.globalPreset);
+  const history = usePage((s) => s.history);
+  const clearHistory = usePage((s) => s.clearHistory);
 
   if (!kind) return null;
 
@@ -228,13 +228,13 @@ function writeSavedPages(pages: SavedPage[]) {
 }
 
 function SettingsPanel() {
-  const showToast = useWorkspace((s) => s.showToast);
-  const clearHistory = useWorkspace((s) => s.clearHistory);
-  const cells = useWorkspace((s) => s.cells);
-  const datasets = useWorkspace((s) => s.datasets);
-  const history = useWorkspace((s) => s.history);
-  const globalPreset = useWorkspace((s) => s.globalPreset);
-  const pageTitle = useWorkspace((s) => s.pageTitle);
+  const showToast = usePage((s) => s.showToast);
+  const clearHistory = usePage((s) => s.clearHistory);
+  const cells = usePage((s) => s.cells);
+  const datasets = usePage((s) => s.datasets);
+  const history = usePage((s) => s.history);
+  const globalPreset = usePage((s) => s.globalPreset);
+  const pageTitle = usePage((s) => s.pageTitle);
 
   const [health, setHealth] = useState<{ provider: string; model: string; key_present: boolean } | null>(null);
   const [cacheInfo, setCacheInfo] = useState<{ memory_entries: number; disk_entries: number; disk_mb: number; cache_dir: string } | null>(null);
@@ -273,7 +273,7 @@ function SettingsPanel() {
     const p = listSavedPages().find((x) => x.name === name);
     if (!p) return;
     if (!confirm(`Load "${name}"? Current workspace will be replaced.`)) return;
-    localStorage.setItem('hw_workspace_v4', JSON.stringify({
+    localStorage.setItem('hw_page_v1', JSON.stringify({
       state: {
         cells: p.state.cells,
         datasets: p.state.datasets,
@@ -297,7 +297,7 @@ function SettingsPanel() {
 
   function newBlankPage() {
     if (!confirm('Start a new page? Current workspace will be cleared (save first if needed).')) return;
-    localStorage.removeItem('hw_workspace_v4');
+    localStorage.removeItem('hw_page_v1');
     location.reload();
   }
 
@@ -325,9 +325,9 @@ function SettingsPanel() {
     }
   }
 
-  function exportWorkspace() {
+  function exportPage() {
     const blob = new Blob([JSON.stringify({
-      schema: 'hw_workspace_v4',
+      schema: 'hw_page_v1',
       exported_at: new Date().toISOString(),
       pageTitle,
       globalPreset,
@@ -337,13 +337,13 @@ function SettingsPanel() {
     }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `hwalker_workspace_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `hwalker_page_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showToast('Workspace exported');
+    showToast('Page exported');
   }
 
-  function importWorkspace() {
+  function importPage() {
     const inp = document.createElement('input');
     inp.type = 'file';
     inp.accept = '.json,application/json';
@@ -353,16 +353,16 @@ function SettingsPanel() {
       try {
         const text = await f.text();
         const data = JSON.parse(text);
-        if (!data.schema || !data.schema.startsWith('hw_workspace_')) {
-          throw new Error('Not a H-Walker workspace file');
+        if (!data.schema || !data.schema.startsWith('hw_page_')) {
+          throw new Error('Not a H-Walker page file');
         }
-        if (!confirm('Replace current workspace with imported file?')) return;
-        localStorage.setItem('hw_workspace_v4', JSON.stringify({ state: {
+        if (!confirm('Replace current page with imported file?')) return;
+        localStorage.setItem('hw_page_v1', JSON.stringify({ state: {
           cells: data.cells || [],
           datasets: data.datasets || [],
           currentPreset: data.globalPreset || 'ieee',
           globalPreset: data.globalPreset || 'ieee',
-          pageTitle: data.pageTitle || 'Imported workspace',
+          pageTitle: data.pageTitle || 'Imported page',
           history: data.history || [],
         }, version: 0 }));
         location.reload();
@@ -373,8 +373,8 @@ function SettingsPanel() {
     inp.click();
   }
 
-  function resetWorkspace() {
-    if (!confirm('Reset EVERYTHING? Clears all cells, datasets (on this client), and history. Backend upload files on disk are preserved.')) return;
+  function resetEverything() {
+    if (!confirm('Reset EVERYTHING? Clears the current page + all saved pages + history. Backend upload files on disk are preserved.')) return;
     localStorage.clear();
     location.reload();
   }
@@ -499,7 +499,7 @@ function SettingsPanel() {
       </div>
 
       <div className="set-group">
-        <h4>Workspace</h4>
+        <h4>Current page</h4>
         <div className="set-info">
           <div className="set-row-info">
             <span className="k">Datasets</span>
@@ -519,17 +519,17 @@ function SettingsPanel() {
           </div>
         </div>
         <div className="set-actions">
-          <button onClick={exportWorkspace}>
-            <Download size={12} /> Export workspace JSON
+          <button onClick={exportPage}>
+            <Download size={12} /> Export page JSON
           </button>
-          <button onClick={importWorkspace}>
-            <Upload size={12} /> Import workspace JSON
+          <button onClick={importPage}>
+            <Upload size={12} /> Import page JSON
           </button>
           <button onClick={() => { if (confirm('Clear history timeline?')) clearHistory(); }}>
             <Trash2 size={12} /> Clear history
           </button>
-          <button onClick={resetWorkspace} className="danger">
-            <RotateCcw size={12} /> Reset workspace (all cells + datasets)
+          <button onClick={resetEverything} className="danger">
+            <RotateCcw size={12} /> Reset everything (current page + saved pages)
           </button>
         </div>
       </div>

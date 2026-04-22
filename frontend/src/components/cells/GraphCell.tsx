@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Cell } from '../../store/workspace';
-import { useWorkspace } from '../../store/workspace';
+import type { Cell } from '../../store/page';
+import { usePage } from '../../store/page';
 import { GRAPH_TPLS, type GraphTemplate } from '../../data/graphTemplates';
 import { JOURNAL_PRESETS } from '../../data/journalPresets';
 import { renderGraph } from '../../api';
@@ -8,11 +8,11 @@ import { renderGraph } from '../../api';
 interface Props { cell: Cell; }
 
 export default function GraphCell({ cell }: Props) {
-  const globalPreset = useWorkspace((s) => s.globalPreset);
-  const updateCell = useWorkspace((s) => s.updateCell);
-  const showToast = useWorkspace((s) => s.showToast);
-  const runPreview = useWorkspace((s) => s.runPreview);
-  const allDatasets = useWorkspace((s) => s.datasets);
+  const globalPreset = usePage((s) => s.globalPreset);
+  const updateCell = usePage((s) => s.updateCell);
+  const showToast = usePage((s) => s.showToast);
+  const runPreview = usePage((s) => s.runPreview);
+  const allDatasets = usePage((s) => s.datasets);
   const [menuOpen, setMenuOpen] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [svgInline, setSvgInline] = useState<string | null>(null);

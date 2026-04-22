@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { uploadDataset } from '../api';
 
 /**
@@ -17,10 +17,10 @@ import { uploadDataset } from '../api';
  * parent element preventDefault's on `dragover` first.
  */
 export default function GlobalDropZone() {
-  const addDataset = useWorkspace((s) => s.addDataset);
-  const setActive = useWorkspace((s) => s.setActiveDataset);
-  const applyRecipes = useWorkspace((s) => s.applyRecipes);
-  const showToast = useWorkspace((s) => s.showToast);
+  const addDataset = usePage((s) => s.addDataset);
+  const setActive = usePage((s) => s.setActiveDataset);
+  const applyRecipes = usePage((s) => s.applyRecipes);
+  const showToast = usePage((s) => s.showToast);
   const [active, setActiveDrop] = useState(false);
   const counter = useRef(0);
 

@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
-import type { Cell } from '../../store/workspace';
-import { useWorkspace } from '../../store/workspace';
+import type { Cell } from '../../store/page';
+import { usePage } from '../../store/page';
 import { COMPUTE_METRICS } from '../../data/computeMetrics';
 
 interface Props { cell: Cell; }
 
 export default function ComputeCell({ cell }: Props) {
-  const update = useWorkspace((s) => s.updateCell);
-  const runCompute = useWorkspace((s) => s.runCompute);
-  const showToast = useWorkspace((s) => s.showToast);
+  const update = usePage((s) => s.updateCell);
+  const runCompute = usePage((s) => s.runCompute);
+  const showToast = usePage((s) => s.showToast);
   const fallback = COMPUTE_METRICS[cell.metric || 'per_stride'];
   const hasDataset = !!cell.dsIds[0];
   const live = cell.computeData;

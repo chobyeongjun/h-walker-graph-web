@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles } from 'lucide-react';
-import { useWorkspace, type Cell } from '../store/workspace';
+import { usePage, type Cell } from '../store/page';
 import { claudeComplete, type ToolUseBlock } from '../api';
 
 export default function LlmDock() {
   const [q, setQ] = useState('');
-  const datasets = useWorkspace((s) => s.datasets);
-  const cells = useWorkspace((s) => s.cells);
-  const addCell = useWorkspace((s) => s.addCell);
-  const showToast = useWorkspace((s) => s.showToast);
-  const logHistory = useWorkspace((s) => s.logHistory);
+  const datasets = usePage((s) => s.datasets);
+  const cells = usePage((s) => s.cells);
+  const addCell = usePage((s) => s.addCell);
+  const showToast = usePage((s) => s.showToast);
+  const logHistory = usePage((s) => s.logHistory);
   const active = datasets.find((d) => d.active);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -137,12 +137,12 @@ export default function LlmDock() {
           `</div>`
         : '';
 
-      useWorkspace.getState().updateCell(id, {
+      usePage.getState().updateCell(id, {
         answer: { text: [html + dispatchedBlock] },
       });
     } catch (e) {
       const msg = (e as Error).message || 'unknown error';
-      useWorkspace.getState().updateCell(id, {
+      usePage.getState().updateCell(id, {
         answer: { text: [
           `<b style="color:#f87171">Claude endpoint error</b><br/>${htmlEscape(msg)}<br/><br/>` +
           `Checklist:<ul>` +
@@ -232,7 +232,7 @@ export default function LlmDock() {
 }
 
 async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promise<string> {
-  const store = useWorkspace.getState();
+  const store = usePage.getState();
   const input = tu.input || {};
 
   const needsDs = ['add_graph_cell', 'add_compute_cell', 'add_stat_cell',

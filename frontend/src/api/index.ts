@@ -1,7 +1,7 @@
 // Typed fetch wrappers for the H-Walker backend.
 // Contract mirrors backend/routers/{datasets,analyze,compute,stats,graphs,claude}.py.
 
-import type { Dataset } from '../store/workspace';
+import type { Dataset } from '../store/page';
 
 const BASE = '';
 

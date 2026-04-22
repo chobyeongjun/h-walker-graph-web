@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
 import { PlayCircle, FileText, GitCompare } from 'lucide-react';
@@ -20,21 +20,21 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Cell as CellModel } from '../store/workspace';
+import type { Cell as CellModel } from '../store/page';
 
 export default function Canvas() {
-  const cells = useWorkspace((s) => s.cells);
-  const pageTitle = useWorkspace((s) => s.pageTitle);
-  const setPageTitle = useWorkspace((s) => s.setPageTitle);
-  const runAll = useWorkspace((s) => s.runAll);
-  const runAllBusy = useWorkspace((s) => s.runAllBusy);
-  const reorderCells = useWorkspace((s) => s.reorderCells);
-  const globalPreset = useWorkspace((s) => s.globalPreset);
-  const pageTitleState = useWorkspace((s) => s.pageTitle);
-  const showToast = useWorkspace((s) => s.showToast);
-  const logHistory = useWorkspace((s) => s.logHistory);
-  const compareDatasets = useWorkspace((s) => s.compareDatasets);
-  const datasets = useWorkspace((s) => s.datasets);
+  const cells = usePage((s) => s.cells);
+  const pageTitle = usePage((s) => s.pageTitle);
+  const setPageTitle = usePage((s) => s.setPageTitle);
+  const runAll = usePage((s) => s.runAll);
+  const runAllBusy = usePage((s) => s.runAllBusy);
+  const reorderCells = usePage((s) => s.reorderCells);
+  const globalPreset = usePage((s) => s.globalPreset);
+  const pageTitleState = usePage((s) => s.pageTitle);
+  const showToast = usePage((s) => s.showToast);
+  const logHistory = usePage((s) => s.logHistory);
+  const compareDatasets = usePage((s) => s.compareDatasets);
+  const datasets = usePage((s) => s.datasets);
   const [paperBusy, setPaperBusy] = useState(false);
   const [compareBusy, setCompareBusy] = useState(false);
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 
 export default function Toast() {
-  const toast = useWorkspace((s) => s.toast);
+  const toast = usePage((s) => s.toast);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {

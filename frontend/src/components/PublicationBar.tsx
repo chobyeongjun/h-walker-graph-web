@@ -1,9 +1,9 @@
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { JOURNAL_PRESETS } from '../data/journalPresets';
 
 export default function PublicationBar() {
-  const preset = useWorkspace((s) => s.globalPreset);
-  const setPreset = useWorkspace((s) => s.setGlobalPreset);
+  const preset = usePage((s) => s.globalPreset);
+  const setPreset = usePage((s) => s.setGlobalPreset);
   const P = JOURNAL_PRESETS[preset];
 
   return (

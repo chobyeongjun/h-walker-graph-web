@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Cell } from '../../store/workspace';
-import { useWorkspace } from '../../store/workspace';
+import type { Cell } from '../../store/page';
+import { usePage } from '../../store/page';
 import { STAT_OPS, type StatResult } from '../../data/statOps';
 import { listStatMetrics, type StatsResponse, type MetricDescriptor } from '../../api';
 
@@ -9,10 +9,10 @@ interface Props { cell: Cell; }
 const BACKEND_OPS = ['ttest_paired', 'ttest_welch', 'anova1', 'pearson', 'cohens_d', 'shapiro'];
 
 export default function StatCell({ cell }: Props) {
-  const update = useWorkspace((s) => s.updateCell);
-  const runStat = useWorkspace((s) => s.runStat);
-  const showToast = useWorkspace((s) => s.showToast);
-  const allDatasets = useWorkspace((s) => s.datasets);
+  const update = usePage((s) => s.updateCell);
+  const runStat = usePage((s) => s.runStat);
+  const showToast = usePage((s) => s.showToast);
+  const allDatasets = usePage((s) => s.datasets);
   const hasDataset = !!cell.dsIds[0];
   const crossFile = (cell.statDatasetsA?.length || 0) > 0 || (cell.statDatasetsB?.length || 0) > 0;
   const canRunBackend = crossFile

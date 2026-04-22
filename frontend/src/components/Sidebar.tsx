@@ -1,5 +1,5 @@
 import { Home, History, BarChart3, Download, Settings } from 'lucide-react';
-import { useWorkspace, type DrawerKind } from '../store/workspace';
+import { usePage, type DrawerKind } from '../store/page';
 
 interface Item {
   icon: React.ReactNode;
@@ -8,7 +8,7 @@ interface Item {
 }
 
 const ITEMS: Item[] = [
-  { icon: <Home size={18} />, label: 'Workspace' },
+  { icon: <Home size={18} />, label: 'Page' },
   { icon: <History size={18} />, label: 'History', kind: 'history' },
   { icon: <BarChart3 size={18} />, label: 'Stats library', kind: 'stats' },
   { icon: <Download size={18} />, label: 'Exports', kind: 'exports' },
@@ -16,8 +16,8 @@ const ITEMS: Item[] = [
 ];
 
 export default function Sidebar() {
-  const drawer = useWorkspace((s) => s.drawer);
-  const openDrawer = useWorkspace((s) => s.openDrawer);
+  const drawer = usePage((s) => s.drawer);
+  const openDrawer = usePage((s) => s.openDrawer);
 
   return (
     <aside className="sidebar">

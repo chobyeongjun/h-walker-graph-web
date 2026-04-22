@@ -1,10 +1,10 @@
-import type { Cell } from '../../store/workspace';
-import { useWorkspace } from '../../store/workspace';
+import type { Cell } from '../../store/page';
+import { usePage } from '../../store/page';
 
 interface Props { cell: Cell; }
 
 export default function LlmCell({ cell }: Props) {
-  const showToast = useWorkspace((s) => s.showToast);
+  const showToast = usePage((s) => s.showToast);
   return (
     <>
       {cell.prompt && (

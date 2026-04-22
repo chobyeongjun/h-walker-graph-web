@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { saveMapping } from '../api';
 
 const ROLES = ['time', 'L force', 'R force', 'shank', 'thigh', 'force', 'group', '—'];
 
 export default function ColumnMapperModal() {
-  const open = useWorkspace((s) => s.mapperOpen);
-  const dsId = useWorkspace((s) => s.mapperDsId);
-  const datasets = useWorkspace((s) => s.datasets);
-  const close = useWorkspace((s) => s.closeMapper);
-  const showToast = useWorkspace((s) => s.showToast);
+  const open = usePage((s) => s.mapperOpen);
+  const dsId = usePage((s) => s.mapperDsId);
+  const datasets = usePage((s) => s.datasets);
+  const close = usePage((s) => s.closeMapper);
+  const showToast = usePage((s) => s.showToast);
   const ds = datasets.find((d) => d.id === dsId);
   const [mapping, setMapping] = useState<Record<string, string>>({});
 

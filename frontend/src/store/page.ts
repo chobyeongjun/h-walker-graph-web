@@ -85,7 +85,7 @@ export interface HistoryEntry {
   meta?: Record<string, unknown>;
 }
 
-interface WorkspaceState {
+interface PageState {
   cells: Cell[];
   datasets: Dataset[];
   currentPreset: string;
@@ -146,7 +146,7 @@ const nextCellId = () => {
   return `c${Date.now().toString(36)}${_cellSeq.toString(36)}`;
 };
 
-export const useWorkspace = create<WorkspaceState>()(
+export const usePage = create<PageState>()(
   persist(
     (set, get) => ({
       cells: SEED_CELLS,
@@ -604,7 +604,7 @@ export const useWorkspace = create<WorkspaceState>()(
       showToast: (msg) => set({ toast: { msg, id: ++_toastSeq } }),
     }),
     {
-      name: 'hw_workspace_v4',
+      name: 'hw_page_v1',
       // Strip live (non-serializable) state before persisting
       partialize: (s) => ({
         cells: s.cells.map((c) => {

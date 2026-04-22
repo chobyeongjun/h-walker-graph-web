@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useWorkspace } from './store/workspace';
+import { usePage } from './store/page';
 import TopNav from './components/TopNav';
 import Sidebar from './components/Sidebar';
 import PublicationBar from './components/PublicationBar';
@@ -11,9 +11,9 @@ import Toast from './components/Toast';
 import GlobalDropZone from './components/GlobalDropZone';
 
 export default function App() {
-  const closeDrawer = useWorkspace((s) => s.closeDrawer);
-  const closeMapper = useWorkspace((s) => s.closeMapper);
-  const focusCell = useWorkspace((s) => s.focusCell);
+  const closeDrawer = usePage((s) => s.closeDrawer);
+  const closeMapper = usePage((s) => s.closeMapper);
+  const focusCell = usePage((s) => s.focusCell);
 
   // Always use publication styling; body class kept for CSS hooks.
   useEffect(() => {

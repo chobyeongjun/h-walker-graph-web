@@ -1,11 +1,11 @@
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useWorkspace } from '../store/workspace';
+import { usePage } from '../store/page';
 import { GRAPH_TPLS } from '../data/graphTemplates';
 
 export default function FocusOverlay() {
-  const id = useWorkspace((s) => s.focusCellId);
-  const cells = useWorkspace((s) => s.cells);
-  const close = () => useWorkspace.getState().focusCell(null);
+  const id = usePage((s) => s.focusCellId);
+  const cells = usePage((s) => s.cells);
+  const close = () => usePage.getState().focusCell(null);
 
   if (!id) return null;
   const graphCells = cells.filter((c) => c.type === 'graph');
@@ -24,11 +24,11 @@ export default function FocusOverlay() {
             <div className="focus-sub">{tpl.ey}</div>
           </div>
           <div className="focus-nav">
-            <button disabled={idx <= 0} onClick={() => useWorkspace.getState().focusCell(graphCells[idx - 1]?.id || null)}>
+            <button disabled={idx <= 0} onClick={() => usePage.getState().focusCell(graphCells[idx - 1]?.id || null)}>
               <ChevronLeft size={14} />
             </button>
             <span className="count">{idx + 1} / {graphCells.length}</span>
-            <button disabled={idx >= graphCells.length - 1} onClick={() => useWorkspace.getState().focusCell(graphCells[idx + 1]?.id || null)}>
+            <button disabled={idx >= graphCells.length - 1} onClick={() => usePage.getState().focusCell(graphCells[idx + 1]?.id || null)}>
               <ChevronRight size={14} />
             </button>
             <button onClick={close}><X size={14} /></button>

@@ -61,7 +61,16 @@ export interface Dataset {
   analyzeError?: string;
 }
 
-export type DrawerKind = null | 'exports' | 'stats' | 'settings';
+export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings';
+
+export interface HistoryEntry {
+  id: string;
+  ts: number;                // unix ms
+  kind: 'upload' | 'apply' | 'add' | 'remove' | 'run' | 'preset' | 'chat' | 'tool';
+  label: string;
+  actor: 'you' | 'Claude';
+  meta?: Record<string, unknown>;
+}
 
 interface WorkspaceState {
   cells: Cell[];
@@ -69,6 +78,7 @@ interface WorkspaceState {
   currentPreset: string;
   globalPreset: string;
   pageTitle: string;
+  history: HistoryEntry[];
   drawer: DrawerKind;
   focusCellId: string | null;
   cmdkOpen: boolean;
@@ -109,6 +119,9 @@ interface WorkspaceState {
   toggleHelp: (v?: boolean) => void;
   focusCell: (id: string | null) => void;
   showToast: (msg: string) => void;
+
+  logHistory: (entry: Omit<HistoryEntry, 'id' | 'ts'>) => void;
+  clearHistory: () => void;
 }
 
 let _toastSeq = 0;
@@ -126,6 +139,7 @@ export const useWorkspace = create<WorkspaceState>()(
       currentPreset: 'ieee',
       globalPreset: 'ieee',
       pageTitle: 'Pilot subject 03 · Treadmill 0.8 m/s',
+      history: [],
       drawer: null,
       focusCellId: null,
       cmdkOpen: false,
@@ -134,6 +148,18 @@ export const useWorkspace = create<WorkspaceState>()(
       helpOpen: false,
       toast: null,
       runAllBusy: false,
+
+      logHistory: (entry) => set((s) => {
+        const next: HistoryEntry = {
+          id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          ts: Date.now(),
+          ...entry,
+        };
+        // Keep the most recent 200 entries
+        const history = [next, ...s.history].slice(0, 200);
+        return { history };
+      }),
+      clearHistory: () => set({ history: [] }),
 
       addCell: (c, at) => set((s) => {
         const cells = [...s.cells];
@@ -169,8 +195,22 @@ export const useWorkspace = create<WorkspaceState>()(
         return { cells };
       }),
 
-      addDataset: (d) => set((s) => ({ datasets: [...s.datasets, d] })),
-      removeDataset: (id) => set((s) => ({ datasets: s.datasets.filter((d) => d.id !== id) })),
+      addDataset: (d) => {
+        set((s) => ({ datasets: [...s.datasets, d] }));
+        get().logHistory({
+          kind: 'upload', actor: 'you',
+          label: `Imported ${d.name} (${d.rows.toLocaleString()} rows, ${d.kind})`,
+          meta: { dsId: d.id, kind: d.kind },
+        });
+      },
+      removeDataset: (id) => {
+        const d = get().datasets.find((x) => x.id === id);
+        set((s) => ({ datasets: s.datasets.filter((x) => x.id !== id) }));
+        if (d) get().logHistory({
+          kind: 'remove', actor: 'you',
+          label: `Removed dataset ${d.name}`,
+        });
+      },
       setActiveDataset: (id) => set((s) => ({
         datasets: s.datasets.map((d) => ({ ...d, active: d.id === id })),
       })),
@@ -241,6 +281,11 @@ export const useWorkspace = create<WorkspaceState>()(
           }
         }
         set((s) => ({ cells: [...s.cells, ...newCells] }));
+        get().logHistory({
+          kind: 'apply', actor: 'you',
+          label: `Applied ${newCells.length} recipe cells for ${ds.name}`,
+          meta: { dsId, count: newCells.length },
+        });
 
         await analyzePromise;
 
@@ -331,10 +376,13 @@ export const useWorkspace = create<WorkspaceState>()(
         set({ runAllBusy: true });
         try {
           const cells = get().cells.filter((c) => c.type !== 'llm' && c.dsIds[0]);
-          // Warm analyzer caches for every dataset referenced first
           const dsIds = Array.from(new Set(cells.flatMap((c) => c.dsIds))).filter(Boolean);
           await Promise.all(dsIds.map((id) => get().analyzeIfNeeded(id)));
           await Promise.all(cells.map((c) => get().runCell(c.id)));
+          get().logHistory({
+            kind: 'run', actor: 'you',
+            label: `Ran ALL · ${cells.length} cells across ${dsIds.length} datasets`,
+          });
           get().showToast(`Ran ${cells.length} cells across ${dsIds.length} datasets`);
         } finally {
           set({ runAllBusy: false });
@@ -342,7 +390,17 @@ export const useWorkspace = create<WorkspaceState>()(
       },
 
       setCurrentPreset: (p) => set({ currentPreset: p }),
-      setGlobalPreset: (p) => set({ globalPreset: p, currentPreset: p }),
+      setGlobalPreset: (p) => {
+        const prev = get().globalPreset;
+        set({ globalPreset: p, currentPreset: p });
+        if (prev !== p) {
+          get().logHistory({
+            kind: 'preset', actor: 'you',
+            label: `Journal preset → ${p.toUpperCase()}`,
+            meta: { from: prev, to: p },
+          });
+        }
+      },
       setPageTitle: (t) => set({ pageTitle: t }),
 
       openDrawer: (k) => set({ drawer: k }),
@@ -372,6 +430,7 @@ export const useWorkspace = create<WorkspaceState>()(
         currentPreset: s.currentPreset,
         globalPreset: s.globalPreset,
         pageTitle: s.pageTitle,
+        history: s.history,
       }),
     },
   ),

@@ -9,6 +9,7 @@ export default function LlmDock() {
   const cells = useWorkspace((s) => s.cells);
   const addCell = useWorkspace((s) => s.addCell);
   const showToast = useWorkspace((s) => s.showToast);
+  const logHistory = useWorkspace((s) => s.logHistory);
   const active = datasets.find((d) => d.active);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +34,22 @@ export default function LlmDock() {
       answer: { text: ['<em>Thinking…</em>'] },
     };
     addCell(optimistic);
+    logHistory({
+      kind: 'chat', actor: 'you',
+      label: `Asked: "${prompt.slice(0, 100)}${prompt.length > 100 ? '…' : ''}"`,
+      meta: { prompt },
+    });
+
+    // Build the prior conversation as message pairs so Claude has multi-
+    // turn memory. Each existing llm cell contributes one (user, assistant)
+    // pair — answer text has HTML stripped to stay within token budget.
+    const priorLlm = cells.filter((c) => c.type === 'llm' && c.prompt);
+    const priorTurns = priorLlm.slice(-6).flatMap<{ role: 'user' | 'assistant'; content: string }>((c) => {
+      const userTurn = { role: 'user' as const, content: c.prompt || '' };
+      const txt = (c.answer?.text || []).join('\n').replace(/<[^>]+>/g, '').trim();
+      if (!txt || txt === '(no prose reply)' || txt === '(empty response)') return [userTurn];
+      return [userTurn, { role: 'assistant' as const, content: txt }];
+    });
 
     try {
       const resp = await claudeComplete({
@@ -40,6 +57,7 @@ export default function LlmDock() {
         context: {
           cells: cells.map((c) => ({ id: c.id, type: c.type, graph: c.graph, op: c.op, metric: c.metric })),
           active_dataset_id: active?.id ?? null,
+          history: priorTurns,
         },
       });
 
@@ -50,10 +68,27 @@ export default function LlmDock() {
           try {
             const label = await dispatchTool(tu, active?.id ?? null);
             dispatched.push(label);
+            logHistory({
+              kind: 'tool', actor: 'Claude',
+              label: `Tool · ${tu.name} → ${label}`,
+              meta: { tool: tu.name, input: tu.input },
+            });
           } catch (e) {
-            dispatched.push(`❌ ${tu.name}: ${(e as Error).message}`);
+            const err = (e as Error).message;
+            dispatched.push(`❌ ${tu.name}: ${err}`);
+            logHistory({
+              kind: 'tool', actor: 'Claude',
+              label: `Tool · ${tu.name} failed: ${err}`,
+            });
           }
         }
+      }
+      if (txt) {
+        logHistory({
+          kind: 'chat', actor: 'Claude',
+          label: `Replied: "${txt.slice(0, 100)}${txt.length > 100 ? '…' : ''}"`,
+          meta: { reply: txt },
+        });
       }
 
       const html = txt

@@ -1,6 +1,17 @@
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../store/workspace';
 import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
+
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return new Date(ts).toLocaleString();
+}
 
 const FMT_MAP: Record<string, { fmt: string; variant: string }> = {
   svg: { fmt: 'svg', variant: 'col2' },
@@ -38,6 +49,8 @@ export default function Drawer() {
   const showToast = useWorkspace((s) => s.showToast);
   const cells = useWorkspace((s) => s.cells);
   const preset = useWorkspace((s) => s.globalPreset);
+  const history = useWorkspace((s) => s.history);
+  const clearHistory = useWorkspace((s) => s.clearHistory);
 
   if (!kind) return null;
 
@@ -56,12 +69,14 @@ export default function Drawer() {
         <header className="drawer-head">
           <div>
             <div className="ey">
-              {kind === 'exports' ? 'Export to publication'
+              {kind === 'history' ? 'Activity timeline'
+                : kind === 'exports' ? 'Export to publication'
                 : kind === 'stats' ? 'Statistical tests'
                 : 'Preferences'}
             </div>
             <h2>
-              {kind === 'exports' ? 'Exports'
+              {kind === 'history' ? 'History'
+                : kind === 'exports' ? 'Exports'
                 : kind === 'stats' ? 'Stats library'
                 : 'Settings'}
             </h2>
@@ -70,6 +85,46 @@ export default function Drawer() {
         </header>
 
         <div className="drawer-body">
+          {kind === 'history' && (
+            <>
+              {history.length === 0 ? (
+                <div style={{ padding: 20, color: '#6B7280', fontSize: 12, fontStyle: 'italic' }}>
+                  No activity yet. Upload a CSV to begin — every action
+                  (uploads, recipes applied, chat messages, preset changes,
+                  RUN ALL) will appear here.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 0 10px' }}>
+                    <button
+                      onClick={() => { if (confirm('Clear all history?')) clearHistory(); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.3)',
+                        color: '#f87171', padding: '4px 10px', borderRadius: 6,
+                        font: '600 10.5px/1 Pretendard,sans-serif', cursor: 'pointer',
+                      }}
+                    >
+                      <Trash2 size={11} /> Clear
+                    </button>
+                  </div>
+                  {history.map((h) => (
+                    <div key={h.id} className="hst-item">
+                      <div className={`hst-dot hst-${h.kind}`} />
+                      <div>
+                        <div className="hst-title">{h.label}</div>
+                        <div className="hst-sub">
+                          {h.actor} · {relativeTime(h.ts)} · <span style={{ color: '#A78BFA' }}>{h.kind}</span>
+                        </div>
+                      </div>
+                      <div className="hst-line" />
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
           {kind === 'stats' && STATS_LIB.map((s, i) => (
             <div key={i} className="slib-item" onClick={() => {
               addCell({

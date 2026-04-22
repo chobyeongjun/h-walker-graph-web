@@ -228,7 +228,11 @@ export interface ToolUseBlock {
 
 export interface ClaudeCompleteRequest {
   prompt: string;
-  context: { cells: unknown[]; active_dataset_id: string | null };
+  context: {
+    cells: unknown[];
+    active_dataset_id: string | null;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  };
 }
 
 export interface ClaudeCompleteResponse {

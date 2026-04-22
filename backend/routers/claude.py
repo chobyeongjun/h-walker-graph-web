@@ -33,9 +33,16 @@ from backend.services.config import (
 router = APIRouter(prefix="/api/claude", tags=["claude"])
 
 
+class ClaudeTurn(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class ClaudeContext(BaseModel):
     cells: list[dict[str, Any]] = []
     active_dataset_id: Optional[str] = None
+    # Phase 2G: multi-turn memory — prior user/assistant exchanges.
+    history: list[ClaudeTurn] = []
 
 
 class ClaudeCompleteRequest(BaseModel):
@@ -212,7 +219,20 @@ def complete(req: ClaudeCompleteRequest) -> ClaudeCompleteResponse:
         ) from exc
 
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    # Multi-turn memory: prior user/assistant pairs first, then the new
+    # user message with the freshest workspace snapshot prepended.
+    messages: list[dict[str, Any]] = []
+    for turn in req.context.history:
+        role = "user" if turn.role == "user" else "assistant"
+        content = (turn.content or "").strip()
+        if content:
+            messages.append({"role": role, "content": content})
+
+    # Final user turn carries the workspace context block so Claude always
+    # sees the current state of the canvas + active dataset.
     user_msg = f"{_context_block(req.context)}\n\nUser: {req.prompt}"
+    messages.append({"role": "user", "content": user_msg})
 
     try:
         msg = client.messages.create(
@@ -220,7 +240,7 @@ def complete(req: ClaudeCompleteRequest) -> ClaudeCompleteResponse:
             max_tokens=ANTHROPIC_MAX_TOKENS,
             system=SYSTEM,
             tools=TOOLS,
-            messages=[{"role": "user", "content": user_msg}],
+            messages=messages,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Anthropic API: {exc}") from exc

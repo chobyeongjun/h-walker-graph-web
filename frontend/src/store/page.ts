@@ -6,8 +6,9 @@ import { SEED_DATASETS } from '../data/seedDatasets';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import {
   analyzeDataset, computeMetric, renderGraph, runStats, updateDatasetMeta,
+  discoverStudy, analyzeStudy, listStudies,
   type ComputeMetricKey, type StatOpKey, type StatsResponse, type ComputeResponse,
-  type AnalyzeResponse, type AnalysisPayload,
+  type AnalyzeResponse, type AnalysisPayload, type Study, type StudySummary
 } from '../api';
 
 export type CellType = 'graph' | 'stat' | 'compute' | 'llm';
@@ -74,7 +75,7 @@ export interface Dataset {
   analyzeError?: string;
 }
 
-export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings';
+export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings' | 'study';
 
 export interface HistoryEntry {
   id: string;
@@ -88,6 +89,8 @@ export interface HistoryEntry {
 interface PageState {
   cells: Cell[];
   datasets: Dataset[];
+  studies: Study[];
+  studyResults: Record<string, StudySummary>;
   currentPreset: string;
   globalPreset: string;
   pageTitle: string;
@@ -122,6 +125,9 @@ interface PageState {
   runAll: () => Promise<void>;
   compareDatasets: () => Promise<void>;
 
+  discoverAndRunStudy: (directory: string, name: string) => Promise<void>;
+  listLocalStudies: () => Promise<void>;
+
   setCurrentPreset: (p: string) => void;
   setGlobalPreset: (p: string) => void;
   setPageTitle: (t: string) => void;
@@ -151,6 +157,8 @@ export const usePage = create<PageState>()(
     (set, get) => ({
       cells: SEED_CELLS,
       datasets: SEED_DATASETS,
+      studies: [],
+      studyResults: {},
       currentPreset: 'ieee',
       globalPreset: 'ieee',
       pageTitle: 'Pilot subject 03 · Treadmill 0.8 m/s',
@@ -560,6 +568,35 @@ export const usePage = create<PageState>()(
 
         // Fire in parallel
         await Promise.all(newCells.map((c) => get().runCell(c.id)));
+      },
+
+      discoverAndRunStudy: async (directory, name) => {
+        try {
+          const study = await discoverStudy(directory, name);
+          set((s) => ({ studies: [...s.studies, study] }));
+          get().showToast(`Discovered ${study.files.length} files in ${name}`);
+          
+          const summary = await analyzeStudy(study.id);
+          set((s) => ({ studyResults: { ...s.studyResults, [study.id]: summary } }));
+          
+          // Add a new cell to show the report
+          const cellId = nextCellId();
+          get().addCell({
+            id: cellId,
+            type: 'llm', // Using LLM cell for markdown report for now
+            title: `Study Report: ${name}`,
+            answer: { text: [summary.report_md] },
+            dsIds: study.files.map(f => f.id)
+          });
+          get().showToast(`Study analysis complete: ${name}`);
+        } catch (e) {
+          get().showToast(`Study error: ${(e as Error).message}`);
+        }
+      },
+
+      listLocalStudies: async () => {
+        const studies = await listStudies();
+        set({ studies });
       },
 
       runAll: async () => {

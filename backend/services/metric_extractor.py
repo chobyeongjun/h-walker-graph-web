@@ -122,6 +122,38 @@ def fatigue_R(res: AnalysisResult) -> list[float]:
     return _scalar_or_empty(res.right_fatigue)
 
 
+def foot_pitch_rom_L(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.left_kinematics.rom)
+
+
+def foot_pitch_rom_R(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.right_kinematics.rom)
+
+
+def foot_pitch_max_L(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.left_kinematics.peak_max)
+
+
+def foot_pitch_max_R(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.right_kinematics.peak_max)
+
+
+def foot_pitch_min_L(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.left_kinematics.peak_min)
+
+
+def foot_pitch_min_R(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.right_kinematics.peak_min)
+
+
+def force_bias_L(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.left_force_tracking.bias)
+
+
+def force_bias_R(res: AnalysisResult) -> list[float]:
+    return _scalar_or_empty(res.right_force_tracking.bias)
+
+
 # ============================================================
 # Array (full per-stride vector — for within-subject variability tests)
 # ============================================================
@@ -194,6 +226,14 @@ METRIC_EXTRACTORS: dict[str, MetricFn] = {
     "symmetry_stance":        symmetry_stance,
     "fatigue_L":           fatigue_L,
     "fatigue_R":           fatigue_R,
+    "foot_pitch_rom_L":    foot_pitch_rom_L,
+    "foot_pitch_rom_R":    foot_pitch_rom_R,
+    "foot_pitch_max_L":    foot_pitch_max_L,
+    "foot_pitch_max_R":    foot_pitch_max_R,
+    "foot_pitch_min_L":    foot_pitch_min_L,
+    "foot_pitch_min_R":    foot_pitch_min_R,
+    "force_bias_L":        force_bias_L,
+    "force_bias_R":        force_bias_R,
     # Array — per-stride vectors
     "stride_times_L":           stride_times_L,
     "stride_times_R":           stride_times_R,
@@ -230,6 +270,14 @@ def describe_metric(key: str) -> dict[str, Any]:
         "symmetry_stance":         {"label": "Symmetry · stance",        "unit": "%",   "side": "-", "kind": "symmetry"},
         "fatigue_L":               {"label": "Fatigue · L",              "unit": "%",   "side": "L", "kind": "temporal"},
         "fatigue_R":               {"label": "Fatigue · R",              "unit": "%",   "side": "R", "kind": "temporal"},
+        "foot_pitch_rom_L":        {"label": "Foot Pitch ROM · L",       "unit": "°",   "side": "L", "kind": "kinematic"},
+        "foot_pitch_rom_R":        {"label": "Foot Pitch ROM · R",       "unit": "°",   "side": "R", "kind": "kinematic"},
+        "foot_pitch_max_L":        {"label": "Foot Pitch Max · L",       "unit": "°",   "side": "L", "kind": "kinematic"},
+        "foot_pitch_max_R":        {"label": "Foot Pitch Max · R",       "unit": "°",   "side": "R", "kind": "kinematic"},
+        "foot_pitch_min_L":        {"label": "Foot Pitch Min · L",       "unit": "°",   "side": "L", "kind": "kinematic"},
+        "foot_pitch_min_R":        {"label": "Foot Pitch Min · R",       "unit": "°",   "side": "R", "kind": "kinematic"},
+        "force_bias_L":            {"label": "Force Bias · L",           "unit": "N",   "side": "L", "kind": "control"},
+        "force_bias_R":            {"label": "Force Bias · R",           "unit": "N",   "side": "R", "kind": "control"},
         "stride_times_L":          {"label": "Stride times (all) · L",   "unit": "s",   "side": "L", "kind": "array"},
         "stride_times_R":          {"label": "Stride times (all) · R",   "unit": "s",   "side": "R", "kind": "array"},
         "stride_lengths_L":        {"label": "Stride lengths (all) · L", "unit": "m",   "side": "L", "kind": "array"},

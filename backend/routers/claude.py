@@ -191,6 +191,22 @@ TOOLS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "analyze_study",
+        "description": (
+            "Batch analyze a group of CSV files in a local directory. "
+            "Discovers the study, groups files by condition/subject, "
+            "runs full analysis, and generates a research summary report."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "directory": {"type": "string", "description": "Absolute path to the folder containing CSVs."},
+                "name":      {"type": "string", "description": "Display name for the study."}
+            },
+            "required": ["directory", "name"],
+        },
+    },
 ]
 
 
@@ -214,7 +230,11 @@ SYSTEM = (
     "  ROM 바                                          → rom_bar\n"
     "  stance/swing %                                  → stance_swing_bar\n"
     "  대칭성 radar                                    → symmetry_radar\n"
-    "  디버깅 · raw 시계열 · 어디서 이상한가            → debug_ts\n\n"
+    "  디버깅 · raw 시계열 · 어디서 이상한가            → debug_ts\n"
+    "  연구 자동화 · 배치 분석 · 폴더 내 모든 파일 분석    → analyze_study\n\n"
+    "You now have access to advanced biomechanical metrics (using foot-mounted IMU):\n"
+    "  - Foot Pitch ROM: Range of motion of the foot instep during gait.\n"
+    "  - Force Bias: Mean tracking error (Act - Des). Positive means robot provides more force than target.\n\n"
     "When the user asks a CONCEPTUAL or QUANTITATIVE question about existing "
     "data, reply in ≤3 sentences with specific numbers if you can read them "
     "from context. You MAY both call tools AND reply with a short confirmation "
@@ -248,10 +268,12 @@ def _context_block(ctx: ClaudeContext) -> str:
                     f"  · {d.get('name', d.get('id'))}{tag}: "
                     f"{d.get('duration_s', '?')}s @ {d.get('sample_rate', '?')}Hz, "
                     f"L={L.get('n_strides', 0)} strides "
-                    f"(cadence {L.get('cadence', 0):.1f}, stride_T {L.get('stride_time_mean', 0):.3f}s "
-                    f"CV {L.get('stride_time_cv', 0):.1f}%, Force RMSE {L.get('force_rmse', 0):.2f}N), "
+                    f"(cadence {L.get('cadence', 0):.1f}, stride_T {L.get('stride_time_mean', 0):.3f}s, "
+                    f"Joint ROM {L.get('joint', {}).get('rom', 0):.1f}°, "
+                    f"Force Bias {L.get('force_tracking', {}).get('bias', 0):.2f}N), "
                     f"R={R.get('n_strides', 0)} strides "
-                    f"(cadence {R.get('cadence', 0):.1f}, Force RMSE {R.get('force_rmse', 0):.2f}N), "
+                    f"(Joint ROM {R.get('joint', {}).get('rom', 0):.1f}°, "
+                    f"Force Bias {R.get('force_tracking', {}).get('bias', 0):.2f}N), "
                     f"symmetry stride_T {sym.get('stride_time', 0):.1f}% "
                     f"force {sym.get('force', 0):.1f}%, "
                     f"fatigue L {fat.get('left_pct_change', 0):+.1f}% R {fat.get('right_pct_change', 0):+.1f}%"

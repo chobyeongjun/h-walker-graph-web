@@ -761,7 +761,6 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   background:rgba(11,14,46,.82);
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   display:flex;align-items:center;justify-content:center;
-  pointer-events:none;
   animation:gd-fade .12s var(--hw-ease);
 }
 @keyframes gd-fade{from{opacity:0}to{opacity:1}}

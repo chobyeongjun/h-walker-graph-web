@@ -132,3 +132,27 @@ class PlotlyTrace(BaseModel):
 class PlotlyResponse(BaseModel):
     data: list[dict]
     layout: dict
+
+
+class StudyFile(BaseModel):
+    id: str
+    name: str
+    path: str
+    subject_id: Optional[str] = None
+    condition: Optional[str] = None
+    group: Optional[str] = None
+
+
+class Study(BaseModel):
+    id: str
+    name: str
+    files: list[StudyFile] = Field(default_factory=list)
+
+
+class StudySummary(BaseModel):
+    study_id: str
+    study_name: str
+    file_summaries: list[dict]
+    comparison: dict
+    report_md: str
+    report_latex: Optional[str] = None

@@ -42,6 +42,7 @@ class ForceTrackingResult:
     peak_error: float = 0.0
     rmse_per_stride: np.ndarray = field(default_factory=lambda: np.array([]))
     mae_per_stride: np.ndarray = field(default_factory=lambda: np.array([]))
+    bias: float = 0.0  # Mean tracking error (Act - Des)
 
 
 @dataclass
@@ -63,6 +64,17 @@ class StrideResult:
     n_strides: int = 0
     hs_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
     valid_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
+
+
+@dataclass
+class KinematicResult:
+    """Kinematics for a specific segment (e.g. Foot Pitch)."""
+    angles: np.ndarray = field(default_factory=lambda: np.array([]))  # Filtered angles
+    rom: float = 0.0          # Range of Motion (Max - Min)
+    peak_max: float = 0.0
+    peak_min: float = 0.0
+    mean_angle: float = 0.0
+    std_angle: float = 0.0
 
 
 @dataclass
@@ -96,6 +108,10 @@ class AnalysisResult:
     # Force profiles (GCP-normalized)
     left_force_profile: ForceProfileResult = field(default_factory=ForceProfileResult)
     right_force_profile: ForceProfileResult = field(default_factory=ForceProfileResult)
+
+    # Joint kinematics
+    left_kinematics: KinematicResult = field(default_factory=KinematicResult)
+    right_kinematics: KinematicResult = field(default_factory=KinematicResult)
 
     # Symmetry indices (%)
     stride_time_symmetry: float = 0.0
@@ -349,6 +365,30 @@ def _compute_force_tracking(df: pd.DataFrame, side: str,
         peak_error=float(np.max(np.abs(all_errors))),
         rmse_per_stride=np.array(rmse_list),
         mae_per_stride=np.array(mae_list),
+        bias=float(np.mean(all_errors)),
+    )
+
+
+def _compute_kinematics(df: pd.DataFrame, side: str) -> KinematicResult:
+    """Compute segment kinematics (ROM and peaks) from Pitch column.
+    NOTE: If sensor is on foot instep, this represents Foot Pitch (Ankle-ish) ROM.
+    """
+    pitch_col = f'{side}_Pitch'
+    if pitch_col not in df.columns:
+        return KinematicResult()
+
+    angles = df[pitch_col].values.astype(np.float64)
+    valid = angles[np.isfinite(angles)]
+    if len(valid) < 10:
+        return KinematicResult()
+
+    return KinematicResult(
+        angles=angles,
+        rom=float(np.ptp(valid)),
+        peak_max=float(np.max(valid)),
+        peak_min=float(np.min(valid)),
+        mean_angle=float(np.mean(valid)),
+        std_angle=float(np.std(valid)),
     )
 
 
@@ -545,6 +585,13 @@ def analyze_file(filepath: str, analyses: list[str] = None) -> AnalysisResult:
             if fp.individual is not None:
                 print(f"    {side} Profiles: {fp.individual.shape[0]} strides resampled")
 
+        # Joint kinematics
+        if run_imu:
+            kr = _compute_kinematics(df, side)
+            setattr(result, f"{side.lower()}_kinematics", kr)
+            if kr.rom > 0:
+                print(f"    {side} Kinematics: ROM={kr.rom:.1f}°, Max={kr.peak_max:.1f}°, Min={kr.peak_min:.1f}°")
+
     # Symmetry indices
     ls, rs = result.left_stride, result.right_stride
     result.stride_time_symmetry = _symmetry_index(ls.stride_time_mean, rs.stride_time_mean)
@@ -621,9 +668,9 @@ def result_to_dict(r: AnalysisResult) -> dict:
         },
     }
 
-    for side_name, sr, ft in [
-        ('left', r.left_stride, r.left_force_tracking),
-        ('right', r.right_stride, r.right_force_tracking),
+    for side_name, sr, ft, kr in [
+        ('left', r.left_stride, r.left_force_tracking, r.left_kinematics),
+        ('right', r.right_stride, r.right_force_tracking, r.right_kinematics),
     ]:
         d[side_name] = {
             'n_strides': sr.n_strides,
@@ -641,6 +688,13 @@ def result_to_dict(r: AnalysisResult) -> dict:
                 'rmse': round(ft.rmse, 3),
                 'mae': round(ft.mae, 3),
                 'peak_error': round(ft.peak_error, 3),
+                'bias': round(ft.bias, 3),
+            },
+            'joint': {
+                'rom': round(kr.rom, 2),
+                'peak_max': round(kr.peak_max, 2),
+                'peak_min': round(kr.peak_min, 2),
+                'mean_angle': round(kr.mean_angle, 2),
             },
         }
 

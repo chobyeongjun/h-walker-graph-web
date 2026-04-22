@@ -335,3 +335,40 @@ export const claudeComplete = (req: ClaudeCompleteRequest) =>
 
 export const claudeHealth = () =>
   json<{ provider: string; model: string; key_present: boolean }>('/api/claude/health');
+
+
+// ============================================================
+// Study (POST /api/study/discover, GET /api/study/{id}/analyze)
+// ============================================================
+
+export interface StudyFile {
+  id: string;
+  name: string;
+  path: string;
+  subject_id?: string;
+  condition?: string;
+  group?: string;
+}
+
+export interface Study {
+  id: string;
+  name: string;
+  files: StudyFile[];
+}
+
+export interface StudySummary {
+  study_id: string;
+  study_name: string;
+  file_summaries: any[];
+  comparison: any;
+  report_md: string;
+}
+
+export const discoverStudy = (directory: string, name?: string) =>
+  json<Study>(`/api/study/discover?directory=${encodeURIComponent(directory)}&name=${encodeURIComponent(name || '')}`, { method: 'POST' });
+
+export const analyzeStudy = (id: string) =>
+  json<StudySummary>(`/api/study/${id}/analyze`);
+
+export const listStudies = () =>
+  json<Study[]>('/api/study/list');

@@ -3,6 +3,7 @@ import { X, Trash2, Download, Upload, RefreshCw, RotateCcw, Save, FolderOpen } f
 import { usePage } from '../store/page';
 import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
 import { claudeHealth } from '../api';
+import StudyPanel from './StudyPanel';
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
@@ -74,12 +75,14 @@ export default function Drawer() {
               {kind === 'history' ? 'Activity timeline'
                 : kind === 'exports' ? 'Export to publication'
                 : kind === 'stats' ? 'Statistical tests'
+                : kind === 'study' ? 'Research automation'
                 : 'Preferences'}
             </div>
             <h2>
               {kind === 'history' ? 'History'
                 : kind === 'exports' ? 'Exports'
                 : kind === 'stats' ? 'Stats library'
+                : kind === 'study' ? 'Study'
                 : 'Settings'}
             </h2>
           </div>
@@ -190,6 +193,7 @@ export default function Drawer() {
           )}
 
           {kind === 'settings' && <SettingsPanel />}
+          {kind === 'study' && <StudyPanel />}
         </div>
 
         <footer className="drawer-foot">

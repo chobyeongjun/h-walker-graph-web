@@ -323,6 +323,13 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
       return 'RUN PAPER button not found';
     }
 
+    case 'analyze_study': {
+      const dir = String(input.directory || '');
+      const name = String(input.name || 'Auto Study');
+      store.discoverAndRunStudy(dir, name);
+      return `Study processing started: ${name} (${dir})`;
+    }
+
     default:
       throw new Error(`unknown tool '${tu.name}'`);
   }

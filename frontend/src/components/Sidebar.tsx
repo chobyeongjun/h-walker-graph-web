@@ -1,4 +1,4 @@
-import { Home, History, BarChart3, Download, Settings } from 'lucide-react';
+import { Home, BarChart3, Download, Settings } from 'lucide-react';
 import { useWorkspace, type DrawerKind } from '../store/workspace';
 
 interface Item {
@@ -9,7 +9,6 @@ interface Item {
 
 const ITEMS: Item[] = [
   { icon: <Home size={18} />, label: 'Workspace' },
-  { icon: <History size={18} />, label: 'History', kind: 'history' },
   { icon: <BarChart3 size={18} />, label: 'Stats library', kind: 'stats' },
   { icon: <Download size={18} />, label: 'Exports', kind: 'exports' },
   { icon: <Settings size={18} />, label: 'Settings', kind: 'settings' },

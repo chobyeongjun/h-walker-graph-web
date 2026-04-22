@@ -172,6 +172,7 @@ export interface RenderGraphRequest {
   colorblind_safe?: boolean;
   keep_palette?: boolean;
   dataset_id?: string;   // when set + template supports binding → real data
+  title?: string;        // optional in-figure title; empty = caption-only
 }
 
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {

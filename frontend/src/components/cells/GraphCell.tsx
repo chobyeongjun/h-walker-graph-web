@@ -9,7 +9,6 @@ interface Props { cell: Cell; }
 
 export default function GraphCell({ cell }: Props) {
   const globalPreset = useWorkspace((s) => s.globalPreset);
-  const mode = useWorkspace((s) => s.mode);
   const updateCell = useWorkspace((s) => s.updateCell);
   const showToast = useWorkspace((s) => s.showToast);
   const runPreview = useWorkspace((s) => s.runPreview);
@@ -19,11 +18,9 @@ export default function GraphCell({ cell }: Props) {
   const activeKey =
     cell.strideAvg && cell.graph === 'force' && GRAPH_TPLS.force_avg ? 'force_avg' : cell.graph;
   const tpl = GRAPH_TPLS[activeKey || 'force'];
-  const preset = cell.preset || globalPreset;
+  const preset = globalPreset;
   const P = JOURNAL_PRESETS[preset];
-  const isOverride = !!cell.preset;
   const canToggleAvg = cell.graph === 'force' || cell.graph === 'force_avg';
-  const pubActive = mode === 'pub' || isOverride;
   const palette = P?.paletteColor?.length ? P.paletteColor : P?.palette || [];
   const hasDataset = !!cell.dsIds[0];
 
@@ -34,15 +31,14 @@ export default function GraphCell({ cell }: Props) {
     }
   }, [hasDataset, cell.previewBlobUrl, cell.loading, cell.error, cell.id, runPreview]);
 
-  // Re-run when the graph template, preset, or strideAvg changes (debounced via effect).
+  // Re-run when the graph template, global preset, strideAvg, or title changes.
   useEffect(() => {
     if (!hasDataset) return;
     const h = setTimeout(() => { runPreview(cell.id); }, 180);
     return () => clearTimeout(h);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cell.graph, cell.preset, cell.strideAvg]);
+  }, [cell.graph, cell.strideAvg, cell.title, globalPreset]);
 
-  // Fetch inline SVG text when blob URL changes — so we can adapt viewport to plot box.
   useEffect(() => {
     if (!cell.previewBlobUrl) { setSvgInline(null); return; }
     let cancelled = false;
@@ -62,6 +58,7 @@ export default function GraphCell({ cell }: Props) {
         format: fmt,
         stride_avg: !!cell.strideAvg,
         dataset_id: cell.dsIds[0],
+        title: cell.title || '',
       });
       const w = variant === 'col1' ? P?.col1.w : (variant === 'onehalf' ? P?.onehalf?.w ?? P?.col2.w : P?.col2.w);
       downloadBlob(blob, `${cell.id}_${activeKey}_${preset}_${Math.round(w || 0)}mm.${fmt}`);
@@ -93,20 +90,6 @@ export default function GraphCell({ cell }: Props) {
             ))}
           </select>
         </div>
-        <div className="gt-field">
-          <span className="gt-lbl">Journal</span>
-          <select
-            className="gt-sel"
-            value={preset}
-            data-overriden={isOverride}
-            onChange={(e) => updateCell(cell.id, { preset: e.target.value })}
-          >
-            {Object.entries(JOURNAL_PRESETS).map(([k, v]) => (
-              <option key={k} value={k}>{v.name}</option>
-            ))}
-          </select>
-          {isOverride && <span className="gt-override">override</span>}
-        </div>
         {canToggleAvg && (
           <label className="gt-toggle">
             <input
@@ -128,7 +111,9 @@ export default function GraphCell({ cell }: Props) {
             {cell.loading ? '…' : '⟳ Run'}
           </button>
         )}
-        <span className="gt-meta">{P?.col2.w}mm · {P?.dpi} dpi · {P?.sizes.body}pt</span>
+        <span className="gt-meta">
+          {P?.name} · {P?.col2.w}mm · {P?.dpi}dpi · {P?.sizes.body}pt {P?.font}
+        </span>
         <div className="gt-export">
           <button className="gt-btn" onClick={() => setMenuOpen((v) => !v)}>Export ▾</button>
           {menuOpen && (
@@ -151,14 +136,14 @@ export default function GraphCell({ cell }: Props) {
       </div>
 
       <div
-        className={`plot${pubActive ? ' preset-pub' : ''}${cell.loading ? ' plot-loading' : ''}`}
-        style={pubActive ? ({
+        className={`plot preset-pub${cell.loading ? ' plot-loading' : ''}`}
+        style={{
           ['--pub-font' as never]: `'${P?.font}', ${P?.fontFallback}`,
           ['--pub-stroke' as never]: `${P?.stroke}`,
           ['--pub-grid' as never]: `${P?.gridColor}`,
           ['--pub-axis-pt' as never]: `${P?.sizes.axis}`,
           ['--pub-body-pt' as never]: `${P?.sizes.body}`,
-        } as React.CSSProperties) : undefined}
+        } as React.CSSProperties}
       >
         {cell.error ? (
           <div className="plot-error">
@@ -167,34 +152,36 @@ export default function GraphCell({ cell }: Props) {
             <button onClick={() => runPreview(cell.id)}>Retry</button>
           </div>
         ) : hasDataset && svgInline ? (
-          <div
-            className="plot-real"
-            dangerouslySetInnerHTML={{ __html: svgInline }}
-          />
+          <div className="plot-real" dangerouslySetInnerHTML={{ __html: svgInline }} />
         ) : hasDataset && cell.loading ? (
           <div className="plot-skeleton">
             <div className="ps-bar" /><div className="ps-bar" /><div className="ps-bar" />
             <div className="ps-label">Rendering…</div>
           </div>
         ) : (
-          <PlotSvg
-            id={`plot-${cell.id}`}
-            tpl={tpl}
-            palette={pubActive ? palette : null}
-          />
+          <PlotSvg id={`plot-${cell.id}`} tpl={tpl} palette={palette} />
         )}
-        {pubActive && (
-          <div className="pub-rule-ruler">
-            {P?.name} · {P?.col2.w}mm · {P?.font} {P?.sizes.body}pt · {P?.dpi}dpi
-          </div>
-        )}
+        <div className="pub-rule-ruler">
+          {P?.name} · {P?.col2.w}mm · {P?.font} {P?.sizes.body}pt · {P?.dpi}dpi
+        </div>
+      </div>
+
+      {/* Figure caption — edit below the plot, journal-style */}
+      <div className="fig-caption">
+        <span className="fig-cap-prefix">Fig.</span>
+        <input
+          className="fig-cap-input"
+          value={cell.title || ''}
+          placeholder="논문 캡션 형식으로 직접 입력하세요. 비워 두면 figure 내부에는 제목이 표시되지 않고 빈 캡션만 남습니다."
+          onChange={(e) => updateCell(cell.id, { title: e.target.value })}
+        />
       </div>
 
       <div className="cell-legend">
         {tpl.paths?.map((p, i) => {
-          const c = pubActive && palette.length ? palette[i % palette.length] : p.c;
+          const c = palette.length ? palette[i % palette.length] : p.c;
           return (
-            <span key={i} className="lg-item" style={pubActive ? { color: '#111' } : undefined}>
+            <span key={i} className="lg-item">
               <span className={`lg-sw${p.dash ? ' dash' : ''}`} style={{ background: c, color: c }} />
               {p.label}
             </span>
@@ -203,7 +190,6 @@ export default function GraphCell({ cell }: Props) {
       </div>
 
       <div className="cell-meta">
-        <span>{tpl.title}</span>
         {hasDataset && cell.previewBlobUrl && (
           <span style={{ color: '#00FFB2' }}>● live</span>
         )}

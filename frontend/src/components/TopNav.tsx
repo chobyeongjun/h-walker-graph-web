@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useWorkspace } from '../store/workspace';
 
 /** Dark/light auto-detect. User can override via settings drawer (future). */
 function useColorScheme(): 'dark' | 'light' {
@@ -16,14 +15,9 @@ function useColorScheme(): 'dark' | 'light' {
 }
 
 export default function TopNav() {
-  const mode = useWorkspace((s) => s.mode);
-  const setMode = useWorkspace((s) => s.setMode);
-  const toggleCmdK = useWorkspace((s) => s.toggleCmdK);
   const scheme = useColorScheme();
-
-  // In publication mode the canvas goes white — use the light wordmark then too.
-  const useLightWordmark = scheme === 'light' || mode === 'pub';
-  const wordmark = useLightWordmark
+  // Wordmark follows the system color scheme only — no "publication mode" flip.
+  const wordmark = scheme === 'light'
     ? '/brand/wordmark-light.svg'
     : '/brand/wordmark-dark.svg';
 
@@ -39,16 +33,6 @@ export default function TopNav() {
         <span className="dot" />
         <span>Claude Haiku 4.5</span>
         <small>ready</small>
-      </div>
-
-      <button className="kbd" onClick={() => toggleCmdK(true)} title="Command palette">
-        <kbd>⌘</kbd><kbd>K</kbd>
-        <span>Search & act</span>
-      </button>
-
-      <div className="mode-toggle">
-        <button className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')}>QUICK</button>
-        <button className={mode === 'pub' ? 'on' : ''} onClick={() => setMode('pub')}>PUBLICATION</button>
       </div>
     </nav>
   );

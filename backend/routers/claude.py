@@ -85,6 +85,8 @@ TOOLS = [
                              "description": "Column width (optional; defaults to col2)."},
                 "stride_avg": {"type": "boolean",
                                "description": "For 'force', flip to mean±SD across strides."},
+                "title": {"type": "string",
+                          "description": "Optional figure caption (journal style: below the plot in the manuscript). Leave empty for no title."},
             },
             "required": ["template"],
         },
@@ -138,15 +140,6 @@ TOOLS = [
             "type": "object",
             "properties": {"preset": {"type": "string", "enum": JOURNAL_PRESETS}},
             "required": ["preset"],
-        },
-    },
-    {
-        "name": "set_mode",
-        "description": "Flip the workspace to QUICK or PUBLICATION mode.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"mode": {"type": "string", "enum": ["quick", "pub"]}},
-            "required": ["mode"],
         },
     },
     {

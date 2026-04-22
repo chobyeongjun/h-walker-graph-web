@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useWorkspace } from '../store/workspace';
-import { HISTORY, STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
+import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
 
 const FMT_MAP: Record<string, { fmt: string; variant: string }> = {
   svg: { fmt: 'svg', variant: 'col2' },
@@ -56,14 +56,12 @@ export default function Drawer() {
         <header className="drawer-head">
           <div>
             <div className="ey">
-              {kind === 'history' ? 'Version timeline'
-                : kind === 'exports' ? 'Export to publication'
+              {kind === 'exports' ? 'Export to publication'
                 : kind === 'stats' ? 'Statistical tests'
                 : 'Preferences'}
             </div>
             <h2>
-              {kind === 'history' ? 'History'
-                : kind === 'exports' ? 'Exports'
+              {kind === 'exports' ? 'Exports'
                 : kind === 'stats' ? 'Stats library'
                 : 'Settings'}
             </h2>
@@ -72,18 +70,6 @@ export default function Drawer() {
         </header>
 
         <div className="drawer-body">
-          {kind === 'history' && HISTORY.map((h, i) => (
-            <div key={i} className={`hst-item${i === 0 ? ' current' : ''}${h.saved ? ' saved' : ''}`}>
-              <div className="hst-dot" />
-              <div>
-                <div className="hst-title">{h.label}</div>
-                <div className="hst-sub">{h.actor} · {h.t} · {h.cells}{h.saved ? ' · CHECKPOINT' : ''}</div>
-              </div>
-              <div className="hst-action">{h.saved ? 'Restore' : 'View'}</div>
-              <div className="hst-line" />
-            </div>
-          ))}
-
           {kind === 'stats' && STATS_LIB.map((s, i) => (
             <div key={i} className="slib-item" onClick={() => {
               addCell({

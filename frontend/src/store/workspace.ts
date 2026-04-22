@@ -61,14 +61,12 @@ export interface Dataset {
   analyzeError?: string;
 }
 
-export type WorkspaceMode = 'quick' | 'pub';
-export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings';
+export type DrawerKind = null | 'exports' | 'stats' | 'settings';
 
 interface WorkspaceState {
   cells: Cell[];
   datasets: Dataset[];
   currentPreset: string;
-  mode: WorkspaceMode;
   globalPreset: string;
   pageTitle: string;
   drawer: DrawerKind;
@@ -99,7 +97,6 @@ interface WorkspaceState {
   runCell: (cellId: string) => Promise<void>;
   runAll: () => Promise<void>;
 
-  setMode: (m: WorkspaceMode) => void;
   setCurrentPreset: (p: string) => void;
   setGlobalPreset: (p: string) => void;
   setPageTitle: (t: string) => void;
@@ -127,7 +124,6 @@ export const useWorkspace = create<WorkspaceState>()(
       cells: SEED_CELLS,
       datasets: SEED_DATASETS,
       currentPreset: 'ieee',
-      mode: 'quick',
       globalPreset: 'ieee',
       pageTitle: 'Pilot subject 03 · Treadmill 0.8 m/s',
       drawer: null,
@@ -315,6 +311,7 @@ export const useWorkspace = create<WorkspaceState>()(
             format: 'svg',
             dataset_id: dsId,
             stride_avg: !!cell.strideAvg,
+            title: cell.title || '',
           });
           // Revoke old preview URL
           if (cell.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);
@@ -344,7 +341,6 @@ export const useWorkspace = create<WorkspaceState>()(
         }
       },
 
-      setMode: (m) => set({ mode: m }),
       setCurrentPreset: (p) => set({ currentPreset: p }),
       setGlobalPreset: (p) => set({ globalPreset: p, currentPreset: p }),
       setPageTitle: (t) => set({ pageTitle: t }),
@@ -359,7 +355,7 @@ export const useWorkspace = create<WorkspaceState>()(
       showToast: (msg) => set({ toast: { msg, id: ++_toastSeq } }),
     }),
     {
-      name: 'hw_workspace_v2',
+      name: 'hw_workspace_v3',
       // Strip live (non-serializable) state before persisting
       partialize: (s) => ({
         cells: s.cells.map((c) => {
@@ -374,7 +370,6 @@ export const useWorkspace = create<WorkspaceState>()(
           return rest;
         }),
         currentPreset: s.currentPreset,
-        mode: s.mode,
         globalPreset: s.globalPreset,
         pageTitle: s.pageTitle,
       }),

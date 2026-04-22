@@ -127,6 +127,7 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
         preset: input.preset ? String(input.preset) : undefined,
         previewVariant: input.variant ? String(input.variant) as 'col1' | 'col2' | 'onehalf' : undefined,
         strideAvg: !!input.stride_avg,
+        title: input.title ? String(input.title) : undefined,
         loading: true,
       });
       store.runPreview(id);
@@ -171,9 +172,8 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
     }
 
     case 'set_mode': {
-      const m = String(input.mode || 'quick') as 'quick' | 'pub';
-      store.setMode(m);
-      return `Mode → ${m}`;
+      // Mode toggle removed in Phase 2E — publication styling is always on.
+      return `(set_mode is a no-op; publication styling is always active)`;
     }
 
     case 'run_all': {

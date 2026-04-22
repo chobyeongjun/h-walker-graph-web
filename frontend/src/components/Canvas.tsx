@@ -9,7 +9,7 @@ export default function Canvas() {
   const setPageTitle = useWorkspace((s) => s.setPageTitle);
   const runAll = useWorkspace((s) => s.runAll);
   const runAllBusy = useWorkspace((s) => s.runAllBusy);
-  const mode = useWorkspace((s) => s.mode);
+  const globalPreset = useWorkspace((s) => s.globalPreset);
 
   const liveCount = cells.filter((c) =>
     (c.type === 'graph' && c.previewBlobUrl) ||
@@ -35,7 +35,7 @@ export default function Canvas() {
         <div className="page-meta">
           <span><b>{cells.length}</b> cells</span>
           <span><b>{liveCount}</b> / {bindableCount} live</span>
-          <span className="accent">{mode === 'pub' ? 'PUBLICATION MODE' : 'QUICK MODE'}</span>
+          <span className="accent">{globalPreset.toUpperCase()}</span>
           <button
             className="ds-btn"
             onClick={() => runAll()}

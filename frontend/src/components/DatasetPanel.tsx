@@ -47,6 +47,17 @@ export default function DatasetPanel() {
         </div>
       </div>
 
+      {datasets.length === 0 && (
+        <div className="ds-empty">
+          <div className="ds-empty-title">No datasets yet</div>
+          <div className="ds-empty-sub">
+            Drop a CSV below to get started — default recipe auto-runs and
+            fills the canvas with graphs + metrics for the active journal
+            preset.
+          </div>
+        </div>
+      )}
+
       <div className="ds-grid">
         {datasets.map((d) => (
           <div

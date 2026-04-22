@@ -46,6 +46,10 @@ class RenderRequest(BaseModel):
     colorblind_safe: Optional[bool] = None
     keep_palette: bool = False
     dataset_id: Optional[str] = None  # Phase B: pull numeric data from real CSV
+    # Phase 2E: optional user-provided title. Journal convention is no
+    # in-figure title (caption lives below in the manuscript), so this
+    # defaults to empty string = no title drawn.
+    title: Optional[str] = None
 
 
 def _suggest_filename(req: RenderRequest, P) -> str:
@@ -120,9 +124,10 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                 traces.append(Trace(kind="line", name="R Desired",
                                     x=gcp_axis, y=list(rfp.des_mean),
                                     color="#E89B9B", width=1.3, dash=True))
-        title = "GRF · stride-averaged" if req.template == "force_avg" else "Ground reaction force"
+        # Journal convention: no in-figure title. Caption goes below in the
+        # manuscript. Only draw a title if the user explicitly provided one.
         return render_from_traces(
-            traces, title=title, x_label="Gait cycle (%)", y_label="Force (N)",
+            traces, title=req.title or "", x_label="Gait cycle (%)", y_label="Force (N)",
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
         )
@@ -145,7 +150,7 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                             x=xs, y=list(asym),
                             color="#F09708", width=1.8))
         return render_from_traces(
-            traces, title="Asymmetry index across strides",
+            traces, title=req.title or "",
             x_label="Stride #", y_label="Asymmetry (%)",
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=False,
@@ -166,7 +171,7 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             box_traces.append(Trace(kind="box", name="R", x=["R"], y=peaks_r,
                                     color="#D35454"))
         return render_from_traces(
-            box_traces, title="Peak vertical GRF",
+            box_traces, title=req.title or "",
             x_label="", y_label="Peak GRF (N)",
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=False,
@@ -184,7 +189,7 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                                 x=gcp_axis, y=lfp.individual[i].tolist(),
                                 color=colors[i % len(colors)], width=1.4))
         return render_from_traces(
-            traces, title=f"Stride overlay (first {n})",
+            traces, title=req.title or "",
             x_label="Gait cycle (%)", y_label="Force (N)",
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
@@ -226,6 +231,7 @@ def render_endpoint(req: RenderRequest):
                 stride_avg=req.stride_avg,
                 colorblind_safe=req.colorblind_safe,
                 keep_palette=req.keep_palette,
+                title_override=req.title,
             )
         except Exception as exc:  # noqa: BLE001 — surface full error to client
             raise HTTPException(status_code=500, detail=f"render failed: {exc}") from exc

@@ -464,6 +464,7 @@ def render(
     stride_avg: bool = False,
     colorblind_safe: bool | None = None,
     keep_palette: bool = False,  # if True, do not remap to preset palette
+    title_override: str | None = None,
 ) -> tuple[bytes, str]:
     """Render a publication-ready figure for a GRAPH_TPLS key.
 
@@ -578,7 +579,11 @@ def render(
         ax.set_axisbelow(True)
         ax.set_xlabel(spec.x_unit)
         ax.set_ylabel(spec.y_unit)
-        ax.set_title(spec.title, fontsize=P.title_pt)
+        # Journal convention: figure has NO in-plot title; the caption lives
+        # below the figure in the manuscript. Only draw a title when the
+        # caller explicitly supplies title_override (non-empty).
+        if title_override:
+            ax.set_title(title_override, fontsize=P.title_pt)
 
         # Tick handling: for categorical (e.g., T1…T5), let matplotlib keep categories.
         if spec.x_ticks and not spec.bars:

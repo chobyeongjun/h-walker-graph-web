@@ -140,9 +140,11 @@ def main():
         from backend.routers.analyze import router as analyze_router
         from backend.routers.compute import router as compute_router
         from backend.routers.stats import router as stats_router
+        from backend.routers.paper import router as paper_router
         app.include_router(analyze_router)
         app.include_router(compute_router)
         app.include_router(stats_router)
+        app.include_router(paper_router)
     except ImportError as e:
         print(f"  Note: Phase 2A analyze/compute/stats routers unavailable — {e}")
 

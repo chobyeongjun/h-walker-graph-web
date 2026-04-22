@@ -175,6 +175,16 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "run_paper",
+        "description": (
+            "Export the complete paper bundle — figures (PDF+SVG), stat "
+            "tables (CSV + APA LaTeX), captions, a main.tex skeleton, "
+            "and a README provenance log. Use for '논문 준비해줘' / "
+            "'paper 뽑아줘' / 'export the manuscript' type requests."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 

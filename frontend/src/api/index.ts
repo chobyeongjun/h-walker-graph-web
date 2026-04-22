@@ -241,6 +241,53 @@ export const exportBundle = async (req: BundleRequest): Promise<Blob> => {
 };
 
 // ============================================================
+// Paper bundle (POST /api/paper/bundle) — Phase 5 RUN PAPER
+// ============================================================
+
+export interface PaperBundleCell {
+  id: string;
+  type: 'graph' | 'stat' | 'compute';
+  title?: string;
+  graph?: string;
+  stride_avg?: boolean;
+  dataset_id?: string;
+  datasets?: Array<{ id: string; label?: string; color?: string }>;
+  op?: string;
+  a_col?: string;
+  b_col?: string;
+  datasets_a?: Array<{ id: string; metric: string }>;
+  datasets_b?: Array<{ id: string; metric: string }>;
+  metric?: string;
+}
+
+export interface PaperBundleRequest {
+  preset: string;
+  variant?: 'col1' | 'col2' | 'onehalf';
+  format?: 'pdf' | 'svg' | 'eps' | 'png' | 'tiff';
+  dpi?: number;
+  paper_title?: string;
+  cells: PaperBundleCell[];
+  colorblind_safe?: boolean;
+}
+
+export const paperBundle = async (req: PaperBundleRequest): Promise<Blob> => {
+  const res = await fetch(BASE + '/api/paper/bundle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return res.blob();
+};
+
+// ============================================================
 // Claude (POST /api/claude/complete)
 // ============================================================
 

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useWorkspace } from '../store/workspace';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
-import { PlayCircle } from 'lucide-react';
+import { PlayCircle, FileText } from 'lucide-react';
+import { paperBundle } from '../api';
 import {
   DndContext,
   closestCenter,
@@ -28,6 +30,55 @@ export default function Canvas() {
   const runAllBusy = useWorkspace((s) => s.runAllBusy);
   const reorderCells = useWorkspace((s) => s.reorderCells);
   const globalPreset = useWorkspace((s) => s.globalPreset);
+  const pageTitleState = useWorkspace((s) => s.pageTitle);
+  const showToast = useWorkspace((s) => s.showToast);
+  const logHistory = useWorkspace((s) => s.logHistory);
+  const [paperBusy, setPaperBusy] = useState(false);
+
+  async function runPaper() {
+    if (paperBusy) return;
+    setPaperBusy(true);
+    try {
+      const paperCells = cells
+        .filter((c) => c.type !== 'llm')
+        .map((c) => ({
+          id: c.id,
+          type: c.type as 'graph' | 'stat' | 'compute',
+          title: c.title,
+          graph: c.graph,
+          stride_avg: c.strideAvg,
+          dataset_id: c.dsIds[0],
+          datasets: c.series && c.series.length >= 2
+            ? c.series.map((s) => ({ id: s.dsId, label: s.label, color: s.color }))
+            : undefined,
+          op: c.op,
+          a_col: c.inputs?.a,
+          b_col: c.inputs?.b,
+          datasets_a: c.statDatasetsA,
+          datasets_b: c.statDatasetsB,
+          metric: c.metric,
+        }));
+      const blob = await paperBundle({
+        preset: globalPreset,
+        variant: 'col2',
+        format: 'pdf',
+        paper_title: pageTitleState,
+        cells: paperCells,
+      });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `hwalker_paper_${globalPreset}_${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      logHistory({ kind: 'tool', actor: 'you',
+        label: `Exported paper bundle · ${paperCells.length} cells · ${globalPreset.toUpperCase()}` });
+      showToast(`Paper bundle exported (${paperCells.length} cells)`);
+    } catch (e) {
+      showToast(`Paper export failed: ${(e as Error).message}`);
+    } finally {
+      setPaperBusy(false);
+    }
+  }
 
   const workCells = cells.filter((c) => c.type !== 'llm');
   const liveCount = workCells.filter((c) =>
@@ -79,6 +130,20 @@ export default function Canvas() {
           >
             <PlayCircle size={13} />
             {runAllBusy ? 'Running…' : 'RUN ALL'}
+          </button>
+          <button
+            className="ds-btn"
+            onClick={runPaper}
+            disabled={paperBusy || cells.filter((c) => c.type !== 'llm').length === 0}
+            title="Export a ZIP with figures (PDF+SVG) + stats tables + captions.txt + main.tex skeleton"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#F09708', color: '#0B0E2E',
+              borderColor: '#F09708', fontWeight: 700,
+            }}
+          >
+            <FileText size={13} />
+            {paperBusy ? 'Packaging…' : 'RUN PAPER'}
           </button>
         </div>
       </div>

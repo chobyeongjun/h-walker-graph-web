@@ -275,6 +275,18 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
       return `(export_bundle called — use the drawer UI to download)`;
     }
 
+    case 'run_paper': {
+      // Click the RUN PAPER button programmatically by dispatching a
+      // click on its DOM node — the button already handles state
+      // + toasts + download.
+      const btn = document.querySelector<HTMLButtonElement>(
+        'button[title^="Export a ZIP"]'
+      );
+      if (btn) { btn.click(); return 'Paper bundle exporting…'; }
+      store.showToast('RUN PAPER button not found');
+      return 'RUN PAPER button not found';
+    }
+
     default:
       throw new Error(`unknown tool '${tu.name}'`);
   }

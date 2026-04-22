@@ -65,6 +65,13 @@ def _guess_role(col: str) -> tuple[str, float]:
 
 def _guess_kind(cols: list[str]) -> str:
     joined = ' '.join(cols).lower()
+    # Phase 0: if the CSV carries BOTH force and IMU-family signals, flag
+    # it as 'mixed' so the canonical recipe set covers both sides.
+    has_force = any(h in joined for h in ('force', 'grf'))
+    has_imu = any(h in joined for h in ('pitch', 'gyro', 'acc', '_ax', '_ay', '_az',
+                                         '_gx', '_gy', '_gz', 'roll', 'yaw', 'imu'))
+    if has_force and has_imu:
+        return 'mixed'
     for hint, kind in _KIND_HINTS.items():
         if hint in joined:
             return kind

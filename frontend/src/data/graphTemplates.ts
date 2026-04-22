@@ -120,4 +120,75 @@ export const GRAPH_TPLS: Record<string, GraphTemplate> = {
     yTicks: ['1.0', '0.75', '0.5', '0.25', '0'], xTicks: ['0', '25', '50', '75', '100'],
     summary: [['trials', '5'], ['CV', '4.1%'], ['target Δ', '+2.3%']],
   },
+
+  // =====================================================
+  // Phase 0 · Motion / kinematic templates (fallback mockups;
+  // real data replaces these when cell has a dataset bound).
+  // =====================================================
+  'imu_avg': {
+    ey: 'Kinematics · mean ± SD', title: 'Joint angle over gait cycle', ds: 'ds2',
+    yUnit: 'Pitch (°)', xUnit: 'Gait cycle (%)',
+    paths: [
+      { c: '#1E5F9E', w: 2.0, label: 'L shank', d: 'M48,100 C70,70 92,40 114,60 C138,80 158,130 180,140 C202,140 224,90 246,60 C268,50 290,110 312,140 C332,140 354,100 376,70 C394,55 402,80 408,100' },
+      { c: '#9E3838', w: 2.0, label: 'R shank', d: 'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102' },
+    ],
+    yTicks: ['+20', '+10', '0', '−10', '−20'], xTicks: ['0', '25', '50', '75', '100'],
+    summary: [['ROM L', '38.4°'], ['ROM R', '37.1°'], ['asym', '3.4%']],
+  },
+  'cyclogram': {
+    ey: 'Phase portrait', title: 'Shank vs thigh cyclogram', ds: 'ds2',
+    yUnit: 'Thigh pitch (°)', xUnit: 'Shank pitch (°)',
+    paths: [
+      { c: COLORS.accent, w: 1.8, label: 'Cycle avg', d: 'M150,100 C120,60 140,30 200,40 C260,50 300,80 340,110 C340,140 280,160 220,150 C160,140 180,120 150,100' },
+    ],
+    yTicks: ['+30', '+15', '0', '−15', '−30'], xTicks: ['−20', '−10', '0', '+10', '+20'],
+    summary: [['cycle', 'closed'], ['phase lag', '12°']],
+  },
+  'stride_time_trend': {
+    ey: 'Temporal · fatigue', title: 'Stride time over strides', ds: 'ds1',
+    yUnit: 'Stride T (s)', xUnit: 'Stride #',
+    paths: [
+      { c: '#3B82C4', w: 1.6, label: 'L', d: 'M48,100 L80,96 L120,104 L160,100 L200,108 L240,104 L280,112 L320,108 L360,116 L408,112' },
+      { c: '#D35454', w: 1.6, label: 'R', d: 'M48,104 L80,100 L120,108 L160,104 L200,112 L240,108 L280,116 L320,112 L360,120 L408,116' },
+    ],
+    yTicks: ['1.20', '1.10', '1.00', '0.90', '0.80'], xTicks: ['1', '5', '10', '15', '20'],
+    summary: [['slope L', '+0.3 ms/str'], ['slope R', '+0.4 ms/str']],
+  },
+  'stance_swing_bar': {
+    ey: 'Temporal phases', title: 'Stance / swing percentages', ds: 'ds1',
+    yUnit: '% gait cycle', xUnit: '',
+    bars: [
+      { x: 80,  w: 40, h: 120, c: '#3B82C4', label: 'L stance' },
+      { x: 170, w: 40, h: 52,  c: '#7FB5E4', label: 'L swing' },
+      { x: 260, w: 40, h: 116, c: '#D35454', label: 'R stance' },
+      { x: 350, w: 40, h: 56,  c: '#E89B9B', label: 'R swing' },
+    ],
+    yTicks: ['100', '75', '50', '25', '0'], xTicks: ['L stance', 'L swing', 'R stance', 'R swing'],
+    summary: [['L stance', '62%'], ['R stance', '60%'], ['asym', '3.3%']],
+  },
+  'rom_bar': {
+    ey: 'Kinematics · ROM', title: 'Range of motion by joint/plane', ds: 'ds2',
+    yUnit: 'ROM (°)', xUnit: '',
+    bars: [
+      { x: 80,  w: 40, h: 130, c: '#3B82C4', label: 'L sag' },
+      { x: 170, w: 40, h: 40,  c: '#7FB5E4', label: 'L fro' },
+      { x: 260, w: 40, h: 126, c: '#D35454', label: 'R sag' },
+      { x: 350, w: 40, h: 36,  c: '#E89B9B', label: 'R fro' },
+    ],
+    yTicks: ['60', '45', '30', '15', '0'], xTicks: ['L sag', 'L fro', 'R sag', 'R fro'],
+    summary: [['L sagittal', '38.4°'], ['R sagittal', '36.8°']],
+  },
+  'symmetry_radar': {
+    ey: 'Symmetry', title: 'Symmetry summary (0 = perfect)', ds: 'ds1',
+    yUnit: 'Asymmetry (%)', xUnit: '',
+    bars: [
+      { x: 70,  w: 44, h: 36, c: COLORS.accent, label: 'stride T' },
+      { x: 150, w: 44, h: 60, c: COLORS.accent, label: 'stride L' },
+      { x: 230, w: 44, h: 32, c: COLORS.accent, label: 'stance' },
+      { x: 310, w: 44, h: 50, c: COLORS.accent, label: 'force' },
+      { x: 385, w: 44, h: 42, c: COLORS.accent, label: 'peak' },
+    ],
+    yTicks: ['10', '7.5', '5', '2.5', '0'], xTicks: ['T', 'L', 'St', 'F', 'Pk'],
+    summary: [['avg', '3.9%'], ['max', 'stride L · 5.6%']],
+  },
 };

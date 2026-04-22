@@ -48,7 +48,7 @@ export interface Dataset {
   id: string;
   name: string;
   tag: string;
-  kind: 'force' | 'imu' | 'cop' | 'emg' | 'trials';
+  kind: 'force' | 'imu' | 'cop' | 'emg' | 'trials' | 'mixed';
   rows: number;
   dur: string;
   hz: string;

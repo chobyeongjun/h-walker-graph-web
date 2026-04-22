@@ -140,6 +140,49 @@ def _asym_idx(l: float, r: float) -> float:
     return abs(l - r) / abs(denom) * 100.0
 
 
+def resample_column(df: pd.DataFrame, col: str,
+                    hs: np.ndarray, valid: np.ndarray,
+                    n_points: int = 101) -> tuple[np.ndarray, np.ndarray] | None:
+    """Resample a generic column into per-stride profiles (n_strides x n_points).
+
+    Used for any kinematic / kinetic signal that the analyzer doesn't
+    already produce profiles for (joint angles, acceleration, etc.).
+
+    Returns (mean(axis=0), std(axis=0)) or None if no valid strides.
+    """
+    if col not in df.columns or len(hs) < 2:
+        return None
+    arr = df[col].to_numpy(dtype=float)
+    profiles: list[np.ndarray] = []
+    n_strides = len(valid) if valid is not None else len(hs) - 1
+    for i in range(n_strides):
+        if valid is not None and not valid[i]:
+            continue
+        if i + 1 >= len(hs):
+            break
+        chunk = arr[hs[i]: hs[i + 1]]
+        valid_chunk = chunk[np.isfinite(chunk)]
+        if len(valid_chunk) < 10:
+            continue
+        # NaN interpolation
+        if np.any(np.isnan(chunk)):
+            nan_mask = np.isnan(chunk)
+            valid_idx = np.where(~nan_mask)[0]
+            if len(valid_idx) >= 2:
+                chunk = chunk.copy()
+                chunk[nan_mask] = np.interp(
+                    np.where(nan_mask)[0], valid_idx, chunk[valid_idx])
+            else:
+                continue
+        x_orig = np.linspace(0, 100, len(chunk))
+        resampled = np.interp(np.linspace(0, 100, n_points), x_orig, chunk)
+        profiles.append(resampled)
+    if not profiles:
+        return None
+    mat = np.vstack(profiles)
+    return mat.mean(axis=0), mat.std(axis=0)
+
+
 # ============================================================
 # Metric computations
 # ============================================================
@@ -360,18 +403,176 @@ def target_dev(df: pd.DataFrame, res: AnalysisResult,
     }
 
 
+def stride_length(df: pd.DataFrame, res: AnalysisResult,
+                  n_max_rows: int = 30) -> dict[str, Any]:
+    """Per-stride length (m) from ZUPT integration — analyzer output."""
+    ls, rs = res.left_stride, res.right_stride
+    L = ls.stride_lengths[np.isfinite(ls.stride_lengths)]
+    R = rs.stride_lengths[np.isfinite(rs.stride_lengths)]
+    n = min(len(L), len(R)) if len(L) and len(R) else max(len(L), len(R))
+
+    rows = []
+    for i in range(n):
+        l_val = f"{L[i]:.3f}" if i < len(L) else "—"
+        r_val = f"{R[i]:.3f}" if i < len(R) else "—"
+        asym = (
+            f"{_asym_idx(L[i], R[i]):.1f}"
+            if i < len(L) and i < len(R) else "—"
+        )
+        rows.append([str(i + 1), l_val, r_val, asym])
+
+    return {
+        "label": "Stride length (m, ZUPT)",
+        "cols": ["stride_#", "L (m)", "R (m)", "asym (%)"],
+        "rows": _truncate_rows(rows, n_max_rows),
+        "summary": {"mean": [
+            _fmt_mean_std(L, digits=3),
+            _fmt_mean_std(R, digits=3),
+            "—",
+        ]},
+        "meta": {"n_strides": int(n)},
+    }
+
+
+def stance_time(df: pd.DataFrame, res: AnalysisResult,
+                n_max_rows: int = 30) -> dict[str, Any]:
+    """Per-stride stance-phase duration (s) = stride_time × stance%."""
+    ls, rs = res.left_stride, res.right_stride
+    n = min(len(ls.stride_times), len(rs.stride_times))
+
+    l_st = ls.stride_times[:n] * (ls.stance_pct_mean / 100.0) if ls.stance_pct_mean else np.array([])
+    r_st = rs.stride_times[:n] * (rs.stance_pct_mean / 100.0) if rs.stance_pct_mean else np.array([])
+
+    rows = []
+    for i in range(n):
+        l_val = f"{l_st[i]:.3f}" if i < len(l_st) else "—"
+        r_val = f"{r_st[i]:.3f}" if i < len(r_st) else "—"
+        rows.append([str(i + 1), l_val, r_val])
+
+    return {
+        "label": "Stance time (s)",
+        "cols": ["stride_#", "L stance (s)", "R stance (s)"],
+        "rows": _truncate_rows(rows, n_max_rows),
+        "summary": {"mean": [
+            _fmt_mean_std(l_st, digits=3),
+            _fmt_mean_std(r_st, digits=3),
+        ]},
+        "meta": {
+            "n_strides": int(n),
+            "L_stance_pct": ls.stance_pct_mean,
+            "R_stance_pct": rs.stance_pct_mean,
+        },
+    }
+
+
+def swing_time(df: pd.DataFrame, res: AnalysisResult,
+               n_max_rows: int = 30) -> dict[str, Any]:
+    """Per-stride swing-phase duration (s) = stride_time × swing%."""
+    ls, rs = res.left_stride, res.right_stride
+    n = min(len(ls.stride_times), len(rs.stride_times))
+
+    l_sw = ls.stride_times[:n] * (ls.swing_pct_mean / 100.0) if ls.swing_pct_mean else np.array([])
+    r_sw = rs.stride_times[:n] * (rs.swing_pct_mean / 100.0) if rs.swing_pct_mean else np.array([])
+
+    rows = []
+    for i in range(n):
+        l_val = f"{l_sw[i]:.3f}" if i < len(l_sw) else "—"
+        r_val = f"{r_sw[i]:.3f}" if i < len(r_sw) else "—"
+        rows.append([str(i + 1), l_val, r_val])
+
+    return {
+        "label": "Swing time (s)",
+        "cols": ["stride_#", "L swing (s)", "R swing (s)"],
+        "rows": _truncate_rows(rows, n_max_rows),
+        "summary": {"mean": [
+            _fmt_mean_std(l_sw, digits=3),
+            _fmt_mean_std(r_sw, digits=3),
+        ]},
+        "meta": {"n_strides": int(n)},
+    }
+
+
+def fatigue_index(df: pd.DataFrame, res: AnalysisResult,
+                  **_kwargs) -> dict[str, Any]:
+    """Fatigue = % change in stride time between first and last 10% of strides."""
+    rows = [
+        ["L", f"{res.left_fatigue:+.2f}%",
+         "increasing (slower)" if res.left_fatigue > 2 else
+         "stable" if abs(res.left_fatigue) <= 2 else
+         "decreasing (faster)"],
+        ["R", f"{res.right_fatigue:+.2f}%",
+         "increasing (slower)" if res.right_fatigue > 2 else
+         "stable" if abs(res.right_fatigue) <= 2 else
+         "decreasing (faster)"],
+    ]
+    return {
+        "label": "Fatigue index (stride time: first 10% vs last 10%)",
+        "cols": ["side", "Δ%", "interpretation"],
+        "rows": rows,
+        "summary": {"mean": [
+            f"{res.left_fatigue:+.2f}% / {res.right_fatigue:+.2f}%",
+            "—",
+        ]},
+        "meta": {
+            "L_fatigue_pct": res.left_fatigue,
+            "R_fatigue_pct": res.right_fatigue,
+        },
+    }
+
+
+def symmetry_summary(df: pd.DataFrame, res: AnalysisResult,
+                     **_kwargs) -> dict[str, Any]:
+    """Six-axis symmetry summary (0% = perfect, higher = more asymmetric)."""
+    rows = [
+        ["stride time",   f"{res.stride_time_symmetry:.2f}"],
+        ["stride length", f"{res.stride_length_symmetry:.2f}" if res.stride_length_symmetry >= 0 else "—"],
+        ["stance %",      f"{res.stance_symmetry:.2f}" if res.stance_symmetry >= 0 else "—"],
+        ["force RMSE",    f"{res.force_symmetry:.2f}" if res.force_symmetry > 0 else "—"],
+    ]
+    # Peak-force asymmetry (derived)
+    lft, rft = res.left_force_tracking, res.right_force_tracking
+    lfp, rfp = res.left_force_profile, res.right_force_profile
+    if lfp.mean is not None and rfp.mean is not None:
+        peak_l = float(np.max(lfp.mean))
+        peak_r = float(np.max(rfp.mean))
+        rows.append(["peak GRF", f"{_asym_idx(peak_l, peak_r):.2f}"])
+
+    values = [float(r[1].replace("%", "")) for r in rows if r[1] != "—"]
+    return {
+        "label": "Symmetry summary (% asymmetry · 0 = perfect)",
+        "cols": ["metric", "Δ (%)"],
+        "rows": rows,
+        "summary": {"mean": [
+            f"{np.mean(values):.2f}" if values else "—",
+            "",
+        ]},
+        "meta": {
+            "avg_asymmetry": float(np.mean(values)) if values else 0.0,
+            "max_asymmetry_metric": rows[int(np.argmax([
+                float(r[1].replace("%", "")) if r[1] != "—" else -1 for r in rows
+            ]))][0] if values else None,
+        },
+    }
+
+
 # ============================================================
 # Dispatcher
 # ============================================================
 
 
 METRIC_REGISTRY = {
-    "per_stride": per_stride,
-    "impulse": impulse,
-    "loading_rate": loading_rate,
-    "rom": rom,
-    "cadence": cadence,
-    "target_dev": target_dev,
+    "per_stride":        per_stride,
+    "impulse":           impulse,
+    "loading_rate":      loading_rate,
+    "rom":               rom,
+    "cadence":           cadence,
+    "target_dev":        target_dev,
+    # Phase 0: motion-data metrics
+    "stride_length":     stride_length,
+    "stance_time":       stance_time,
+    "swing_time":        swing_time,
+    "fatigue_index":     fatigue_index,
+    "symmetry_summary":  symmetry_summary,
 }
 
 

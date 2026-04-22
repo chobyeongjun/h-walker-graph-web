@@ -56,4 +56,58 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
     rows: [['T1', '6.8', '-4.2'], ['T2', '5.1', '-2.8'], ['T3', '4.2', '-1.9'], ['T4', '3.0', '+0.4'], ['T5', '2.3', '+2.3']],
     summary: { mean: ['4.3 ± 1.8', 'improving'] },
   },
+  // Phase 0 · motion / spatiotemporal metrics (mock fallback; real data
+  // replaces when the cell is bound to a dataset)
+  stride_length: {
+    label: 'Stride length (m, ZUPT)',
+    cols: ['stride_#', 'L (m)', 'R (m)', 'asym (%)'],
+    rows: [
+      ['1', '1.12', '1.08', '3.6'],
+      ['2', '1.14', '1.09', '4.5'],
+      ['3', '1.13', '1.08', '4.5'],
+      ['…', '…', '…', '…'],
+    ],
+    summary: { mean: ['1.13 ± 0.02', '1.08 ± 0.02', '4.2 ± 0.4'] },
+  },
+  stance_time: {
+    label: 'Stance time (s)',
+    cols: ['stride_#', 'L stance (s)', 'R stance (s)'],
+    rows: [
+      ['1', '0.68', '0.66'],
+      ['2', '0.67', '0.65'],
+      ['…', '…', '…'],
+    ],
+    summary: { mean: ['0.68 ± 0.01', '0.65 ± 0.01'] },
+  },
+  swing_time: {
+    label: 'Swing time (s)',
+    cols: ['stride_#', 'L swing (s)', 'R swing (s)'],
+    rows: [
+      ['1', '0.42', '0.44'],
+      ['2', '0.43', '0.44'],
+      ['…', '…', '…'],
+    ],
+    summary: { mean: ['0.42 ± 0.01', '0.44 ± 0.01'] },
+  },
+  fatigue_index: {
+    label: 'Fatigue index (stride time: first 10% vs last 10%)',
+    cols: ['side', 'Δ%', 'interpretation'],
+    rows: [
+      ['L', '+2.40%', 'increasing (slower)'],
+      ['R', '+1.80%', 'stable'],
+    ],
+    summary: { mean: ['+2.40% / +1.80%', '—'] },
+  },
+  symmetry_summary: {
+    label: 'Symmetry summary (% asymmetry · 0 = perfect)',
+    cols: ['metric', 'Δ (%)'],
+    rows: [
+      ['stride time',   '2.80'],
+      ['stride length', '4.20'],
+      ['stance %',      '3.10'],
+      ['force RMSE',    '4.60'],
+      ['peak GRF',      '3.20'],
+    ],
+    summary: { mean: ['3.58', ''] },
+  },
 };

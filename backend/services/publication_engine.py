@@ -323,6 +323,83 @@ GRAPH_SPECS: dict[str, GraphSpec] = {
         ],
         summary=[("trials", "5"), ("CV", "4.1%"), ("target Δ", "+2.3%")],
     ),
+    # =====================================================
+    # Phase 0 · Motion / kinematic templates (fallback specs
+    # for when no dataset_id — frontend uses these for the
+    # empty-state preview).
+    # =====================================================
+    "imu_avg": GraphSpec(
+        eyebrow="Kinematics · mean ± SD", title="Joint angle over gait cycle", ds="ds2",
+        y_unit="Pitch (°)", x_unit="Gait cycle (%)",
+        y_ticks=["+20", "+10", "0", "−10", "−20"],
+        x_ticks=["0", "25", "50", "75", "100"],
+        paths=[
+            PathSpec(_LA, 1.8, "L shank", "M48,100 C70,70 92,40 114,60 C138,80 158,130 180,140 C202,140 224,90 246,60 C268,50 290,110 312,140 C332,140 354,100 376,70 C394,55 402,80 408,100"),
+            PathSpec(_RA, 1.8, "R shank", "M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102"),
+        ],
+        summary=[("ROM L", "38.4°"), ("ROM R", "37.1°"), ("asym", "3.4%")],
+    ),
+    "cyclogram": GraphSpec(
+        eyebrow="Phase portrait", title="Shank vs thigh cyclogram", ds="ds2",
+        y_unit="Thigh pitch (°)", x_unit="Shank pitch (°)",
+        y_ticks=["+30", "+15", "0", "−15", "−30"],
+        x_ticks=["−20", "−10", "0", "+10", "+20"],
+        paths=[
+            PathSpec(_ACC, 1.8, "Cycle avg", "M150,100 C120,60 140,30 200,40 C260,50 300,80 340,110 C340,140 280,160 220,150 C160,140 180,120 150,100"),
+        ],
+        summary=[("cycle", "closed"), ("phase lag", "12°")],
+    ),
+    "stride_time_trend": GraphSpec(
+        eyebrow="Temporal · fatigue", title="Stride time over strides", ds="ds1",
+        y_unit="Stride T (s)", x_unit="Stride #",
+        y_ticks=["1.20", "1.10", "1.00", "0.90", "0.80"],
+        x_ticks=["1", "5", "10", "15", "20"],
+        paths=[
+            PathSpec(_LA, 1.6, "L", "M48,100 L80,96 L120,104 L160,100 L200,108 L240,104 L280,112 L320,108 L360,116 L408,112"),
+            PathSpec(_RA, 1.6, "R", "M48,104 L80,100 L120,108 L160,104 L200,112 L240,108 L280,116 L320,112 L360,120 L408,116"),
+        ],
+        summary=[("slope L", "+0.3 ms/str"), ("slope R", "+0.4 ms/str")],
+    ),
+    "stance_swing_bar": GraphSpec(
+        eyebrow="Temporal phases", title="Stance / swing percentages", ds="ds1",
+        y_unit="% gait cycle", x_unit="",
+        y_ticks=["100", "75", "50", "25", "0"],
+        x_ticks=["L stance", "L swing", "R stance", "R swing"],
+        bars=[
+            BarSpec(80, 40, 62, "#3B82C4", "L stance"),
+            BarSpec(170, 40, 26, "#7FB5E4", "L swing"),
+            BarSpec(260, 40, 60, "#D35454", "R stance"),
+            BarSpec(350, 40, 28, "#E89B9B", "R swing"),
+        ],
+        summary=[("L stance", "62%"), ("R stance", "60%"), ("asym", "3.3%")],
+    ),
+    "rom_bar": GraphSpec(
+        eyebrow="Kinematics · ROM", title="Range of motion by joint/plane", ds="ds2",
+        y_unit="ROM (°)", x_unit="",
+        y_ticks=["60", "45", "30", "15", "0"],
+        x_ticks=["L sag", "L fro", "R sag", "R fro"],
+        bars=[
+            BarSpec(80, 40, 110, "#3B82C4", "L sag"),
+            BarSpec(170, 40, 35, "#7FB5E4", "L fro"),
+            BarSpec(260, 40, 105, "#D35454", "R sag"),
+            BarSpec(350, 40, 32, "#E89B9B", "R fro"),
+        ],
+        summary=[("L sagittal", "38.4°"), ("R sagittal", "36.8°")],
+    ),
+    "symmetry_radar": GraphSpec(
+        eyebrow="Symmetry", title="Symmetry summary (0 = perfect)", ds="ds1",
+        y_unit="Asymmetry (%)", x_unit="",
+        y_ticks=["10", "7.5", "5", "2.5", "0"],
+        x_ticks=["T", "L", "St", "F", "Pk"],
+        bars=[
+            BarSpec(70, 44, 30, "#F09708", "stride T"),
+            BarSpec(150, 44, 56, "#F09708", "stride L"),
+            BarSpec(230, 44, 28, "#F09708", "stance"),
+            BarSpec(310, 44, 44, "#F09708", "force"),
+            BarSpec(385, 44, 36, "#F09708", "peak"),
+        ],
+        summary=[("avg", "3.9%"), ("max", "stride L · 5.6%")],
+    ),
 }
 
 

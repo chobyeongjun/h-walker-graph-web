@@ -67,8 +67,18 @@ class ClaudeCompleteResponse(BaseModel):
 # Tool definitions
 # ============================================================
 
-GRAPH_TEMPLATES = ["force", "force_avg", "asymmetry", "peak_box", "cop", "trials", "imu", "cv_bar"]
-COMPUTE_METRICS = ["per_stride", "impulse", "loading_rate", "rom", "cadence", "target_dev"]
+GRAPH_TEMPLATES = [
+    # Force / kinetic
+    "force", "force_avg", "asymmetry", "peak_box", "cop", "trials", "cv_bar",
+    # Motion / kinematic (Phase 0)
+    "imu", "imu_avg", "cyclogram", "stride_time_trend",
+    "stance_swing_bar", "rom_bar", "symmetry_radar",
+]
+COMPUTE_METRICS = [
+    "per_stride", "impulse", "loading_rate", "rom", "cadence", "target_dev",
+    # Phase 0 motion metrics
+    "stride_length", "stance_time", "swing_time", "fatigue_index", "symmetry_summary",
+]
 STAT_OPS = ["ttest_paired", "ttest_welch", "anova1", "pearson", "cohens_d", "shapiro"]
 JOURNAL_PRESETS = ["ieee", "nature", "apa", "elsevier", "mdpi", "jner"]
 

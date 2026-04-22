@@ -1,0 +1,65 @@
+import type { Cell as CellModel } from '../../store/workspace';
+import GraphCell from './GraphCell';
+import StatCell from './StatCell';
+import ComputeCell from './ComputeCell';
+import LlmCell from './LlmCell';
+import { useWorkspace } from '../../store/workspace';
+import { Copy, Trash2, GripVertical, Expand } from 'lucide-react';
+
+interface Props { cell: CellModel; index: number; }
+
+export default function Cell({ cell, index }: Props) {
+  const remove = useWorkspace((s) => s.removeCell);
+  const dup = useWorkspace((s) => s.duplicateCell);
+  const update = useWorkspace((s) => s.updateCell);
+  const focusCell = useWorkspace((s) => s.focusCell);
+
+  const typeClass = `cell ${cell.type}`;
+  const displayTitle = cell.title
+    ?? (cell.type === 'graph' ? `Graph · ${cell.graph}`
+      : cell.type === 'stat' ? `Stat · ${cell.op}`
+      : cell.type === 'compute' ? `Compute · ${cell.metric}`
+      : 'Assistant');
+
+  return (
+    <div className={typeClass} id={`cell-${cell.id}`}>
+      <div className="cell-head">
+        <span className="cell-idx">#{index + 1}</span>
+        <span className="cell-handle"><GripVertical size={14} /></span>
+        <span className="cell-ey">
+          {cell.type === 'graph' ? 'GRAPH'
+            : cell.type === 'stat' ? 'STATS'
+            : cell.type === 'compute' ? 'COMPUTE'
+            : 'ASSISTANT'}
+        </span>
+        <span
+          className="cell-title"
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={(e) => update(cell.id, { title: e.currentTarget.textContent || '' })}
+        >{displayTitle}</span>
+        {cell.dsIds.slice(0, 2).map((dsId) => (
+          <span key={dsId} className="ds-chip">{dsId}</span>
+        ))}
+        <div className="cell-tools">
+          {cell.type === 'graph' && (
+            <button className="cell-tool" title="Focus" onClick={() => focusCell(cell.id)}>
+              <Expand size={14} />
+            </button>
+          )}
+          <button className="cell-tool" title="Duplicate" onClick={() => dup(cell.id)}>
+            <Copy size={14} />
+          </button>
+          <button className="cell-tool danger" title="Delete" onClick={() => remove(cell.id)}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {cell.type === 'graph' && <GraphCell cell={cell} />}
+      {cell.type === 'stat' && <StatCell cell={cell} />}
+      {cell.type === 'compute' && <ComputeCell cell={cell} />}
+      {cell.type === 'llm' && <LlmCell cell={cell} />}
+    </div>
+  );
+}

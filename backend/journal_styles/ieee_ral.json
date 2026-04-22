@@ -1,0 +1,1 @@
+{"name": "IEEE RA-L", "key": "ieee_ral", "font_family": "Times New Roman", "font_size": 8, "line_width": 0.8, "figure_width_mm": 88, "figure_height_mm": 55, "dpi": 300, "legend_frameon": false, "color_cycle": ["#000000", "#555555", "#AAAAAA", "#222222"], "spine_linewidth": 0.5, "tick_direction": "in", "tick_labelsize": 7, "axes_labelsize": 8, "title_size": 8, "pad_inches": 0.02}

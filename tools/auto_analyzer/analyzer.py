@@ -1,0 +1,647 @@
+"""
+H-Walker Auto Analyzer — Core analysis engine.
+Computes gait statistics, force tracking metrics, stride length (ZUPT), symmetry, fatigue.
+"""
+
+import sys
+import os
+import numpy as np
+import pandas as pd
+from dataclasses import dataclass, field
+from typing import Optional
+
+# Add project root so we can import graph_analyzer
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tools.graph_analyzer.data_manager import DataManager
+
+
+# Column groups for auto-detection
+COLUMN_GROUPS = {
+    'force_left': ['L_DesForce_N', 'L_ActForce_N'],
+    'force_right': ['R_DesForce_N', 'R_ActForce_N'],
+    'vel_left': ['L_Ax', 'L_Ay', 'L_Az'],       # EBIMU soa5: Global Velocity (m/s)
+    'vel_right': ['R_Ax', 'R_Ay', 'R_Az'],
+    'orient_left': ['L_Roll', 'L_Pitch', 'L_Yaw'],
+    'orient_right': ['R_Roll', 'R_Pitch', 'R_Yaw'],
+    'disp_left': ['L_Dx', 'L_Dy', 'L_Dz'],
+    'disp_right': ['R_Dx', 'R_Dy', 'R_Dz'],
+    'gait_events': ['L_Event', 'R_Event'],
+    'gait_phase': ['L_Phase', 'R_Phase'],
+    'gcp': ['L_GCP', 'R_GCP'],
+}
+
+
+@dataclass
+class ForceTrackingResult:
+    """Force tracking error metrics for one side."""
+    rmse: float = 0.0
+    mae: float = 0.0
+    peak_error: float = 0.0
+    rmse_per_stride: np.ndarray = field(default_factory=lambda: np.array([]))
+    mae_per_stride: np.ndarray = field(default_factory=lambda: np.array([]))
+
+
+@dataclass
+class StrideResult:
+    """Stride-level results for one side."""
+    stride_times_raw: np.ndarray = field(default_factory=lambda: np.array([]))
+    stride_times: np.ndarray = field(default_factory=lambda: np.array([]))
+    stride_lengths: np.ndarray = field(default_factory=lambda: np.array([]))
+    stride_time_mean: float = 0.0
+    stride_time_std: float = 0.0
+    stride_time_cv: float = 0.0
+    stride_length_mean: float = 0.0
+    stride_length_std: float = 0.0
+    cadence: float = 0.0
+    stance_pct_mean: float = 0.0
+    stance_pct_std: float = 0.0
+    swing_pct_mean: float = 0.0
+    swing_pct_std: float = 0.0
+    n_strides: int = 0
+    hs_indices: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    valid_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
+
+
+@dataclass
+class ForceProfileResult:
+    """Resampled force profiles (101 points per stride, 0-100% GCP)."""
+    individual: Optional[np.ndarray] = None   # (n_strides, 101)
+    mean: Optional[np.ndarray] = None         # (101,)
+    std: Optional[np.ndarray] = None          # (101,)
+    des_individual: Optional[np.ndarray] = None
+    des_mean: Optional[np.ndarray] = None
+    des_std: Optional[np.ndarray] = None
+
+
+@dataclass
+class AnalysisResult:
+    """Complete analysis result for one CSV file."""
+    filename: str = ""
+    filepath: str = ""
+    n_samples: int = 0
+    duration_s: float = 0.0
+    sample_rate: float = 111.0
+
+    # Per-side gait results
+    left_stride: StrideResult = field(default_factory=StrideResult)
+    right_stride: StrideResult = field(default_factory=StrideResult)
+
+    # Force tracking
+    left_force_tracking: ForceTrackingResult = field(default_factory=ForceTrackingResult)
+    right_force_tracking: ForceTrackingResult = field(default_factory=ForceTrackingResult)
+
+    # Force profiles (GCP-normalized)
+    left_force_profile: ForceProfileResult = field(default_factory=ForceProfileResult)
+    right_force_profile: ForceProfileResult = field(default_factory=ForceProfileResult)
+
+    # Symmetry indices (%)
+    stride_time_symmetry: float = 0.0
+    stride_length_symmetry: float = 0.0
+    force_symmetry: float = 0.0
+    stance_symmetry: float = 0.0
+
+    # Fatigue indices (% change, first 10% vs last 10%)
+    left_fatigue: float = 0.0
+    right_fatigue: float = 0.0
+
+
+def _has_columns(df: pd.DataFrame, cols: list[str]) -> bool:
+    """Check if all columns exist in the DataFrame."""
+    return all(c in df.columns for c in cols)
+
+
+def _symmetry_index(left_val: float, right_val: float) -> float:
+    """Compute symmetry index: |L-R| / ((L+R)/2) * 100. 0 = perfect symmetry.
+    Returns -1 if one side has no data (cannot compute)."""
+    if left_val <= 0 or right_val <= 0:
+        return -1.0   # Cannot compute symmetry with missing side
+    total = left_val + right_val
+    return abs(left_val - right_val) / (total / 2) * 100
+
+
+def _fatigue_index(values: np.ndarray, pct: float = 0.1) -> float:
+    """Compare first pct vs last pct of values. Returns % change."""
+    n = len(values)
+    if n < 10:
+        return 0.0
+    k = max(2, int(n * pct))
+    first = np.mean(values[:k])
+    last = np.mean(values[-k:])
+    if abs(first) < 1e-12:
+        return 0.0
+    return (last - first) / abs(first) * 100
+
+
+def _detect_heel_strikes(df: pd.DataFrame, side: str, sample_rate: float) -> np.ndarray:
+    """Detect heel strike indices from Event column (rising edge) or GCP fallback."""
+    event_col = f'{side}_Event'
+    gcp_col = f'{side}_GCP'
+
+    hs_idx = np.array([], dtype=int)
+
+    # Primary: Event rising edge
+    if event_col in df.columns:
+        events = df[event_col].values.astype(np.float64)
+        hs_idx = np.where(np.diff(events) > 0.5)[0] + 1
+
+    if len(hs_idx) >= 2:
+        return hs_idx
+
+    # Fallback: GCP sawtooth drop
+    if gcp_col not in df.columns:
+        return np.array([], dtype=int)
+
+    gcp = df[gcp_col].values.astype(np.float64)
+    gcp_range = np.ptp(gcp[np.isfinite(gcp)]) if np.any(np.isfinite(gcp)) else 0
+    if gcp_range < 0.3:
+        return np.array([], dtype=int)
+
+    gcp_max = np.nanmax(gcp)
+    if gcp_max > 10:
+        gcp = gcp / 100.0
+    elif gcp_max > 1.5:
+        gcp = gcp / gcp_max
+
+    hs_threshold = -max(0.1, np.ptp(gcp[np.isfinite(gcp)]) * 0.15)
+    diffs = np.diff(gcp)
+    raw_hs = np.where(diffs < hs_threshold)[0] + 1
+
+    if len(raw_hs) > 1:
+        gaps = np.diff(raw_hs)
+        keep = np.concatenate([[True], gaps > max(20, sample_rate * 0.3)])
+        return raw_hs[keep]
+    return raw_hs
+
+
+def _filter_strides_iqr(stride_times: np.ndarray, multiplier: float = 2.0
+                         ) -> tuple[np.ndarray, np.ndarray]:
+    """Filter outlier strides using IQR method. Returns (filtered_times, valid_mask)."""
+    if len(stride_times) < 4:
+        return stride_times.copy(), np.ones(len(stride_times), dtype=bool)
+
+    q1 = np.percentile(stride_times, 25)
+    q3 = np.percentile(stride_times, 75)
+    iqr = q3 - q1
+    lower = max(q1 - multiplier * iqr, 0.3)
+    upper = min(q3 + multiplier * iqr, 5.0)
+    valid_mask = (stride_times >= lower) & (stride_times <= upper)
+    return stride_times[valid_mask], valid_mask
+
+
+def _detect_midstance_zupt(df: pd.DataFrame, side: str,
+                            gyro_threshold: float = 50.0) -> np.ndarray:
+    """
+    Detect mid-stance (ZUPT) frames using gyro magnitude threshold.
+    During mid-stance, the foot is flat on the ground and angular velocity is low.
+    Returns boolean mask (True = ZUPT frame).
+
+    Approach from MATLAB reference: find frames where gyro magnitude < threshold,
+    then keep only the longest continuous segment per stride.
+    """
+    gx_col = f'{side}_Gx'
+    gy_col = f'{side}_Gy'
+    gz_col = f'{side}_Gz'
+    phase_col = f'{side}_Phase'
+
+    n = len(df)
+
+    # Primary: gyro magnitude method
+    if _has_columns(df, [gx_col, gy_col, gz_col]):
+        gx = df[gx_col].values.astype(np.float64)
+        gy = df[gy_col].values.astype(np.float64)
+        gz = df[gz_col].values.astype(np.float64)
+        gyro_mag = np.sqrt(gx**2 + gy**2 + gz**2)
+        return gyro_mag < gyro_threshold
+
+    # Fallback: Phase column (0 = stance)
+    if phase_col in df.columns:
+        phase = df[phase_col].values.astype(np.float64)
+        return phase < 0.5
+
+    return np.zeros(n, dtype=bool)
+
+
+def _compute_stride_length_zupt(df: pd.DataFrame, side: str,
+                                 hs_indices: np.ndarray, valid_mask: np.ndarray,
+                                 sample_rate: float) -> np.ndarray:
+    """
+    Compute stride length using ZUPT (Zero Velocity Update).
+
+    EBIMU soa5 configuration: L_Ax/L_Ay columns contain Global Velocity (m/s).
+    Single integration: velocity → displacement.
+
+    ZUPT method (from MATLAB reference):
+    - Accumulate velocity_error_offset during mid-stance (gyro mag < threshold)
+    - Subtract offset from velocity at every frame → smooth drift correction
+    - NOT hard-zeroing (which creates discontinuities)
+
+    Stride length = norm of horizontal displacement between consecutive heel strikes.
+    """
+    vx_col = f'{side}_Ax'
+    vy_col = f'{side}_Ay'
+
+    if not _has_columns(df, [vx_col, vy_col]):
+        return np.array([])
+
+    vx_full = df[vx_col].values.astype(np.float64)
+    vy_full = df[vy_col].values.astype(np.float64)
+
+    # Detect ZUPT (mid-stance) frames
+    is_zupt = _detect_midstance_zupt(df, side)
+
+    # Apply ZUPT with error-offset accumulation (MATLAB-style)
+    # The velocity signal drifts over time. At ZUPT frames, the true velocity
+    # should be 0, so the current measured velocity IS the accumulated error.
+    # We record this error and subtract it from all subsequent frames.
+    n = len(vx_full)
+    vx_corrected = np.zeros(n)
+    vy_corrected = np.zeros(n)
+    offset_x, offset_y = 0.0, 0.0
+
+    for j in range(n):
+        vx_corrected[j] = vx_full[j] - offset_x
+        vy_corrected[j] = vy_full[j] - offset_y
+        if is_zupt[j]:
+            offset_x = vx_full[j]
+            offset_y = vy_full[j]
+
+    # Now compute position by integrating corrected velocity
+    dt = 1.0 / sample_rate
+    pos_x = np.cumsum(vx_corrected) * dt
+    pos_y = np.cumsum(vy_corrected) * dt
+
+    # Extract stride lengths from position
+    n_strides = len(valid_mask)
+    stride_lengths = []
+
+    for i in range(n_strides):
+        if not valid_mask[i]:
+            stride_lengths.append(np.nan)
+            continue
+
+        s = hs_indices[i]
+        e = hs_indices[i + 1]
+        if e - s < 10:
+            stride_lengths.append(np.nan)
+            continue
+
+        # Horizontal displacement between heel strikes
+        dx = pos_x[e] - pos_x[s]
+        dy = pos_y[e] - pos_y[s]
+        stride_len = np.sqrt(dx**2 + dy**2)
+        stride_lengths.append(stride_len)
+
+    result = np.array(stride_lengths)
+
+    # Sanity check: flag unreasonable values
+    valid = result[np.isfinite(result)]
+    if len(valid) > 0:
+        median_len = np.median(valid)
+        if median_len < 0.05 or median_len > 3.0:
+            print(f"  WARNING: {side} median stride length = {median_len:.3f} m "
+                  f"(expected 0.3-2.0 m). Check IMU data frame/units.")
+
+    return result
+
+
+def _compute_force_tracking(df: pd.DataFrame, side: str,
+                             hs_indices: np.ndarray, valid_mask: np.ndarray
+                             ) -> ForceTrackingResult:
+    """Compute force tracking error (Des vs Act) per stride."""
+    des_col = f'{side}_DesForce_N'
+    act_col = f'{side}_ActForce_N'
+
+    if not _has_columns(df, [des_col, act_col]):
+        return ForceTrackingResult()
+
+    des = df[des_col].values.astype(np.float64)
+    act = df[act_col].values.astype(np.float64)
+
+    rmse_list, mae_list = [], []
+    all_errors = []
+
+    n_strides = len(valid_mask)
+    for i in range(n_strides):
+        if not valid_mask[i]:
+            continue
+        s, e = hs_indices[i], hs_indices[i + 1]
+        if e - s < 10:
+            continue
+
+        d = des[s:e]
+        a = act[s:e]
+        err = a - d
+        valid_err = err[np.isfinite(err)]
+        if len(valid_err) == 0:
+            continue
+
+        rmse_list.append(float(np.sqrt(np.mean(valid_err**2))))
+        mae_list.append(float(np.mean(np.abs(valid_err))))
+        all_errors.extend(valid_err.tolist())
+
+    all_errors = np.array(all_errors) if all_errors else np.array([0.0])
+    return ForceTrackingResult(
+        rmse=float(np.sqrt(np.mean(all_errors**2))),
+        mae=float(np.mean(np.abs(all_errors))),
+        peak_error=float(np.max(np.abs(all_errors))),
+        rmse_per_stride=np.array(rmse_list),
+        mae_per_stride=np.array(mae_list),
+    )
+
+
+def _compute_force_profiles(df: pd.DataFrame, side: str,
+                             hs_indices: np.ndarray, valid_mask: np.ndarray,
+                             n_points: int = 101) -> ForceProfileResult:
+    """Extract GCP-normalized force profiles (resampled to n_points per stride)."""
+    act_col = f'{side}_ActForce_N'
+    des_col = f'{side}_DesForce_N'
+
+    result = ForceProfileResult()
+
+    for col, attr_ind, attr_mean, attr_std in [
+        (act_col, 'individual', 'mean', 'std'),
+        (des_col, 'des_individual', 'des_mean', 'des_std'),
+    ]:
+        if col not in df.columns:
+            continue
+
+        force = df[col].values.astype(np.float64)
+        profiles = []
+
+        n_strides = len(valid_mask)
+        for i in range(n_strides):
+            if not valid_mask[i]:
+                continue
+            s, e = hs_indices[i], hs_indices[i + 1]
+            if e - s < 10:
+                continue
+
+            stride_f = force[s:e].copy()
+            if np.all(np.isnan(stride_f)):
+                continue
+
+            # Fill NaN before resampling
+            nan_mask = np.isnan(stride_f)
+            if np.any(nan_mask):
+                valid_idx = np.where(~nan_mask)[0]
+                if len(valid_idx) >= 2:
+                    stride_f[nan_mask] = np.interp(
+                        np.where(nan_mask)[0], valid_idx, stride_f[valid_idx])
+                else:
+                    stride_f = np.nan_to_num(stride_f, nan=0.0)
+
+            # Resample to n_points
+            x_orig = np.linspace(0, 100, len(stride_f))
+            resampled = np.interp(np.linspace(0, 100, n_points), x_orig, stride_f)
+            profiles.append(resampled)
+
+        if profiles:
+            arr = np.array(profiles)
+            setattr(result, attr_ind, arr)
+            setattr(result, attr_mean, np.mean(arr, axis=0))
+            setattr(result, attr_std, np.std(arr, axis=0))
+
+    return result
+
+
+def _compute_stance_swing(df: pd.DataFrame, side: str,
+                           hs_indices: np.ndarray, valid_mask: np.ndarray
+                           ) -> tuple[list[float], list[float]]:
+    """Compute stance and swing percentages per stride."""
+    gcp_col = f'{side}_GCP'
+    phase_col = f'{side}_Phase'
+
+    gcp = df[gcp_col].values.astype(np.float64) if gcp_col in df.columns else None
+    stance_ratios, swing_ratios = [], []
+
+    n_strides = len(valid_mask)
+    for i in range(n_strides):
+        if not valid_mask[i]:
+            continue
+        s, e = hs_indices[i], hs_indices[i + 1]
+        if e - s < 5:
+            continue
+
+        if phase_col in df.columns and df[phase_col].nunique() > 1:
+            phase_data = df[phase_col].values[s:e].astype(np.float64)
+            n_stance = np.sum(phase_data < 0.5)
+        elif gcp is not None:
+            stride_gcp = gcp[s:e]
+            n_stance = np.sum(stride_gcp < 0.6)
+        else:
+            continue
+
+        total = e - s
+        stance_ratios.append(n_stance / total * 100)
+        swing_ratios.append((total - n_stance) / total * 100)
+
+    return stance_ratios, swing_ratios
+
+
+def analyze_file(filepath: str, analyses: list[str] = None) -> AnalysisResult:
+    """
+    Run full analysis on a single CSV file.
+
+    Args:
+        filepath: Path to H-Walker CSV file.
+        analyses: List of analysis types to run. Options: 'force', 'imu', 'gait', 'all'.
+                  Default is ['all'].
+
+    Returns:
+        AnalysisResult with all computed metrics.
+    """
+    if analyses is None:
+        analyses = ['all']
+    run_all = 'all' in analyses
+    run_force = run_all or 'force' in analyses
+    run_imu = run_all or 'imu' in analyses
+    run_gait = run_all or 'gait' in analyses
+
+    # Load CSV using DataManager's logic
+    dm = DataManager()
+    lf = dm.load_csv(filepath)
+    if lf is None:
+        raise ValueError(f"Failed to load CSV: {filepath}")
+
+    df = lf.df
+    fs = DataManager.estimate_sample_rate(df)
+
+    result = AnalysisResult(
+        filename=os.path.basename(filepath),
+        filepath=filepath,
+        n_samples=len(df),
+        duration_s=len(df) / fs,
+        sample_rate=fs,
+    )
+
+    print(f"  Loaded: {result.filename} ({result.n_samples} samples, "
+          f"{result.duration_s:.1f}s, {fs:.1f} Hz)")
+
+    # Analyze each side
+    for side, stride_attr, ft_attr, fp_attr in [
+        ('L', 'left_stride', 'left_force_tracking', 'left_force_profile'),
+        ('R', 'right_stride', 'right_force_tracking', 'right_force_profile'),
+    ]:
+        # Detect heel strikes
+        hs_idx = _detect_heel_strikes(df, side, fs)
+        if len(hs_idx) < 2:
+            print(f"    {side}: No strides detected")
+            continue
+
+        # Stride times
+        n_raw = len(hs_idx) - 1
+        stride_times_raw = np.array([(hs_idx[i+1] - hs_idx[i]) / fs for i in range(n_raw)])
+        stride_times_filtered, valid_mask = _filter_strides_iqr(stride_times_raw)
+
+        sr = StrideResult(
+            stride_times_raw=stride_times_raw,
+            stride_times=stride_times_filtered,
+            stride_time_mean=float(np.mean(stride_times_filtered)) if len(stride_times_filtered) else 0,
+            stride_time_std=float(np.std(stride_times_filtered)) if len(stride_times_filtered) else 0,
+            n_strides=len(stride_times_filtered),
+            hs_indices=hs_idx,
+            valid_mask=valid_mask,
+        )
+        if sr.stride_time_mean > 0:
+            sr.stride_time_cv = sr.stride_time_std / sr.stride_time_mean * 100
+            sr.cadence = 60.0 / sr.stride_time_mean * 2  # steps/min
+
+        # Stance/Swing
+        if run_gait:
+            stance, swing = _compute_stance_swing(df, side, hs_idx, valid_mask)
+            if stance:
+                sr.stance_pct_mean = float(np.mean(stance))
+                sr.stance_pct_std = float(np.std(stance))
+                sr.swing_pct_mean = float(np.mean(swing))
+                sr.swing_pct_std = float(np.std(swing))
+
+        # Stride length (ZUPT)
+        if run_imu:
+            sr.stride_lengths = _compute_stride_length_zupt(df, side, hs_idx, valid_mask, fs)
+            valid_lengths = sr.stride_lengths[np.isfinite(sr.stride_lengths)]
+            if len(valid_lengths) > 0:
+                sr.stride_length_mean = float(np.mean(valid_lengths))
+                sr.stride_length_std = float(np.std(valid_lengths))
+
+        setattr(result, stride_attr, sr)
+        print(f"    {side}: {sr.n_strides} strides, "
+              f"time={sr.stride_time_mean:.3f}±{sr.stride_time_std:.3f}s, "
+              f"cadence={sr.cadence:.1f} steps/min")
+
+        # Force tracking
+        if run_force:
+            ft = _compute_force_tracking(df, side, hs_idx, valid_mask)
+            setattr(result, ft_attr, ft)
+            if ft.rmse > 0:
+                print(f"    {side} Force: RMSE={ft.rmse:.2f}N, MAE={ft.mae:.2f}N, "
+                      f"Peak={ft.peak_error:.2f}N")
+
+            # Force profiles
+            fp = _compute_force_profiles(df, side, hs_idx, valid_mask)
+            setattr(result, fp_attr, fp)
+            if fp.individual is not None:
+                print(f"    {side} Profiles: {fp.individual.shape[0]} strides resampled")
+
+    # Symmetry indices
+    ls, rs = result.left_stride, result.right_stride
+    result.stride_time_symmetry = _symmetry_index(ls.stride_time_mean, rs.stride_time_mean)
+    result.stride_length_symmetry = _symmetry_index(ls.stride_length_mean, rs.stride_length_mean)
+    result.stance_symmetry = _symmetry_index(ls.stance_pct_mean, rs.stance_pct_mean)
+
+    lf_t, rf_t = result.left_force_tracking, result.right_force_tracking
+    if lf_t.rmse > 0 and rf_t.rmse > 0:
+        result.force_symmetry = _symmetry_index(lf_t.rmse, rf_t.rmse)
+
+    # Fatigue
+    if len(ls.stride_times) >= 10:
+        result.left_fatigue = _fatigue_index(ls.stride_times)
+    if len(rs.stride_times) >= 10:
+        result.right_fatigue = _fatigue_index(rs.stride_times)
+
+    return result
+
+
+def compare_results(results: list[AnalysisResult]) -> dict:
+    """
+    Generate comparison statistics across multiple analysis results.
+    Returns a dict summarizing differences.
+    """
+    if len(results) < 2:
+        return {}
+
+    comp = {
+        'n_files': len(results),
+        'filenames': [r.filename for r in results],
+        'files': [],
+    }
+
+    for r in results:
+        comp['files'].append({
+            'filename': r.filename,
+            'duration_s': r.duration_s,
+            'l_stride_time': r.left_stride.stride_time_mean,
+            'r_stride_time': r.right_stride.stride_time_mean,
+            'l_stride_length': r.left_stride.stride_length_mean,
+            'r_stride_length': r.right_stride.stride_length_mean,
+            'l_cadence': r.left_stride.cadence,
+            'r_cadence': r.right_stride.cadence,
+            'l_stance_pct': r.left_stride.stance_pct_mean,
+            'r_stance_pct': r.right_stride.stance_pct_mean,
+            'l_force_rmse': r.left_force_tracking.rmse,
+            'r_force_rmse': r.right_force_tracking.rmse,
+            'stride_time_symmetry': r.stride_time_symmetry,
+            'force_symmetry': r.force_symmetry,
+            'l_n_strides': r.left_stride.n_strides,
+            'r_n_strides': r.right_stride.n_strides,
+        })
+
+    return comp
+
+
+def result_to_dict(r: AnalysisResult) -> dict:
+    """Convert AnalysisResult to a JSON-serializable dict."""
+    d = {
+        'filename': r.filename,
+        'filepath': r.filepath,
+        'n_samples': r.n_samples,
+        'duration_s': round(r.duration_s, 2),
+        'sample_rate': round(r.sample_rate, 1),
+        'symmetry': {
+            'stride_time': round(r.stride_time_symmetry, 2),
+            'stride_length': round(r.stride_length_symmetry, 2),
+            'force': round(r.force_symmetry, 2),
+            'stance': round(r.stance_symmetry, 2),
+        },
+        'fatigue': {
+            'left_pct_change': round(r.left_fatigue, 2),
+            'right_pct_change': round(r.right_fatigue, 2),
+        },
+    }
+
+    for side_name, sr, ft in [
+        ('left', r.left_stride, r.left_force_tracking),
+        ('right', r.right_stride, r.right_force_tracking),
+    ]:
+        d[side_name] = {
+            'n_strides': sr.n_strides,
+            'stride_time_mean': round(sr.stride_time_mean, 4),
+            'stride_time_std': round(sr.stride_time_std, 4),
+            'stride_time_cv': round(sr.stride_time_cv, 2),
+            'stride_length_mean': round(sr.stride_length_mean, 4),
+            'stride_length_std': round(sr.stride_length_std, 4),
+            'cadence': round(sr.cadence, 1),
+            'stance_pct_mean': round(sr.stance_pct_mean, 1),
+            'stance_pct_std': round(sr.stance_pct_std, 1),
+            'swing_pct_mean': round(sr.swing_pct_mean, 1),
+            'swing_pct_std': round(sr.swing_pct_std, 1),
+            'force_tracking': {
+                'rmse': round(ft.rmse, 3),
+                'mae': round(ft.mae, 3),
+                'peak_error': round(ft.peak_error, 3),
+            },
+        }
+
+    return d

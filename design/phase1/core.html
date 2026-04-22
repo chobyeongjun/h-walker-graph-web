@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>H-Walker CORE · Phase 1</title>
+<link rel="icon" href="/assets/favicon.svg"/>
+<link rel="stylesheet" href="/colors_and_type.css"/>
+<style>
+  html,body{margin:0;height:100%;background:#0B0E2E;color:#E2E8F0;font-family:'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  body{background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(240,151,8,.08), transparent 60%),
+    radial-gradient(900px 500px at 95% 110%, rgba(0,255,178,.05), transparent 60%),
+    #0B0E2E;}
+  *{box-sizing:border-box}
+  button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  input,textarea{font-family:inherit}
+
+  /* ───────── Layout scaffold ───────── */
+  .app{display:grid;grid-template-columns:56px 1fr;grid-template-rows:52px 1fr 24px;height:100vh;}
+  .topnav{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 18px;
+    background:rgba(11,14,46,.78);border-bottom:1px solid rgba(240,151,8,.14);
+    backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);z-index:10;position:relative}
+  .sidebar{background:rgba(23,27,94,.22);border-right:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px;overflow:hidden;transition:width .2s var(--hw-ease);width:56px}
+  .sidebar{transition-delay:.1s}
+  .sidebar:hover{width:220px;transition-delay:0s}
+  /* Force collapse when mouse leaves the whole app shell */
+  .app:not(:hover) .sidebar{width:56px!important}
+  .canvas{overflow-y:auto;padding:28px 40px 80px;position:relative}
+  .footer{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;font:500 10px/1 'JetBrains Mono',monospace;color:#4B5563;letter-spacing:.12em;
+    background:rgba(11,14,46,.5);border-top:1px solid rgba(255,255,255,.04)}
+
+  /* ───────── Top nav content ───────── */
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand svg{filter:drop-shadow(0 0 12px rgba(240,151,8,.35))}
+  .brand-text{font:800 14px/1 'Pretendard',sans-serif;letter-spacing:-.01em;color:#fff}
+  .brand-text b{color:#F09708}
+  .brand-sub{font:500 9.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.22em;text-transform:uppercase;margin-top:3px}
+
+  .nav-spacer{flex:1}
+
+  .nav-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(23,27,94,.5);border:1px solid rgba(255,255,255,.06);font:600 11px/1 'Pretendard',sans-serif;color:#E2E8F0}
+  .nav-pill .dot{width:7px;height:7px;border-radius:50%;background:#00FFB2;box-shadow:0 0 8px rgba(0,255,178,.9);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .nav-pill small{color:#6B7280;font:500 10px/1 'JetBrains Mono',monospace;margin-left:4px}
+
+  .kbd{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;background:rgba(23,27,94,.45);border:1px solid rgba(255,255,255,.08);font:600 11px/1 'Pretendard',sans-serif;color:#9CA3AF;transition:all .15s}
+  .kbd:hover{border-color:rgba(240,151,8,.35);color:#fff}
+  .kbd kbd{font:600 10px/1 'JetBrains Mono',monospace;color:#F09708;background:rgba(240,151,8,.1);padding:2px 5px;border-radius:4px;border:1px solid rgba(240,151,8,.2)}
+
+  .mode-toggle{display:inline-flex;padding:2px;border-radius:10px;background:rgba(23,27,94,.55);border:1px solid rgba(255,255,255,.06)}
+  .mode-toggle button{padding:6px 12px;border-radius:8px;font:700 10.5px/1 'Pretendard',sans-serif;letter-spacing:.15em;text-transform:uppercase;color:#9CA3AF;transition:all .15s}
+  .mode-toggle button.on{background:#F09708;color:#fff;box-shadow:0 0 15px rgba(240,151,8,.3)}
+
+  /* ───────── Sidebar items ───────── */
+  .side-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;color:#9CA3AF;width:calc(100% - 12px);margin:0 6px;white-space:nowrap;transition:background .15s,color .15s}
+  .side-item:hover,.side-item.active{background:rgba(240,151,8,.08);color:#fff}
+  .side-item.active{color:#F09708}
+  .side-item svg{flex-shrink:0}
+  .side-item span{font:600 12px/1 'Pretendard',sans-serif;opacity:0;transition:opacity .15s}
+  .sidebar:hover .side-item span{opacity:1}
+  .side-sep{width:calc(100% - 24px);height:1px;background:rgba(255,255,255,.06);margin:8px 12px}
+
+  /* ───────── Canvas / page ───────── */
+  .page-head{max-width:1040px;margin:0 auto 28px}
+  .page-crumbs{display:flex;align-items:center;gap:6px;font:500 10.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em;margin-bottom:10px}
+  .page-crumbs a{color:#9CA3AF;text-decoration:none}
+  .page-crumbs a:hover{color:#F09708}
+  .page-title{font:800 32px/1.1 'Pretendard',sans-serif;letter-spacing:-.02em;color:#fff;outline:0;padding:2px 4px;margin:-2px -4px;border-radius:6px;cursor:text;min-height:40px}
+  .page-title:focus,.page-title:hover{background:rgba(240,151,8,.05);box-shadow:inset 0 0 0 1px rgba(240,151,8,.18)}
+  .page-meta{display:flex;gap:14px;margin-top:8px;font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .page-meta b{color:#E2E8F0;font-weight:600}
+  .page-meta .accent{color:#F09708}
+
+  /* ───────── Cell stack ───────── */
+  .cells{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:0}
+  .cell{background:rgba(23,27,94,.36);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:12px;transition:border-color .15s,box-shadow .15s}
+  .cell:hover{border-color:rgba(240,151,8,.25);box-shadow:0 4px 24px rgba(0,0,0,.3)}
+  .cell.dragging{opacity:.5;cursor:grabbing}
+  .cell-head{display:flex;align-items:center;gap:10px}
+  .cell-handle{cursor:grab;color:#4B5563;padding:2px;border-radius:4px}
+  .cell-handle:hover{color:#F09708;background:rgba(240,151,8,.1)}
+  .cell-ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#F09708}
+  .cell-title{font:700 14px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;outline:0;padding:2px 4px;margin:-2px -4px;border-radius:4px;cursor:text}
+  .cell-title:hover,.cell-title:focus{background:rgba(255,255,255,.04)}
+  .cell-sub{font:500 10.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.03em}
+  .cell-tools{margin-left:auto;display:flex;gap:3px;opacity:0;transition:opacity .15s}
+  .cell:hover .cell-tools{opacity:1}
+  .cell-tool{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:#9CA3AF;transition:all .15s}
+  .cell-tool:hover{background:rgba(240,151,8,.12);color:#F09708}
+  .cell-tool.danger:hover{background:rgba(248,113,113,.14);color:#f87171}
+
+  /* plot surface */
+  .plot{background:rgba(11,14,46,.55);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:6px}
+  .plot svg{display:block;width:100%;height:240px}
+  .axis-line{stroke:rgba(255,255,255,.25);stroke-width:1}
+  .grid-line{stroke:rgba(255,255,255,.06);stroke-width:.7;stroke-dasharray:2 3}
+  .grid-line-major{stroke:rgba(255,255,255,.1);stroke-width:.8}
+  .tick-label{font:500 9px 'JetBrains Mono',monospace;fill:#6B7280}
+  .axis-title{font:600 10px 'Pretendard',sans-serif;fill:#E2E8F0}
+
+  .cell-legend{display:flex;flex-wrap:wrap;gap:10px 14px;padding:2px 4px;font:500 10.5px 'Pretendard',sans-serif;color:#E2E8F0}
+  .lg-item{display:inline-flex;align-items:center;gap:6px}
+  .lg-sw{width:14px;height:2.5px;border-radius:1px}
+  .lg-sw.dash{background-image:linear-gradient(to right, currentColor 55%, transparent 55%);background-size:4px 100%;background-repeat:repeat-x;height:2px}
+
+  .cell-meta{display:flex;gap:14px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.07);font:500 10px 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .cell-meta b{color:#E2E8F0;font-weight:600}
+
+  /* inline ask bubble at bottom of cell */
+  .cell-ask{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(240,151,8,.06);border:1px solid rgba(240,151,8,.16);border-radius:10px;font:500 11.5px/1.3 'Pretendard',sans-serif;color:#9CA3AF}
+  .cell-ask b{color:#F09708;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:10px}
+  .cell-ask input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-size:12.5px}
+  .cell-ask input::placeholder{color:#6B7280}
+  .cell-ask .send{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#F09708;color:#fff;box-shadow:0 0 10px rgba(240,151,8,.3)}
+  .cell-ask .send:hover{background:#D68607}
+
+  /* add-cell slot between cells */
+  .add-slot{height:14px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,height .15s}
+  .add-slot:hover{opacity:1;height:36px}
+  .add-slot button{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(240,151,8,.08);border:1px dashed rgba(240,151,8,.35);font:600 10.5px/1 'Pretendard',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#F09708}
+  .add-slot button:hover{background:rgba(240,151,8,.18);border-style:solid}
+
+  /* Empty-end add bar */
+  .add-end{max-width:1040px;margin:20px auto 0;display:flex;gap:10px;flex-wrap:wrap}
+  .add-end button{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:rgba(23,27,94,.32);border:1px dashed rgba(255,255,255,.12);color:#9CA3AF;font:600 11px/1 'Pretendard',sans-serif;letter-spacing:.06em}
+  .add-end button:hover{border-color:rgba(240,151,8,.4);color:#F09708;background:rgba(240,151,8,.05)}
+
+  /* ───────── ⌘K Command Palette ───────── */
+  .cmdk-wrap{position:fixed;inset:0;background:rgba(11,14,46,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:flex-start;justify-content:center;padding-top:14vh;z-index:50;animation:fadeIn .15s}
+  .cmdk-wrap.open{display:flex}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .cmdk{width:min(640px,92vw);background:rgba(23,27,94,.88);border:1px solid rgba(240,151,8,.28);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 0 1px rgba(240,151,8,.08);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);overflow:hidden;animation:slideIn .2s var(--hw-ease)}
+  @keyframes slideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .cmdk-input{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .cmdk-input input{flex:1;background:transparent;border:0;outline:0;color:#fff;font:500 15px/1 'Pretendard',sans-serif}
+  .cmdk-input input::placeholder{color:#6B7280}
+  .cmdk-list{max-height:50vh;overflow-y:auto;padding:6px 0}
+  .cmdk-section{padding:6px 18px;font:700 9px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#6B7280;margin-top:4px}
+  .cmdk-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font:500 13px/1 'Pretendard',sans-serif;color:#E2E8F0;cursor:pointer}
+  .cmdk-item[data-active="true"],.cmdk-item:hover{background:rgba(240,151,8,.1);color:#fff}
+  .cmdk-item .cmdk-icon{width:18px;color:#F09708}
+  .cmdk-item .cmdk-meta{margin-left:auto;font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .cmdk-footer{display:flex;align-items:center;gap:14px;padding:8px 18px;border-top:1px solid rgba(255,255,255,.06);font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.05em}
+  .cmdk-footer kbd{background:rgba(255,255,255,.06);padding:2px 5px;border-radius:4px;color:#9CA3AF;margin-right:4px}
+
+  /* ───────── Toast ───────── */
+  .toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:rgba(23,27,94,.94);border:1px solid rgba(240,151,8,.35);border-radius:10px;padding:10px 16px;
+    font:600 12px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:.02em;z-index:60;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);transition:all .25s var(--hw-ease)}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* File tray (left-sidebar hover) */
+  .file-tray{padding:12px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .15s;pointer-events:none}
+  .sidebar:hover .file-tray{opacity:1;pointer-events:auto}
+  .file-tray h5{margin:8px 4px 4px;font:700 9px/1 'Pretendard',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#6B7280}
+  .file{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;font:500 11.5px/1.2 'Pretendard',sans-serif;color:#E2E8F0;cursor:pointer}
+  .file:hover,.file.active{background:rgba(240,151,8,.1);color:#fff}
+  .file .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .file small{color:#6B7280;font:500 9.5px/1 'JetBrains Mono',monospace;margin-left:auto}
+
+  /* ───────── Focus / zoom modal ───────── */
+  .focus-wrap{position:fixed;inset:0;background:rgba(11,14,46,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:40px;z-index:40;animation:fadeIn .18s}
+  .focus-wrap.open{display:flex}
+  .focus{width:min(1240px,94vw);max-height:90vh;background:rgba(13,17,56,.92);border:1px solid rgba(240,151,8,.28);border-radius:18px;box-shadow:0 32px 100px rgba(0,0,0,.6),0 0 0 1px rgba(240,151,8,.06);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow:hidden;animation:slideIn .22s var(--hw-ease)}
+  .focus-head{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .focus-ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#F09708}
+  .focus-title{font:700 17px/1.2 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;outline:0}
+  .focus-sub{font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .focus-nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .focus-nav button{width:30px;height:30px;border-radius:8px;background:rgba(23,27,94,.5);color:#9CA3AF;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.06)}
+  .focus-nav button:hover{background:rgba(240,151,8,.12);color:#F09708;border-color:rgba(240,151,8,.3)}
+  .focus-nav .count{font:500 11px/1 'JetBrains Mono',monospace;color:#9CA3AF;padding:0 8px;letter-spacing:.06em}
+
+  .focus-toolbar{display:flex;align-items:center;gap:6px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,14,46,.45)}
+  .ftb-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:rgba(23,27,94,.4);border:1px solid rgba(255,255,255,.06);color:#9CA3AF;font:600 11px/1 'Pretendard',sans-serif}
+  .ftb-btn:hover,.ftb-btn.on{background:rgba(240,151,8,.14);border-color:rgba(240,151,8,.3);color:#F09708}
+  .ftb-sep{width:1px;height:18px;background:rgba(255,255,255,.08);margin:0 4px}
+  .ftb-hint{margin-left:auto;font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em}
+  .ftb-hint kbd{background:rgba(255,255,255,.06);padding:2px 5px;border-radius:4px;color:#9CA3AF;margin:0 2px}
+
+  .focus-body{flex:1;overflow:auto;padding:22px 24px;display:grid;grid-template-columns:1fr 280px;gap:20px}
+  .focus-plot-wrap{background:rgba(11,14,46,.55);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:14px;position:relative}
+  .focus-plot-wrap svg{display:block;width:100%;height:min(560px,68vh)}
+  .focus-plot-wrap .crosshair-v, .focus-plot-wrap .crosshair-h{stroke:rgba(240,151,8,.5);stroke-width:1;stroke-dasharray:3 3;pointer-events:none;opacity:0}
+  .focus-plot-wrap.hovering .crosshair-v, .focus-plot-wrap.hovering .crosshair-h{opacity:1}
+  .coord-chip{position:absolute;top:14px;right:14px;background:rgba(11,14,46,.85);border:1px solid rgba(240,151,8,.3);border-radius:8px;padding:6px 10px;font:500 11px/1.3 'JetBrains Mono',monospace;color:#E2E8F0;letter-spacing:.02em;opacity:0;transition:opacity .15s}
+  .focus-plot-wrap.hovering .coord-chip{opacity:1}
+  .coord-chip b{color:#F09708}
+  .coord-chip .mint{color:#00FFB2}
+
+  /* brush-to-zoom selection rectangle */
+  .brush{fill:rgba(240,151,8,.12);stroke:rgba(240,151,8,.55);stroke-width:1;stroke-dasharray:3 3;pointer-events:none;display:none}
+  .focus-plot-wrap.brushing .brush{display:block}
+
+  .focus-side{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .fs-block{background:rgba(23,27,94,.3);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px 14px}
+  .fs-block h5{margin:0 0 8px;font:700 9.5px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#6B7280}
+  .fs-stat{display:flex;justify-content:space-between;padding:5px 0;font:500 12px/1.2 'Pretendard',sans-serif;color:#E2E8F0;border-bottom:1px dashed rgba(255,255,255,.05)}
+  .fs-stat:last-child{border-bottom:0}
+  .fs-stat b{font:600 11.5px/1 'JetBrains Mono',monospace;color:#fff;letter-spacing:.02em}
+  .fs-series{display:flex;align-items:center;gap:8px;padding:5px 0;font:500 12px/1 'Pretendard',sans-serif;color:#E2E8F0}
+  .fs-series .tog{width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.2);display:inline-flex;align-items:center;justify-content:center;color:#0B0E2E;font-size:10px;font-weight:800}
+  .fs-series.off{color:#4B5563}
+  .fs-series.off .tog{background:transparent!important}
+  .fs-series .val{margin-left:auto;font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280}
+
+  .focus-foot{display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid rgba(255,255,255,.05);background:rgba(11,14,46,.35)}
+
+  @media (max-width:900px){
+    .focus-body{grid-template-columns:1fr}
+    .focus-side{order:-1;flex-direction:row;overflow-x:auto}
+  }
+
+  /* scrollbar */
+  .canvas::-webkit-scrollbar{width:10px}
+  .canvas::-webkit-scrollbar-thumb{background:rgba(255,255,255,.05);border-radius:10px}
+  .canvas::-webkit-scrollbar-thumb:hover{background:rgba(240,151,8,.2)}
+</style>
+</head>
+<body>
+
+<!-- reusable brand gradient -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="gStride" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0" stop-color="#F09708"/><stop offset=".6" stop-color="#FFB347"/><stop offset="1" stop-color="#00FFB2"/>
+  </linearGradient>
+  <linearGradient id="gBg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#171B5E"/><stop offset="1" stop-color="#0B0E2E"/>
+  </linearGradient>
+</defs></svg>
+
+<div class="app">
+
+  <!-- ───────── TOP NAV ───────── -->
+  <header class="topnav">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="url(#gBg)"/><rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="none" stroke="rgba(240,151,8,.35)"/><path d="M6 22 C 9 22, 10.5 20.5, 12 14 C 13.5 8, 15.5 7, 17 9 C 18.5 11, 19.5 14, 21 19 C 22 22, 23.5 22, 26 22" stroke="url(#gStride)" stroke-width="2.4" stroke-linecap="round" fill="none"/><circle cx="17" cy="9" r="1.8" fill="#00FFB2"/></svg>
+      <div>
+        <div class="brand-text">H-WALKER <b>CORE</b></div>
+        <div class="brand-sub">Analysis Engine</div>
+      </div>
+    </div>
+
+    <div class="nav-spacer"></div>
+
+    <div class="nav-pill" title="Claude Haiku 4.5 · 312ms avg">
+      <span class="dot"></span>
+      <span>Claude</span>
+      <small>haiku 4.5</small>
+    </div>
+
+    <button class="kbd" id="cmdk-trigger">Search or ask… <kbd>⌘K</kbd></button>
+
+    <div class="mode-toggle">
+      <button class="on" data-mode="quick">Quick</button>
+      <button data-mode="publication">Publication</button>
+    </div>
+  </header>
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <button class="side-item active" title="Files">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span>Files</span>
+    </button>
+    <button class="side-item" title="History">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>History</span>
+    </button>
+    <button class="side-item" title="Stats">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Stats</span>
+    </button>
+
+    <div class="side-sep"></div>
+
+    <div class="file-tray">
+      <h5>Dataset</h5>
+      <div class="file active"><span class="dot" style="background:#00FFB2;box-shadow:0 0 6px #00FFB2"></span>trial_1_force.csv<small>2.8s</small></div>
+      <div class="file"><span class="dot" style="background:#6B7280"></span>trial_2_imu.csv<small>8.0s</small></div>
+      <div class="file"><span class="dot" style="background:#6B7280"></span>pilot_run.csv<small>100%</small></div>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <button class="side-item" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </aside>
+
+  <!-- ───────── CANVAS ───────── -->
+  <main class="canvas">
+    <div class="page-head">
+      <div class="page-crumbs"><a href="#">PAGES</a> · <a href="#">2026-04-21</a> · <span>pilot_subject_03</span></div>
+      <h1 class="page-title" contenteditable="true" spellcheck="false">Gait asymmetry — Subject 03 pilot</h1>
+      <div class="page-meta">
+        <span>cells <b>2</b></span>
+        <span>files <b>3</b></span>
+        <span>updated <b>2m ago</b></span>
+        <span class="accent">auto-saved</span>
+      </div>
+    </div>
+
+    <div class="cells" id="cells"></div>
+  </main>
+
+  <!-- ───────── FOOTER ───────── -->
+  <footer class="footer">
+    <span>LOCAL · :8000 · PYTHON 3.12</span>
+    <span>DESIGNED BY CBJ</span>
+  </footer>
+</div>
+
+<!-- ───────── ⌘K palette ───────── -->
+<div class="cmdk-wrap" id="cmdk" role="dialog" aria-modal="true">
+  <div class="cmdk">
+    <div class="cmdk-input">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F09708" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="cmdk-q" placeholder="Search cells, files, or ask Claude…" autocomplete="off"/>
+      <span class="kbd" style="padding:3px 7px"><kbd>esc</kbd></span>
+    </div>
+    <div class="cmdk-list" id="cmdk-list"></div>
+    <div class="cmdk-footer">
+      <span><kbd>↑↓</kbd>navigate</span>
+      <span><kbd>↵</kbd>select</span>
+      <span style="margin-left:auto"><b style="color:#F09708">haiku 4.5</b> · 312ms avg</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ───────── Focus / Zoom modal ───────── -->
+<div class="focus-wrap" id="focus" role="dialog" aria-modal="true">
+  <div class="focus">
+    <div class="focus-head">
+      <span class="focus-ey" id="f-ey">Force · L vs R</span>
+      <span class="focus-title" id="f-title" contenteditable="true" spellcheck="false">Ground reaction force</span>
+      <span class="focus-sub" id="f-sub">trial_1_force.csv</span>
+      <div class="focus-nav">
+        <button id="f-prev" title="Previous cell (←)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="count" id="f-count">1 / 2</span>
+        <button id="f-next" title="Next cell (→)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button id="f-close" title="Close (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="focus-toolbar">
+      <button class="ftb-btn on" data-tool="brush" title="Drag to zoom into an X-range"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="18" height="8" rx="1"/></svg>Brush zoom</button>
+      <button class="ftb-btn" data-tool="reset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Reset</button>
+      <span class="ftb-sep"></span>
+      <button class="ftb-btn" data-tool="crosshair" title="Toggle crosshair + coordinate readout"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>Crosshair</button>
+      <button class="ftb-btn" data-tool="grid"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Grid</button>
+      <span class="ftb-sep"></span>
+      <button class="ftb-btn" data-tool="download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download SVG</button>
+      <span class="ftb-hint"><kbd>←→</kbd>cells · <kbd>Drag</kbd>zoom · <kbd>Esc</kbd>close</span>
+    </div>
+    <div class="focus-body">
+      <div class="focus-plot-wrap" id="f-plotwrap">
+        <div class="coord-chip" id="f-coord">x: <b>—</b> · y: <b>—</b></div>
+        <div id="f-plot"></div>
+      </div>
+      <div class="focus-side">
+        <div class="fs-block">
+          <h5>Summary</h5>
+          <div id="f-stats"></div>
+        </div>
+        <div class="fs-block">
+          <h5>Series · click to toggle</h5>
+          <div id="f-series"></div>
+        </div>
+        <div class="fs-block">
+          <h5>Ask Claude about this</h5>
+          <div class="cell-ask" style="margin-top:2px">
+            <b>Ask</b>
+            <input id="f-ask" placeholder="Why is mid-stance asymmetric?"/>
+            <button class="send" id="f-send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="focus-foot">
+      <span class="nav-pill"><span class="dot"></span><span>Claude</span><small>haiku 4.5</small></span>
+      <span style="font:500 10.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em">LOCAL · :8000</span>
+      <span style="margin-left:auto" class="kbd"><kbd>F</kbd> toggle focus</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Data model — cells and commands
+// ============================================================
+const PALETTE_C = {
+  lActual:  '#3B82C4',
+  lDesired: '#7FB5E4',
+  rActual:  '#D35454',
+  rDesired: '#E89B9B',
+};
+
+const cellTemplates = {
+  force: {
+    ey: 'Force · L vs R', title: 'Ground reaction force',
+    sub: 'trial_1_force.csv · n=2400 · 100Hz', yUnit: 'Force (N)', xUnit: 'Gait cycle (%)',
+    stats: [['n strides','14'],['peak ΔL','48.2 N'],['peak ΔR','46.7 N'],['asym','3.2%']],
+    paths: [
+      {c:PALETTE_C.lActual,  w:2,   d:'M48,160 C 70,155 92,120 114,72 C 138,38 158,28 180,42 C 202,58 224,80 246,110 C 270,140 290,152 312,150 C 332,148 354,134 376,122 C 394,114 402,122 408,138', label:'L Actual'},
+      {c:PALETTE_C.lDesired, w:1.3, dash:'4 3', d:'M48,164 C 70,160 92,126 114,78 C 138,42 158,34 180,48 C 204,62 224,82 246,112 C 270,140 292,154 312,152 C 332,148 354,134 376,124 C 394,116 402,124 408,140', label:'L Desired'},
+      {c:PALETTE_C.rActual,  w:2,   d:'M48,165 C 70,160 92,150 114,108 C 138,62 160,48 180,64 C 202,82 224,100 246,130 C 270,150 292,156 312,152 C 332,150 354,138 376,124 C 394,114 402,122 408,136', label:'R Actual'},
+      {c:PALETTE_C.rDesired, w:1.3, dash:'4 3', d:'M48,167 C 70,162 92,154 114,114 C 138,68 160,54 180,70 C 202,88 224,104 246,132 C 270,150 292,156 312,154 C 332,150 354,138 376,126 C 394,114 402,124 408,138', label:'R Desired'},
+    ],
+    yTicks:['60','45','30','15','0'], xTicks:['0','25','50','75','100'],
+  },
+  imu: {
+    ey: 'IMU · Pitch', title: 'Shank vs thigh pitch',
+    sub: 'trial_2_imu.csv · n=800 · 100Hz', yUnit: 'Pitch (°)', xUnit: 'Time (s)',
+    stats: [['3 strides',''],['cadence','112 spm'],['stride T','1.08 s']],
+    paths: [
+      {c:PALETTE_C.lActual,  w:1.8, d:'M48,100 C 70,70 92,40 114,50 C 136,60 158,130 180,140 C 202,150 224,90 246,60 C 268,50 290,110 312,140 C 332,150 354,100 376,70 C 394,55 402,80 408,100', label:'Shank'},
+      {c:PALETTE_C.rActual,  w:1.8, d:'M48,110 C 70,90 92,70 114,78 C 138,88 158,120 180,126 C 204,132 224,100 246,82 C 268,75 290,108 312,128 C 332,136 354,108 376,88 C 394,78 402,90 408,102', label:'Thigh'},
+    ],
+    yTicks:['+20','+10','0','−10','−20'], xTicks:['0','2','4','6','8'],
+  },
+  trials: {
+    ey: 'Trials · N=5', title: 'Trial overlay',
+    sub: 'pilot_run.csv · 5 trials', yUnit: 'Normalized force', xUnit: 'Gait cycle (%)',
+    stats: [['trials','5'],['CV','4.1%'],['target Δ','+2.3%']],
+    paths: [
+      {c:'#7FB5E4', w:1.4, d:'M48,170 C 82,150 112,100 150,60 C 188,40 222,32 258,52 C 292,78 326,130 360,160 C 384,172 398,168 408,164', label:'Trial 1'},
+      {c:'#3B82C4', w:1.4, d:'M48,172 C 82,154 112,104 150,66 C 188,46 222,38 258,58 C 292,82 326,132 360,160 C 384,170 398,168 408,166', label:'Trial 2'},
+      {c:'#E89B9B', w:1.4, d:'M48,168 C 82,148 112,98 150,58 C 188,38 222,30 258,50 C 292,76 326,128 360,158 C 384,170 398,166 408,162', label:'Trial 3'},
+      {c:'#D35454', w:1.4, d:'M48,174 C 82,156 112,108 150,70 C 188,50 222,42 258,60 C 292,84 326,134 360,162 C 384,172 398,170 408,168', label:'Trial 4'},
+      {c:'#F09708', w:2.2, d:'M48,166 C 82,146 112,94 150,54 C 188,34 222,26 258,46 C 292,72 326,124 360,154 C 384,168 398,164 408,160', label:'Trial 5 · target'},
+    ],
+    yTicks:['1.0','0.75','0.5','0.25','0'], xTicks:['0','25','50','75','100'],
+  },
+};
+
+// initial cells
+let cells = [
+  { id: 'c1', type:'force' },
+  { id: 'c2', type:'imu' },
+];
+
+const COMMANDS = [
+  { group:'Add cell', label:'Insert Force L/R plot', hint:'⏎', action:()=>addCell('force') },
+  { group:'Add cell', label:'Insert IMU pitch plot', hint:'⏎', action:()=>addCell('imu') },
+  { group:'Add cell', label:'Insert Trial overlay',  hint:'⏎', action:()=>addCell('trials') },
+  { group:'Ask Claude', label:'Summarize this page',           hint:'AI', action:()=>toast('Claude: "Subject 03 shows 3.2% right-side force deficit concentrated in stance…"') },
+  { group:'Ask Claude', label:'Find gait asymmetry in trial_1', hint:'AI', action:()=>toast('Claude is analyzing trial_1_force.csv…') },
+  { group:'Ask Claude', label:'Compare pilot_run trials 1-5',   hint:'AI', action:()=>toast('Claude: overlay ready — trial 5 target achieved within 2.3%') },
+  { group:'Export',    label:'Export page as SVG',     hint:'⇧⌘E', action:()=>toast('Exported 2 cells to /exports/') },
+  { group:'Export',    label:'Export for IEEE preset', hint:'',     action:()=>toast('IEEE 1-column SVG · 88mm width') },
+  { group:'Export',    label:'Export for Nature preset', hint:'',   action:()=>toast('Nature 2-column SVG · 183mm width') },
+  { group:'Switch',    label:'Toggle Publication mode', hint:'⌘P', action:()=>document.querySelectorAll('.mode-toggle button').forEach(b=>b.classList.toggle('on')) },
+  { group:'Files',     label:'Open trial_1_force.csv', hint:'2.8s', action:()=>toast('Active file: trial_1_force.csv') },
+  { group:'Files',     label:'Open trial_2_imu.csv',   hint:'8.0s', action:()=>toast('Active file: trial_2_imu.csv') },
+];
+
+// ============================================================
+// Render
+// ============================================================
+const cellsEl = document.getElementById('cells');
+
+function renderPlot(tpl){
+  const paths = tpl.paths.map(p=>`<path d="${p.d}" stroke="${p.c}" stroke-width="${p.w}" ${p.dash?`stroke-dasharray="${p.dash}"`:''} fill="none" stroke-linecap="round"/>`).join('');
+  const yT = tpl.yTicks.map((t,i)=>`<text x="43" y="${23 + i*40}">${t}</text>`).join('');
+  const xT = tpl.xTicks.map((t,i)=>`<text x="${48 + i*90}" y="194">${t}</text>`).join('');
+  return `
+    <svg viewBox="0 0 420 210" preserveAspectRatio="none">
+      <g class="grid-line">
+        <line x1="48" y1="23" x2="408" y2="23"/>
+        <line x1="48" y1="63" x2="408" y2="63"/>
+        <line x1="48" y1="103" x2="408" y2="103"/>
+        <line x1="48" y1="143" x2="408" y2="143"/>
+      </g>
+      <line class="grid-line-major" x1="48" y1="180" x2="408" y2="180"/>
+      <line class="axis-line" x1="48" y1="16" x2="48" y2="180"/>
+      <line class="axis-line" x1="48" y1="180" x2="408" y2="180"/>
+      <g class="tick-label" text-anchor="end">${yT}</g>
+      <g class="tick-label" text-anchor="middle">${xT}</g>
+      <text class="axis-title" x="228" y="206" text-anchor="middle">${tpl.xUnit}</text>
+      <text class="axis-title" x="14" y="100" text-anchor="middle" transform="rotate(-90 14 100)">${tpl.yUnit}</text>
+      ${paths}
+    </svg>`;
+}
+function renderLegend(tpl){
+  return tpl.paths.map(p=>{
+    const isDash = !!p.dash;
+    return `<span class="lg-item"><span class="lg-sw ${isDash?'dash':''}" style="${isDash?`color:${p.c}`:`background:${p.c}`}"></span>${p.label}</span>`;
+  }).join('');
+}
+function renderMeta(tpl){
+  return tpl.stats.map(([k,v])=>`<span>${k}${v?' <b>'+v+'</b>':''}</span>`).join('');
+}
+
+function renderCells(){
+  cellsEl.innerHTML = '';
+  cells.forEach((c,i)=>{
+    if(i===0){ cellsEl.appendChild(addSlot(0)); }
+    const tpl = cellTemplates[c.type];
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.draggable = true;
+    el.dataset.id = c.id;
+    el.innerHTML = `
+      <div class="cell-head">
+        <span class="cell-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg></span>
+        <span class="cell-ey">${tpl.ey}</span>
+        <span class="cell-title" contenteditable="true" spellcheck="false">${tpl.title}</span>
+        <span class="cell-sub">${tpl.sub}</span>
+        <span class="cell-tools">
+          <button class="cell-tool" title="Duplicate" data-act="dup"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          <button class="cell-tool" title="Download SVG" data-act="dl"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+          <button class="cell-tool" title="Expand (F)" data-act="focus"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+          <button class="cell-tool danger" title="Delete" data-act="del"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+        </span>
+      </div>
+      <div class="plot">${renderPlot(tpl)}</div>
+      <div class="cell-legend">${renderLegend(tpl)}</div>
+      <div class="cell-meta">${renderMeta(tpl)}</div>
+      <div class="cell-ask">
+        <b>Ask</b>
+        <input placeholder="e.g. compare peak force asymmetry between strides…"/>
+        <button class="send" title="Ask Claude"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      </div>`;
+    // wire tools
+    el.querySelector('[data-act="dup"]').onclick=()=>{ cells.splice(i+1,0,{id:'c'+Date.now(), type:c.type}); renderCells(); toast('Cell duplicated'); };
+    el.querySelector('[data-act="del"]').onclick=()=>{ cells = cells.filter(x=>x.id!==c.id); renderCells(); toast('Cell removed'); };
+    el.querySelector('[data-act="dl"]').onclick=()=>toast('Exported '+tpl.title+'.svg');
+    el.querySelector('[data-act="focus"]').onclick=()=>openFocus(i);
+    el.querySelector('.plot').addEventListener('dblclick',()=>openFocus(i));
+    el.querySelector('.cell-ask input').addEventListener('keydown',e=>{
+      if(e.key==='Enter' && e.target.value.trim()){ toast('Claude is thinking…'); setTimeout(()=>toast('Claude: "Asymmetry index = 3.2%. Most of the deficit appears in mid-stance (30–55% GC)."'), 900); e.target.value=''; }
+    });
+    // drag
+    el.addEventListener('dragstart',e=>{ el.classList.add('dragging'); e.dataTransfer.setData('text/plain', c.id); });
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    cellsEl.appendChild(el);
+    cellsEl.appendChild(addSlot(i+1));
+  });
+}
+
+function addSlot(idx){
+  const slot = document.createElement('div');
+  slot.className = 'add-slot';
+  slot.innerHTML = `<button>＋ Add cell</button>`;
+  slot.querySelector('button').onclick=()=>{
+    cells.splice(idx, 0, {id:'c'+Date.now(), type:'force'});
+    renderCells();
+  };
+  // drop target between cells
+  slot.addEventListener('dragover',e=>{ e.preventDefault(); slot.style.opacity=1; slot.style.height='36px'; });
+  slot.addEventListener('dragleave',()=>{ slot.style.opacity=''; slot.style.height=''; });
+  slot.addEventListener('drop',e=>{
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    const from = cells.findIndex(c=>c.id===id);
+    if(from<0) return;
+    const [moved] = cells.splice(from,1);
+    const to = idx > from ? idx-1 : idx;
+    cells.splice(to, 0, moved);
+    renderCells();
+    toast('Cell moved');
+  });
+  return slot;
+}
+
+function addCell(type){
+  cells.push({id:'c'+Date.now(), type});
+  renderCells();
+  // scroll to last
+  setTimeout(()=>{
+    const last = cellsEl.querySelectorAll('.cell');
+    last[last.length-1]?.scrollIntoView({block:'center',behavior:'smooth'});
+  },0);
+  toast('Added '+cellTemplates[type].ey);
+}
+
+// end-add buttons
+document.querySelectorAll('.add-end button').forEach(b=>{
+  b.onclick=()=>{
+    const t = b.dataset.add;
+    if(t==='ask'){ openCmdK('ask '); return; }
+    addCell(t);
+  };
+});
+
+// ============================================================
+// ⌘K palette
+// ============================================================
+const cmdk = document.getElementById('cmdk');
+const cmdkList = document.getElementById('cmdk-list');
+const cmdkQ = document.getElementById('cmdk-q');
+
+function openCmdK(seed){
+  cmdk.classList.add('open');
+  cmdkQ.value = seed||'';
+  cmdkQ.focus();
+  renderCmdK();
+}
+function closeCmdK(){ cmdk.classList.remove('open'); }
+
+function renderCmdK(){
+  const q = cmdkQ.value.trim().toLowerCase();
+  const filtered = q ? COMMANDS.filter(c=>c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)) : COMMANDS;
+  const byGroup = {};
+  filtered.forEach(c=>{ (byGroup[c.group] = byGroup[c.group] || []).push(c); });
+  let html = '';
+  if(!filtered.length) html = `<div style="padding:28px 20px;color:#6B7280;font:500 12px sans-serif;text-align:center">No match. <b style="color:#F09708">⏎</b> to ask Claude directly.</div>`;
+  let gi=0;
+  for(const g in byGroup){
+    html += `<div class="cmdk-section">${g}</div>`;
+    byGroup[g].forEach((c,i)=>{
+      const active = gi===0 && i===0 ? 'true' : 'false';
+      html += `<div class="cmdk-item" data-active="${active}" data-cmd="${COMMANDS.indexOf(c)}">
+        <span class="cmdk-icon">›</span><span>${c.label}</span><span class="cmdk-meta">${c.hint||''}</span>
+      </div>`;
+    });
+    gi++;
+  }
+  cmdkList.innerHTML = html;
+  cmdkList.querySelectorAll('.cmdk-item').forEach(el=>{
+    el.onclick=()=>{ COMMANDS[+el.dataset.cmd].action(); closeCmdK(); };
+  });
+}
+
+document.getElementById('cmdk-trigger').onclick=()=>openCmdK();
+cmdkQ.addEventListener('input',renderCmdK);
+cmdkQ.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const active = cmdkList.querySelector('[data-active="true"]') || cmdkList.querySelector('.cmdk-item');
+    if(active){ COMMANDS[+active.dataset.cmd].action(); closeCmdK(); }
+    else if(cmdkQ.value.trim()){ toast('Claude: "'+cmdkQ.value+'" — interpreting…'); setTimeout(()=>toast('Claude: drafted an analysis plan in a new cell.'),900); closeCmdK(); }
+  }
+  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault();
+    const items = [...cmdkList.querySelectorAll('.cmdk-item')];
+    const curIdx = items.findIndex(el=>el.dataset.active==='true');
+    items.forEach(el=>el.dataset.active='false');
+    const next = e.key==='ArrowDown' ? (curIdx+1)%items.length : (curIdx-1+items.length)%items.length;
+    if(items[next]) items[next].dataset.active='true';
+  }
+});
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openCmdK(); }
+  if(e.key==='Escape') closeCmdK();
+});
+cmdk.addEventListener('click',e=>{ if(e.target===cmdk) closeCmdK(); });
+
+// mode toggle
+document.querySelectorAll('.mode-toggle button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.mode-toggle button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  toast(b.dataset.mode==='publication' ? 'Publication mode — IEEE preset loaded' : 'Quick mode');
+});
+
+// toast
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('on'), 2400);
+}
+
+// ============================================================
+// Focus / Zoom modal
+// ============================================================
+const focus = document.getElementById('focus');
+const fPlotWrap = document.getElementById('f-plotwrap');
+const fPlot = document.getElementById('f-plot');
+const fCoord = document.getElementById('f-coord');
+let focusIdx = -1;
+let focusState = {
+  xDomain: [0, 100],     // template-relative 0..100 (percent of plot width)
+  seriesHidden: new Set(),
+  crosshair: true,
+  grid: true,
+};
+
+function openFocus(idx){
+  focusIdx = idx;
+  focusState.xDomain = [0,100];
+  focusState.seriesHidden = new Set();
+  renderFocus();
+  focus.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeFocus(){ focus.classList.remove('open'); document.body.style.overflow=''; focusIdx=-1; }
+
+function renderFocus(){
+  if(focusIdx<0) return;
+  const c = cells[focusIdx];
+  const tpl = cellTemplates[c.type];
+  document.getElementById('f-ey').textContent = tpl.ey;
+  document.getElementById('f-title').textContent = tpl.title;
+  document.getElementById('f-sub').textContent = tpl.sub;
+  document.getElementById('f-count').textContent = (focusIdx+1)+' / '+cells.length;
+
+  // Big plot — reuse geometry but with a wider viewBox so the svg scales up cleanly
+  const [x0,x1] = focusState.xDomain;
+  // Compute clipPath for x-range so zoom only reveals that slice of data paths
+  const clipX  = 48 + (360 * x0/100);
+  const clipW  = 360 * (x1-x0)/100;
+  const paths = tpl.paths.map((p,i)=>{
+    if(focusState.seriesHidden.has(i)) return '';
+    return `<path d="${p.d}" stroke="${p.c}" stroke-width="${p.w+0.6}" ${p.dash?`stroke-dasharray="${p.dash}"`:''} fill="none" stroke-linecap="round" clip-path="url(#fClip)"/>`;
+  }).join('');
+
+  // Rescaled x-ticks: interpolate tpl.xTicks for current domain (5 ticks)
+  const xTicksVals = tpl.xTicks.map(t=>parseFloat(t));
+  const dMin = xTicksVals[0], dMax = xTicksVals[xTicksVals.length-1];
+  const xVals = [];
+  for(let k=0;k<5;k++){
+    const tnorm = x0 + (x1-x0)*k/4;
+    const v = dMin + (dMax-dMin)*tnorm/100;
+    xVals.push( Number.isInteger(v*10) ? v.toFixed(1).replace(/\.0$/,'') : v.toFixed(1) );
+  }
+  const xT = xVals.map((t,k)=>`<text x="${48 + k*90}" y="194">${t}</text>`).join('');
+  const yT = tpl.yTicks.map((t,k)=>`<text x="43" y="${23 + k*40}">${t}</text>`).join('');
+
+  const gridLines = focusState.grid ? `
+    <line x1="48" y1="23" x2="408" y2="23"/>
+    <line x1="48" y1="63" x2="408" y2="63"/>
+    <line x1="48" y1="103" x2="408" y2="103"/>
+    <line x1="48" y1="143" x2="408" y2="143"/>
+    <line x1="138" y1="16" x2="138" y2="180"/>
+    <line x1="228" y1="16" x2="228" y2="180"/>
+    <line x1="318" y1="16" x2="318" y2="180"/>
+  ` : '';
+
+  fPlot.innerHTML = `
+    <svg viewBox="0 0 420 210" preserveAspectRatio="none">
+      <defs>
+        <clipPath id="fClip"><rect x="${clipX}" y="16" width="${clipW}" height="166"/></clipPath>
+      </defs>
+      <g class="grid-line">${gridLines}</g>
+      <line class="grid-line-major" x1="48" y1="180" x2="408" y2="180"/>
+      <line class="axis-line" x1="48" y1="16" x2="48" y2="180"/>
+      <line class="axis-line" x1="48" y1="180" x2="408" y2="180"/>
+      <g class="tick-label" text-anchor="end">${yT}</g>
+      <g class="tick-label" text-anchor="middle">${xT}</g>
+      <text class="axis-title" x="228" y="206" text-anchor="middle">${tpl.xUnit}</text>
+      <text class="axis-title" x="14" y="100" text-anchor="middle" transform="rotate(-90 14 100)">${tpl.yUnit}</text>
+      ${paths}
+      <g>
+        <line class="crosshair-v" x1="0" y1="16" x2="0" y2="180"/>
+        <line class="crosshair-h" x1="48" y1="0" x2="408" y2="0"/>
+        <rect class="brush" id="f-brush" x="0" y="16" width="0" height="164"/>
+      </g>
+    </svg>
+  `;
+
+  // Stats (add current domain so user knows what range they're zoomed to)
+  const statsHtml = tpl.stats.map(([k,v])=>`<div class="fs-stat"><span>${k}</span><b>${v||'—'}</b></div>`).join('') +
+    `<div class="fs-stat" style="color:#F09708"><span>x-range</span><b>${xVals[0]} — ${xVals[4]}</b></div>`;
+  document.getElementById('f-stats').innerHTML = statsHtml;
+
+  // Series toggle list
+  document.getElementById('f-series').innerHTML = tpl.paths.map((p,i)=>{
+    const off = focusState.seriesHidden.has(i);
+    const swatchStyle = p.dash ? `background-image:linear-gradient(to right, ${p.c} 55%, transparent 55%);background-size:4px 100%;background-repeat:repeat-x;border-color:${p.c}` : `background:${p.c};border-color:${p.c}`;
+    return `<div class="fs-series ${off?'off':''}" data-i="${i}">
+      <span class="tog" style="${off?'':swatchStyle}">${off?'':'✓'}</span>
+      <span>${p.label}</span>
+      <span class="val">${p.dash?'desired':'actual'}</span>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('#f-series .fs-series').forEach(el=>{
+    el.onclick=()=>{
+      const i = +el.dataset.i;
+      if(focusState.seriesHidden.has(i)) focusState.seriesHidden.delete(i); else focusState.seriesHidden.add(i);
+      renderFocus();
+    };
+  });
+
+  // Persist title edits
+  document.getElementById('f-title').oninput = (e)=>{
+    tpl.title = e.target.textContent;
+  };
+}
+
+// mouse + brush interaction
+(function wireFocusPlot(){
+  let brushStart = null;
+  fPlotWrap.addEventListener('mouseenter',()=>{ if(focusState.crosshair) fPlotWrap.classList.add('hovering'); });
+  fPlotWrap.addEventListener('mouseleave',()=>{ fPlotWrap.classList.remove('hovering'); fPlotWrap.classList.remove('brushing'); brushStart=null; });
+  fPlotWrap.addEventListener('mousemove',e=>{
+    const svg = fPlot.querySelector('svg'); if(!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vx = ((e.clientX-rect.left)/rect.width)*420;
+    const vy = ((e.clientY-rect.top)/rect.height)*210;
+    // map to data coords
+    const tpl = cellTemplates[cells[focusIdx].type];
+    const [x0,x1] = focusState.xDomain;
+    const tnorm = Math.max(0, Math.min(1, (vx-48)/360));
+    const xData = parseFloat(tpl.xTicks[0]) + (parseFloat(tpl.xTicks[tpl.xTicks.length-1]) - parseFloat(tpl.xTicks[0])) * (x0/100 + tnorm*(x1-x0)/100);
+    const yFirst = parseFloat(tpl.yTicks[0]), yLast = parseFloat(tpl.yTicks[tpl.yTicks.length-1]);
+    const ynorm = Math.max(0, Math.min(1, (vy-16)/164));
+    const yData = yFirst + (yLast-yFirst)*ynorm;
+    fCoord.innerHTML = `${tpl.xUnit.split(' ')[0]}: <b>${xData.toFixed(1)}</b> · ${tpl.yUnit.split(' ')[0]}: <b class="mint">${yData.toFixed(1)}</b>`;
+    // crosshair
+    const ch_v = svg.querySelector('.crosshair-v');
+    const ch_h = svg.querySelector('.crosshair-h');
+    if(ch_v && ch_h){ ch_v.setAttribute('x1',vx); ch_v.setAttribute('x2',vx); ch_h.setAttribute('y1',vy); ch_h.setAttribute('y2',vy); }
+    // brush
+    if(brushStart){
+      const x = Math.min(brushStart.vx, vx);
+      const w = Math.abs(vx - brushStart.vx);
+      const brush = svg.querySelector('.brush');
+      brush.setAttribute('x', x); brush.setAttribute('width', w);
+    }
+  });
+  fPlotWrap.addEventListener('mousedown',e=>{
+    const svg = fPlot.querySelector('svg'); if(!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const vx = ((e.clientX-rect.left)/rect.width)*420;
+    if(vx<48 || vx>408) return;
+    brushStart = { vx };
+    fPlotWrap.classList.add('brushing');
+  });
+  fPlotWrap.addEventListener('mouseup',e=>{
+    if(!brushStart){ fPlotWrap.classList.remove('brushing'); return; }
+    const svg = fPlot.querySelector('svg');
+    const rect = svg.getBoundingClientRect();
+    const vx = Math.max(48,Math.min(408, ((e.clientX-rect.left)/rect.width)*420));
+    const a = Math.min(brushStart.vx, vx), b = Math.max(brushStart.vx, vx);
+    const dx = b - a;
+    fPlotWrap.classList.remove('brushing');
+    brushStart = null;
+    if(dx < 6) return; // too small — treated as click
+    const [x0,x1] = focusState.xDomain;
+    const span = x1 - x0;
+    const newX0 = x0 + span * (a-48)/360;
+    const newX1 = x0 + span * (b-48)/360;
+    focusState.xDomain = [Math.max(0,newX0), Math.min(100,newX1)];
+    renderFocus();
+    toast('Zoomed into '+focusState.xDomain.map(v=>v.toFixed(0)+'%').join('–'));
+  });
+})();
+
+// focus toolbar
+document.querySelectorAll('.focus-toolbar .ftb-btn').forEach(b=>{
+  b.onclick=()=>{
+    const tool = b.dataset.tool;
+    if(tool==='reset'){ focusState.xDomain=[0,100]; focusState.seriesHidden = new Set(); renderFocus(); toast('Reset view'); }
+    else if(tool==='crosshair'){ focusState.crosshair=!focusState.crosshair; b.classList.toggle('on', focusState.crosshair); if(!focusState.crosshair) fPlotWrap.classList.remove('hovering'); }
+    else if(tool==='grid'){ focusState.grid=!focusState.grid; b.classList.toggle('on', focusState.grid); renderFocus(); }
+    else if(tool==='download'){ toast('Exported '+cellTemplates[cells[focusIdx].type].title+'.svg (zoomed view)'); }
+    else if(tool==='brush'){ toast('Drag across the plot to zoom X-range'); }
+  };
+});
+// default on
+document.querySelectorAll('.focus-toolbar [data-tool="crosshair"]').forEach(b=>b.classList.add('on'));
+document.querySelectorAll('.focus-toolbar [data-tool="grid"]').forEach(b=>b.classList.add('on'));
+
+// nav
+document.getElementById('f-prev').onclick=()=>{ if(focusIdx>0){ focusIdx--; focusState.xDomain=[0,100]; focusState.seriesHidden=new Set(); renderFocus(); } };
+document.getElementById('f-next').onclick=()=>{ if(focusIdx<cells.length-1){ focusIdx++; focusState.xDomain=[0,100]; focusState.seriesHidden=new Set(); renderFocus(); } };
+document.getElementById('f-close').onclick=closeFocus;
+focus.addEventListener('click',e=>{ if(e.target===focus) closeFocus(); });
+document.getElementById('f-ask').addEventListener('keydown',e=>{
+  if(e.key==='Enter' && e.target.value.trim()){
+    toast('Claude is thinking…');
+    setTimeout(()=>toast('Claude: "In the zoomed window, L-side peaks at 43.1N, R-side at 38.7N — Δ of 10.2% localized to mid-stance."'), 900);
+    e.target.value='';
+  }
+});
+document.getElementById('f-send').onclick=()=>{
+  const i = document.getElementById('f-ask');
+  if(i.value.trim()){ toast('Claude is thinking…'); setTimeout(()=>toast('Claude: see side panel for drill-down'), 900); i.value=''; }
+};
+
+// global keys for focus
+document.addEventListener('keydown',e=>{
+  if(!focus.classList.contains('open')) return;
+  if(e.key==='ArrowLeft') document.getElementById('f-prev').click();
+  if(e.key==='ArrowRight') document.getElementById('f-next').click();
+  if(e.key.toLowerCase()==='f') closeFocus();
+});
+// press F anywhere when closed to open focus of first cell
+document.addEventListener('keydown',e=>{
+  if(focus.classList.contains('open')) return;
+  if(cmdk.classList.contains('open')) return;
+  const tag = (e.target.tagName||'').toLowerCase();
+  if(tag==='input' || tag==='textarea' || e.target.isContentEditable) return;
+  if(e.key.toLowerCase()==='f' && cells.length){ openFocus(0); }
+});
+
+// initial render
+renderCells();
+
+// persist page title
+const titleEl = document.querySelector('.page-title');
+titleEl.textContent = localStorage.getItem('hw_page_title') || titleEl.textContent;
+titleEl.addEventListener('input',()=>localStorage.setItem('hw_page_title', titleEl.textContent));
+</script>
+</body></html>

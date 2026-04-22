@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="hwMarkBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#171B5E"></stop>
+      <stop offset="1" stop-color="#0B0E2E"></stop>
+    </linearGradient>
+    <linearGradient id="hwStride" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F09708"></stop>
+      <stop offset=".55" stop-color="#FFB347"></stop>
+      <stop offset="1" stop-color="#00FFB2"></stop>
+    </linearGradient>
+  </defs>
+  
+  <rect width="64" height="64" rx="16" fill="url(#hwMarkBg)"></rect>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="15.5" fill="none" stroke="rgba(240,151,8,.25)"></rect>
+  
+  <g stroke="rgba(255,255,255,.06)" stroke-width="1">
+    <line x1="10" y1="46" x2="54" y2="46"></line>
+    <line x1="10" y1="38" x2="54" y2="38"></line>
+    <line x1="10" y1="30" x2="54" y2="30"></line>
+    <line x1="10" y1="22" x2="54" y2="22"></line>
+  </g>
+  
+  <path d="M10 46 C 16 46, 18 44, 22 34 C 26 22, 30 20, 34 22 C 38 24, 40 30, 44 38 C 47 44, 50 46, 54 46" stroke="url(#hwStride)" stroke-width="3" stroke-linecap="round" fill="none"></path>
+  
+  <circle cx="32" cy="22" r="3" fill="#00FFB2"></circle>
+  <circle cx="32" cy="22" r="6" fill="none" stroke="#00FFB2" stroke-opacity=".35" stroke-width="1"></circle>
+  
+  <line x1="10" y1="46" x2="54" y2="46" stroke="#5B3FA6" stroke-width="1.6" stroke-linecap="round"></line>
+  
+  <line x1="10" y1="40" x2="10" y2="52" stroke="#fff" stroke-width="2" stroke-linecap="round"></line>
+  <line x1="54" y1="40" x2="54" y2="52" stroke="#fff" stroke-width="2" stroke-linecap="round"></line>
+</svg>

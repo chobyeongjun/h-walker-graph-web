@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mode Pills</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:#0B0E2E;color:#E2E8F0;font-family:'Inter',sans-serif}
+  .wrap{padding:20px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+  .group{display:flex;gap:4px;background:rgba(23,27,94,.4);border-radius:16px;padding:4px;border:1px solid rgba(255,255,255,.05);backdrop-filter:blur(12px)}
+  .pill{padding:6px 24px;border-radius:12px;font:700 11px/1;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;cursor:pointer;border:0;background:transparent;font-family:inherit;transition:all .3s}
+  .pill:hover{color:#E2E8F0;background:rgba(255,255,255,.04)}
+  .pill.active{background:#F09708;color:#fff;box-shadow:0 0 20px rgba(240,151,8,.4)}
+  .lbl{font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.1em}
+  .tab{flex:1;text-align:center}
+  .tabgroup{display:flex;gap:2px;background:rgba(23,27,94,.4);border-radius:12px;padding:4px;border:1px solid rgba(255,255,255,.05);width:220px}
+</style></head>
+<body><div class="wrap">
+  <span class="lbl">TOP NAV · MODE TOGGLE</span>
+  <div class="group">
+    <button class="pill active">QUICK</button>
+    <button class="pill">PUBLICATION</button>
+  </div>
+  <span class="lbl">FILE SOURCE · TABS</span>
+  <div class="tabgroup">
+    <button class="pill tab active" style="padding:8px 0;font-size:11px">DRIVE</button>
+    <button class="pill tab" style="padding:8px 0;font-size:11px">LOCAL</button>
+  </div>
+</div></body></html>

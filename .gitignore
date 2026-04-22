@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+.Python
+*.egg-info/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+token.json
+credentials.json
+client_secret*.json
+
+# Build artifacts (kept checked in for one-click run; uncomment to exclude)
+# frontend/dist/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Legacy pre-Phase2 frontend (kept locally for reference)
+frontend/src.legacy/
+
+# Logs / cache
+*.log
+.cache/
+~/.hw_graph/
+
+# Misc
+*.bak

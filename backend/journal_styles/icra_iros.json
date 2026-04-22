@@ -1,0 +1,1 @@
+{"name": "ICRA/IROS", "key": "icra_iros", "font_family": "Times New Roman", "font_size": 8, "line_width": 0.8, "figure_width_mm": 88, "figure_height_mm": 55, "dpi": 600, "legend_frameon": false, "color_cycle": ["#000000", "#666666", "#333333", "#AAAAAA"], "spine_linewidth": 0.5, "tick_direction": "in", "tick_labelsize": 7, "axes_labelsize": 8, "title_size": 8, "pad_inches": 0.02}

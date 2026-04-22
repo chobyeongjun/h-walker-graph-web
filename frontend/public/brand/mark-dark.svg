@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="gBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171B5E"/>
+      <stop offset="1" stop-color="#0B0E2E"/>
+    </linearGradient>
+    <linearGradient id="gStride" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#F09708"/>
+      <stop offset=".6" stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#00FFB2"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#gBg)"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="15.5" fill="none" stroke="rgba(240,151,8,.3)"/>
+  <g stroke="rgba(255,255,255,.06)" stroke-width="1">
+    <line x1="10" y1="46" x2="54" y2="46"/>
+    <line x1="10" y1="38" x2="54" y2="38"/>
+    <line x1="10" y1="30" x2="54" y2="30"/>
+    <line x1="10" y1="22" x2="54" y2="22"/>
+  </g>
+  <path d="M10 46 C 16 46, 18 44, 22 34 C 26 22, 30 20, 34 22 C 38 24, 40 30, 44 38 C 47 44, 50 46, 54 46" stroke="url(#gStride)" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <circle cx="32" cy="22" r="3" fill="#00FFB2"/>
+  <circle cx="32" cy="22" r="6" fill="none" stroke="#00FFB2" stroke-opacity=".35"/>
+  <line x1="10" y1="46" x2="54" y2="46" stroke="#F09708" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+  <line x1="10" y1="40" x2="10" y2="52" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <line x1="54" y1="40" x2="54" y2="52" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>

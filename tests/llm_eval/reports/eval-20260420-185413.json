@@ -1,0 +1,2730 @@
+{
+  "timestamp": 1776678853,
+  "summary": {
+    "total": 100,
+    "passed": 98,
+    "accuracy": 0.98,
+    "avg_latency_s": 2.6948429894447328
+  },
+  "results": [
+    {
+      "id": "force_01",
+      "category": "basic_force",
+      "query": "Force 그래프 보여줘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.2337920665740967
+    },
+    {
+      "id": "force_02",
+      "category": "basic_force",
+      "query": "힘 그래프",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.965228796005249
+    },
+    {
+      "id": "force_03",
+      "category": "basic_force",
+      "query": "케이블 힘 보여줘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9961628913879395
+    },
+    {
+      "id": "force_04",
+      "category": "basic_force",
+      "query": "Force tracking 확인",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.065403699874878
+    },
+    {
+      "id": "force_05",
+      "category": "basic_force",
+      "query": "힘 추종 성능",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.0453851222991943
+    },
+    {
+      "id": "force_06",
+      "category": "basic_force",
+      "query": "Desired vs Actual force",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_DesForce_N",
+            "L_ActForce_N",
+            "R_DesForce_N",
+            "R_ActForce_N"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2235872745513916
+    },
+    {
+      "id": "force_07",
+      "category": "basic_force",
+      "query": "Cable force profile",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.232151746749878
+    },
+    {
+      "id": "force_08",
+      "category": "basic_force",
+      "query": "admittance 응답 확인",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.4389307498931885
+    },
+    {
+      "id": "force_09",
+      "category": "basic_force",
+      "query": "힘 추적 에러",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_ErrForce_N",
+            "R_ErrForce_N"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2593772411346436
+    },
+    {
+      "id": "force_10",
+      "category": "basic_force",
+      "query": "Force 프로파일",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.43943190574646
+    },
+    {
+      "id": "sides_01",
+      "category": "sides",
+      "query": "왼쪽 힘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8797979354858398
+    },
+    {
+      "id": "sides_02",
+      "category": "sides",
+      "query": "오른쪽만 보여줘",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2289721965789795
+    },
+    {
+      "id": "sides_03",
+      "category": "sides",
+      "query": "left force",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.757246971130371
+    },
+    {
+      "id": "sides_04",
+      "category": "sides",
+      "query": "right side only",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.902435064315796
+    },
+    {
+      "id": "sides_05",
+      "category": "sides",
+      "query": "L_ActForce_N 보여줘",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_ActForce_N"
+          ],
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.3270950317382812
+    },
+    {
+      "id": "sides_06",
+      "category": "sides",
+      "query": "양쪽 비교",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.6763172149658203
+    },
+    {
+      "id": "sides_07",
+      "category": "sides",
+      "query": "왼쪽 IMU 각도",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.6928670406341553
+    },
+    {
+      "id": "sides_08",
+      "category": "sides",
+      "query": "오른쪽 다리 속도",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8522961139678955
+    },
+    {
+      "id": "gcp_01",
+      "category": "gcp",
+      "query": "보행 분석",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "gait",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.3673651218414307
+    },
+    {
+      "id": "gcp_02",
+      "category": "gcp",
+      "query": "GCP로 정규화해서 보여줘",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.288990020751953
+    },
+    {
+      "id": "gcp_03",
+      "category": "gcp",
+      "query": "보행주기별 힘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.679854154586792
+    },
+    {
+      "id": "gcp_04",
+      "category": "gcp",
+      "query": "gait cycle 0-100%",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.471714973449707
+    },
+    {
+      "id": "gcp_05",
+      "category": "gcp",
+      "query": "스트라이드 평균",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.018907308578491
+    },
+    {
+      "id": "gcp_06",
+      "category": "gcp",
+      "query": "보행 패턴 분석",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "gait"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.283414125442505
+    },
+    {
+      "id": "gcp_07",
+      "category": "gcp",
+      "query": "걸음걸이 평균 프로파일",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9419002532958984
+    },
+    {
+      "id": "motion_01",
+      "category": "motion",
+      "query": "IMU 각도",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.054166078567505
+    },
+    {
+      "id": "motion_02",
+      "category": "motion",
+      "query": "Pitch 각도",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.9176368713378906
+    },
+    {
+      "id": "motion_03",
+      "category": "motion",
+      "query": "속도 프로파일",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.946120023727417
+    },
+    {
+      "id": "motion_04",
+      "category": "motion",
+      "query": "모터 위치",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "position"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "position",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "position 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.7482008934020996
+    },
+    {
+      "id": "motion_05",
+      "category": "motion",
+      "query": "전류 그래프",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "current"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "current",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "current 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9892420768737793
+    },
+    {
+      "id": "motion_06",
+      "category": "motion",
+      "query": "자이로",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "gyro"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gyro",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gyro 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8559861183166504
+    },
+    {
+      "id": "motion_07",
+      "category": "motion",
+      "query": "가속도",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "accel"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "accel",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "accel 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9080278873443604
+    },
+    {
+      "id": "motion_08",
+      "category": "motion",
+      "query": "관절 각도 변화",
+      "expected": {
+        "action": "plot",
+        "analysis_type_any_of": [
+          "imu",
+          "position"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.503654956817627
+    },
+    {
+      "id": "compare_01",
+      "category": "compare",
+      "query": "두 파일 비교",
+      "expected": {
+        "action": "plot",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.1895291805267334
+    },
+    {
+      "id": "compare_02",
+      "category": "compare",
+      "query": "compare mode",
+      "expected": {
+        "action": "plot",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9263203144073486
+    },
+    {
+      "id": "compare_03",
+      "category": "compare",
+      "query": "overlay로 그려줘",
+      "expected": {
+        "action": "plot",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2099032402038574
+    },
+    {
+      "id": "compare_04",
+      "category": "compare",
+      "query": "여러 trial 비교",
+      "expected": {
+        "action": "plot",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.412125825881958
+    },
+    {
+      "id": "compare_05",
+      "category": "compare",
+      "query": "파일별 force 비교",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8548662662506104
+    },
+    {
+      "id": "combo_01",
+      "category": "combined",
+      "query": "왼쪽 힘을 GCP로 정규화해서",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.109513282775879
+    },
+    {
+      "id": "combo_02",
+      "category": "combined",
+      "query": "오른쪽 IMU를 보행주기로",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu",
+        "sides": [
+          "right"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.634830951690674
+    },
+    {
+      "id": "combo_03",
+      "category": "combined",
+      "query": "양쪽 속도 비교 GCP 기준",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity",
+        "sides": [
+          "both"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.0658950805664062
+    },
+    {
+      "id": "combo_04",
+      "category": "combined",
+      "query": "왼쪽 힘 추종 평균",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.217154264450073
+    },
+    {
+      "id": "combo_05",
+      "category": "combined",
+      "query": "gait cycle normalized force tracking",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.931596040725708
+    },
+    {
+      "id": "combo_06",
+      "category": "combined",
+      "query": "보행 중 전류",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "current",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "current",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "current 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.53334903717041
+    },
+    {
+      "id": "ambig_01",
+      "category": "ambiguous",
+      "query": "ㅎㅇ",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker Graph App에 오신 것을 환영합니다. **Force 그래프**, **IMU 각도**, **보행 분석**, "
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 5.202371120452881
+    },
+    {
+      "id": "ambig_02",
+      "category": "ambiguous",
+      "query": "뭘 할 수 있어?",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 🚶‍♂️ H-Walker Graph App에서는 **Force 그래프**, **IMU 각도**, **보행 분석**, **Hip mo"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.241244077682495
+    },
+    {
+      "id": "ambig_03",
+      "category": "ambiguous",
+      "query": "help",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker Graph App에서 **Force 그래프**, **IMU 각도**, **보행 분석**, **Hip moment"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.08959698677063
+    },
+    {
+      "id": "edge_01",
+      "category": "edge",
+      "query": "Force",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.6231820583343506
+    },
+    {
+      "id": "edge_02",
+      "category": "edge",
+      "query": "위치 오차",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "position"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "position",
+          "columns": [
+            "L_ErrPos_deg",
+            "R_ErrPos_deg"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "position 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.353339195251465
+    },
+    {
+      "id": "edge_03",
+      "category": "edge",
+      "query": "속도 오차 왼쪽만",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": [
+            "L_ErrVel_mps"
+          ],
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9896390438079834
+    },
+    {
+      "id": "ambig_ext_01",
+      "category": "ambiguous",
+      "query": "안녕하세요",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker Graph App에 오신 것을 환영합니다. Force 그래프, IMU 각도, 보행 분석, Hip moment 등"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9120299816131592
+    },
+    {
+      "id": "ambig_ext_02",
+      "category": "ambiguous",
+      "query": "hi",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker Graph App에 오신 것을 환영합니다. Force 그래프, IMU 각도, 보행 분석, Hip moment 등"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.1052160263061523
+    },
+    {
+      "id": "ambig_ext_03",
+      "category": "ambiguous",
+      "query": "고마워",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "반갑습니다! 👋 편하게 보행 분석, Force 그래프, IMU 각도, Hip moment 등 궁금한 데이터에 대해 물어봐 주세요."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8468620777130127
+    },
+    {
+      "id": "ambig_ext_04",
+      "category": "ambiguous",
+      "query": "뭐 할 줄 알아?",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 저는 보행 데이터를 분석하고 시각화하는 데 도움을 드립니다. 😊 'Force 그래프', 'IMU 각도', '보행 분석', 'Hip "
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.251105785369873
+    },
+    {
+      "id": "ambig_ext_05",
+      "category": "ambiguous",
+      "query": "?",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker 그래프 앱에 오신 것을 환영합니다. Force 그래프, IMU 각도, 보행 분석, Hip moment 등 다양한"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8669838905334473
+    },
+    {
+      "id": "ambig_ext_06",
+      "category": "ambiguous",
+      "query": "thanks",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! H-Walker 그래프 앱에 오신 것을 환영합니다. 😊 Force 그래프, IMU 각도, 보행 분석, Hip moment 등 다양한"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.8585891723632812
+    },
+    {
+      "id": "ambig_ext_07",
+      "category": "ambiguous",
+      "query": "오케이",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 👋 H-Walker 그래프 앱에서 뭘 도와드릴까요? 'Force 그래프', 'IMU 각도', '보행 분석', 'Hip moment'"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.9440648555755615
+    },
+    {
+      "id": "ambig_ext_08",
+      "category": "ambiguous",
+      "query": "ㅋㅋ",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 😄 H-Walker Graph App에 오신 것을 환영합니다!\n보행 분석, Force 그래프, IMU 각도 등 다양한 데이터를 시각"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.7297210693359375
+    },
+    {
+      "id": "ambig_ext_09",
+      "category": "ambiguous",
+      "query": "날씨 어때?",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 😊 저는 H-Walker 그래프 앱의 데이터 분석 도우미라서 날씨 정보는 알려드릴 수 없어요. 대신 **Force 그래프**, **"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2943339347839355
+    },
+    {
+      "id": "ambig_ext_10",
+      "category": "ambiguous",
+      "query": "뭐 하고 있어?",
+      "expected": {
+        "action": "clarify"
+      },
+      "actual": {
+        "action": "clarify",
+        "analysis_request": null,
+        "message": "안녕하세요! 저는 H-Walker 그래프 앱으로 보행 분석 데이터를 시각화하고 해석하는 것을 도와드리고 있어요. 🚶‍♂️ Force 그래프, I"
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.1292731761932373
+    },
+    {
+      "id": "colloq_01",
+      "category": "colloquial",
+      "query": "힘이 어떻게 나오는지 봐줘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.4065208435058594
+    },
+    {
+      "id": "colloq_02",
+      "category": "colloquial",
+      "query": "발 디디는 타이밍 확인",
+      "expected": {
+        "action": "plot",
+        "analysis_type_any_of": [
+          "gait",
+          "gcp"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.190117835998535
+    },
+    {
+      "id": "colloq_03",
+      "category": "colloquial",
+      "query": "왼쪽 다리가 어떻게 움직이는지",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "position",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "position 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.3238041400909424
+    },
+    {
+      "id": "colloq_04",
+      "category": "colloquial",
+      "query": "속도 어떤가요",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.7119898796081543
+    },
+    {
+      "id": "colloq_05",
+      "category": "colloquial",
+      "query": "보행주기 평균 힘",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.8596229553222656
+    },
+    {
+      "id": "colloq_06",
+      "category": "colloquial",
+      "query": "오른쪽 무릎 각도",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.5303092002868652
+    },
+    {
+      "id": "colloq_07",
+      "category": "colloquial",
+      "query": "걷는 동안 토크",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "current"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "current",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "current 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.844438076019287
+    },
+    {
+      "id": "colloq_08",
+      "category": "colloquial",
+      "query": "한 사이클에서 힘 패턴",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.6786010265350342
+    },
+    {
+      "id": "colloq_09",
+      "category": "colloquial",
+      "query": "좌우 힘 밸런스",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.7704999446868896
+    },
+    {
+      "id": "colloq_10",
+      "category": "colloquial",
+      "query": "피치각 양쪽",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": [
+            "L_Pitch",
+            "R_Pitch"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.916114330291748
+    },
+    {
+      "id": "en_01",
+      "category": "english",
+      "query": "show force plot",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.659515142440796
+    },
+    {
+      "id": "en_02",
+      "category": "english",
+      "query": "plot velocity",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.706752061843872
+    },
+    {
+      "id": "en_03",
+      "category": "english",
+      "query": "left side IMU angles",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.1403908729553223
+    },
+    {
+      "id": "en_04",
+      "category": "english",
+      "query": "gait cycle normalized force",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 1.903378963470459
+    },
+    {
+      "id": "en_05",
+      "category": "english",
+      "query": "force tracking error",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_DesForce_N",
+            "L_ActForce_N",
+            "L_ErrForce_N",
+            "R_DesForce_N",
+            "R_ActForce_N",
+            "R_ErrForce_N"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.4440560340881348
+    },
+    {
+      "id": "en_06",
+      "category": "english",
+      "query": "compare two files",
+      "expected": {
+        "action": "plot",
+        "compare_mode": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "compare",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "compare 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.306067943572998
+    },
+    {
+      "id": "en_07",
+      "category": "english",
+      "query": "motor position right",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "position",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "position",
+          "columns": null,
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "position 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.014913082122803
+    },
+    {
+      "id": "en_08",
+      "category": "english",
+      "query": "IMU gyro x y z",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "gyro"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gyro",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gyro 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.7075278759002686
+    },
+    {
+      "id": "spec_01",
+      "category": "specific",
+      "query": "L_ActForce_N만",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_ActForce_N"
+          ],
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.746411085128784
+    },
+    {
+      "id": "spec_02",
+      "category": "specific",
+      "query": "ErrForce 컬럼만 보여줘",
+      "expected": {
+        "action": "plot"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "L_ErrForce_N",
+            "R_ErrForce_N"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.2648801803588867
+    },
+    {
+      "id": "spec_03",
+      "category": "specific",
+      "query": "R_Pitch 오직",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "right"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": [
+            "R_Pitch"
+          ],
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.066313982009888
+    },
+    {
+      "id": "spec_04",
+      "category": "specific",
+      "query": "L_DesVel vs L_ActVel",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": [
+            "L_DesVel_mps",
+            "L_ActVel_mps"
+          ],
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 5.366555213928223
+    },
+    {
+      "id": "spec_05",
+      "category": "specific",
+      "query": "Roll 각도 비교",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": [
+            "L_Roll",
+            "R_Roll"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": true,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 2.2417542934417725
+    },
+    {
+      "id": "spec_06",
+      "category": "specific",
+      "query": "L_GCP, R_GCP",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "gcp"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": [
+            "L_GCP",
+            "R_GCP"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": false,
+      "mismatches": [
+        "analysis_type"
+      ],
+      "elapsed": 3.851591110229492
+    },
+    {
+      "id": "spec_07",
+      "category": "specific",
+      "query": "Time_ms축 그대로",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": false
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.0989761352539062
+    },
+    {
+      "id": "cplx_01",
+      "category": "complex",
+      "query": "왼쪽 힘 추종을 보행주기로 정규화해서 통계까지",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.2932772636413574
+    },
+    {
+      "id": "cplx_02",
+      "category": "complex",
+      "query": "양쪽 속도 오차 GCP 평균",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "velocity",
+        "sides": [
+          "both"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": [
+            "L_ErrVel_mps",
+            "R_ErrVel_mps"
+          ],
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.491524934768677
+    },
+    {
+      "id": "cplx_03",
+      "category": "complex",
+      "query": "트래킹 성능을 좌우 비교",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.0635440349578857
+    },
+    {
+      "id": "cplx_04",
+      "category": "complex",
+      "query": "보행중 IMU 자세 변화",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "imu",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.565050840377808
+    },
+    {
+      "id": "cplx_05",
+      "category": "complex",
+      "query": "admittance 응답 왼쪽",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "left"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.2522997856140137
+    },
+    {
+      "id": "cplx_06",
+      "category": "complex",
+      "query": "보행중 관절각도 양쪽 겹쳐서",
+      "expected": {
+        "action": "plot",
+        "analysis_type_any_of": [
+          "imu",
+          "position"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.359464168548584
+    },
+    {
+      "id": "cplx_07",
+      "category": "complex",
+      "query": "오른쪽 힘 오차가 GCP별로",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force",
+        "sides": [
+          "right"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": [
+            "R_ErrForce_N"
+          ],
+          "sides": [
+            "right"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.1194801330566406
+    },
+    {
+      "id": "cplx_08",
+      "category": "complex",
+      "query": "왼쪽 모터 전류 한 사이클",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "current",
+        "sides": [
+          "left"
+        ],
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "current",
+          "columns": null,
+          "sides": [
+            "left"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "current 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.337509870529175
+    },
+    {
+      "id": "fb_01",
+      "category": "feedback",
+      "query": "관절 움직임",
+      "expected": {
+        "action": "plot",
+        "analysis_type_any_of": [
+          "imu",
+          "position",
+          "gait"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "imu",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "imu 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.3130550384521484
+    },
+    {
+      "id": "fb_02",
+      "category": "feedback",
+      "query": "보행 데이터",
+      "expected": {
+        "action": "plot",
+        "analysis_type_any_of": [
+          "gait",
+          "force",
+          "gcp"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 4.193856716156006
+    },
+    {
+      "id": "fb_03",
+      "category": "feedback",
+      "query": "한 사이클",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.549588203430176
+    },
+    {
+      "id": "fb_04",
+      "category": "feedback",
+      "query": "힘 센서",
+      "expected": {
+        "action": "plot",
+        "analysis_type": "force"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.087768077850342
+    },
+    {
+      "id": "fb_05",
+      "category": "feedback",
+      "query": "실제 vs 목표",
+      "expected": {
+        "action": "plot"
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "force",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": false
+        },
+        "message": "force 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 6.041601896286011
+    },
+    {
+      "id": "fb_06",
+      "category": "feedback",
+      "query": "대칭성 확인",
+      "expected": {
+        "action": "plot",
+        "sides": [
+          "both"
+        ]
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "gait",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": true,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "gait 분석을 준비했습니다."
+      },
+      "pass": true,
+      "mismatches": [],
+      "elapsed": 3.0749759674072266
+    },
+    {
+      "id": "fb_07",
+      "category": "feedback",
+      "query": "평균 프로파일",
+      "expected": {
+        "action": "plot",
+        "normalize_gcp": true
+      },
+      "actual": {
+        "action": "plot",
+        "analysis_request": {
+          "analysis_type": "velocity",
+          "columns": null,
+          "sides": [
+            "both"
+          ],
+          "normalize_gcp": false,
+          "compare_mode": false,
+          "file_paths": [],
+          "statistics": true
+        },
+        "message": "velocity 분석을 준비했습니다."
+      },
+      "pass": false,
+      "mismatches": [
+        "normalize_gcp"
+      ],
+      "elapsed": 2.2759039402008057
+    }
+  ]
+}

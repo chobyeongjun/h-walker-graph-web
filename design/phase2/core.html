@@ -1,0 +1,1455 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>H-Walker CORE · Phase 2 — Analysis Workspace</title>
+<link rel="icon" href="/assets/favicon.svg"/>
+<link rel="stylesheet" href="/colors_and_type.css"/>
+<style>
+  /* ============================================================
+     Foundation
+     ============================================================ */
+  html,body{margin:0;height:100%;background:#0B0E2E;color:#E2E8F0;
+    font-family:'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow:hidden}
+  body{background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(240,151,8,.07), transparent 60%),
+    radial-gradient(900px 500px at 95% 110%, rgba(0,255,178,.04), transparent 60%),
+    #0B0E2E;}
+  *{box-sizing:border-box}
+  button{font-family:inherit;cursor:pointer;border:0;background:none;color:inherit}
+  input,textarea,select{font-family:inherit}
+  :root{ --hw-ease:cubic-bezier(.22,1,.36,1); }
+
+  /* ============================================================
+     App shell — grid
+       [ topnav (52)                                       ]
+       [ sidebar(56) | canvas (scrolls)                    ]
+       [             | llm dock (60)                       ]
+       [ footer (24)                                       ]
+     ============================================================ */
+  .app{display:grid;grid-template-columns:56px 1fr;
+       grid-template-rows:52px 1fr auto 24px;height:100vh}
+  .topnav{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 18px;
+    background:rgba(11,14,46,.82);border-bottom:1px solid rgba(240,151,8,.14);
+    backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);z-index:10;position:relative}
+  .sidebar{grid-row:2/4;background:rgba(23,27,94,.22);border-right:1px solid rgba(255,255,255,.05);
+    display:flex;flex-direction:column;align-items:stretch;padding:10px 0;gap:4px;overflow:hidden;
+    width:56px;transition:width .2s var(--hw-ease) .1s}
+  .sidebar:hover{width:230px;transition-delay:0s}
+  .app:not(:hover) .sidebar{width:56px!important}
+  .canvas{overflow-y:auto;padding:28px 40px 28px;position:relative}
+  .llm-dock{border-top:1px solid rgba(240,151,8,.14);
+    background:linear-gradient(to bottom, rgba(11,14,46,.92), rgba(11,14,46,.98));
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:10px 40px;z-index:5}
+  .footer{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;font:500 10px/1 'JetBrains Mono',monospace;color:#4B5563;letter-spacing:.12em;
+    background:rgba(11,14,46,.5);border-top:1px solid rgba(255,255,255,.04)}
+
+  /* ============================================================
+     Top nav
+     ============================================================ */
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand svg{filter:drop-shadow(0 0 12px rgba(240,151,8,.35))}
+  .brand-text{font:800 14px/1 'Pretendard',sans-serif;letter-spacing:-.01em;color:#fff}
+  .brand-text b{color:#F09708}
+  .brand-sub{font:500 9.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.22em;text-transform:uppercase;margin-top:3px}
+  .nav-spacer{flex:1}
+  .nav-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+    background:rgba(23,27,94,.5);border:1px solid rgba(255,255,255,.06);
+    font:600 11px/1 'Pretendard',sans-serif;color:#E2E8F0}
+  .nav-pill .dot{width:7px;height:7px;border-radius:50%;background:#00FFB2;box-shadow:0 0 8px rgba(0,255,178,.9);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .nav-pill small{color:#6B7280;font:500 10px/1 'JetBrains Mono',monospace;margin-left:4px}
+  .kbd{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;
+    background:rgba(23,27,94,.45);border:1px solid rgba(255,255,255,.08);
+    font:600 11px/1 'Pretendard',sans-serif;color:#9CA3AF;transition:all .15s}
+  .kbd:hover{border-color:rgba(240,151,8,.35);color:#fff}
+  .kbd kbd{font:600 10px/1 'JetBrains Mono',monospace;color:#F09708;
+    background:rgba(240,151,8,.1);padding:2px 5px;border-radius:4px;border:1px solid rgba(240,151,8,.2)}
+  .mode-toggle{display:inline-flex;padding:2px;border-radius:10px;background:rgba(23,27,94,.55);border:1px solid rgba(255,255,255,.06)}
+  .mode-toggle button{padding:6px 12px;border-radius:8px;font:700 10.5px/1 'Pretendard',sans-serif;
+    letter-spacing:.15em;text-transform:uppercase;color:#9CA3AF;transition:all .15s}
+  .mode-toggle button.on{background:#F09708;color:#fff;box-shadow:0 0 15px rgba(240,151,8,.3)}
+
+  /* ============================================================
+     Sidebar
+     ============================================================ */
+  .side-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;color:#9CA3AF;
+    width:calc(100% - 12px);margin:0 6px;white-space:nowrap;transition:background .15s,color .15s;text-align:left}
+  .side-item:hover,.side-item.active{background:rgba(240,151,8,.08);color:#fff}
+  .side-item.active{color:#F09708}
+  .side-item svg{flex-shrink:0}
+  .side-item span{font:600 12px/1 'Pretendard',sans-serif;opacity:0;transition:opacity .15s}
+  .sidebar:hover .side-item span{opacity:1}
+  .side-sep{width:calc(100% - 24px);height:1px;background:rgba(255,255,255,.06);margin:8px 12px}
+
+  /* ============================================================
+     Canvas page header
+     ============================================================ */
+  .page-head{max-width:1100px;margin:0 auto 22px}
+  .page-crumbs{display:flex;align-items:center;gap:6px;font:500 10.5px/1 'JetBrains Mono',monospace;
+    color:#6B7280;letter-spacing:.06em;margin-bottom:10px}
+  .page-crumbs a{color:#9CA3AF;text-decoration:none}
+  .page-crumbs a:hover{color:#F09708}
+  .page-title{font:800 30px/1.1 'Pretendard',sans-serif;letter-spacing:-.02em;color:#fff;
+    outline:0;padding:2px 4px;margin:-2px -4px;border-radius:6px;cursor:text;min-height:38px}
+  .page-title:focus,.page-title:hover{background:rgba(240,151,8,.05);box-shadow:inset 0 0 0 1px rgba(240,151,8,.18)}
+  .page-meta{display:flex;gap:14px;margin-top:8px;font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .page-meta b{color:#E2E8F0;font-weight:600}
+  .page-meta .accent{color:#F09708}
+
+  /* ============================================================
+     Datasets pinned panel (top of canvas)
+     ============================================================ */
+  .ds-panel{max-width:1100px;margin:0 auto 20px;background:rgba(23,27,94,.28);
+    border:1px solid rgba(255,255,255,.06);border-radius:14px;overflow:hidden;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .ds-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);
+    background:rgba(11,14,46,.3)}
+  .ds-head .ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#F09708}
+  .ds-head .label{font:700 13px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em}
+  .ds-head .rest{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .ds-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;
+    background:rgba(240,151,8,.08);border:1px dashed rgba(240,151,8,.3);color:#F09708;
+    font:600 11px/1 'Pretendard',sans-serif}
+  .ds-btn:hover{background:rgba(240,151,8,.16);border-style:solid}
+  .ds-btn.plain{background:rgba(23,27,94,.4);border:1px solid rgba(255,255,255,.07);color:#9CA3AF}
+  .ds-btn.plain:hover{border-color:rgba(240,151,8,.3);color:#F09708}
+  .ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0;padding:8px}
+  .ds-card{padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:6px;border:1px solid transparent}
+  .ds-card:hover{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.06)}
+  .ds-card.active{background:rgba(240,151,8,.08);border-color:rgba(240,151,8,.3)}
+  .ds-row1{display:flex;align-items:center;gap:8px}
+  .ds-row1 .tag{font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:#0B0E2E;
+    background:#00FFB2;padding:3px 5px;border-radius:4px;text-transform:uppercase}
+  .ds-row1 .tag.imu{background:#7FB5E4}
+  .ds-row1 .tag.mix{background:#F09708}
+  .ds-row1 .name{font:700 12px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;flex:1;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-row2{font:500 10.5px/1.3 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.02em;display:flex;gap:10px;flex-wrap:wrap}
+  .ds-row2 b{color:#9CA3AF;font-weight:600}
+  .ds-cols{display:flex;flex-wrap:wrap;gap:4px}
+  .ds-col{font:500 10px/1 'JetBrains Mono',monospace;color:#9CA3AF;background:rgba(255,255,255,.05);
+    padding:3px 6px;border-radius:4px;letter-spacing:.02em}
+  .ds-col.mapped{color:#F09708;background:rgba(240,151,8,.1)}
+  .ds-upload{padding:14px;border-top:1px dashed rgba(255,255,255,.06);display:flex;gap:10px;flex-wrap:wrap;
+    align-items:center;background:rgba(11,14,46,.25)}
+  .ds-drop{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:14px 18px;border:1.5px dashed rgba(240,151,8,.3);border-radius:10px;
+    font:500 12px/1.3 'Pretendard',sans-serif;color:#9CA3AF;cursor:pointer;transition:all .15s}
+  .ds-drop:hover,.ds-drop.drag{background:rgba(240,151,8,.06);border-color:#F09708;color:#F09708}
+  .ds-drop b{color:#F09708}
+
+  /* ============================================================
+     Cell stack + dividers
+     ============================================================ */
+  .cells{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:0}
+  .cell{background:rgba(23,27,94,.36);border:1px solid rgba(255,255,255,.07);border-radius:14px;
+    padding:16px 18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    display:flex;flex-direction:column;gap:12px;transition:border-color .15s,box-shadow .15s;position:relative}
+  .cell:hover{border-color:rgba(240,151,8,.25);box-shadow:0 4px 24px rgba(0,0,0,.3)}
+  .cell.dragging{opacity:.5;cursor:grabbing}
+  .cell.ref-target{border-color:#00FFB2!important;box-shadow:0 0 0 2px rgba(0,255,178,.25);}
+  .cell-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .cell-idx{font:600 10px/1 'JetBrains Mono',monospace;color:#F09708;letter-spacing:.08em;
+    background:rgba(240,151,8,.12);padding:3px 6px;border-radius:5px;min-width:30px;text-align:center}
+  .cell-handle{cursor:grab;color:#4B5563;padding:2px;border-radius:4px}
+  .cell-handle:hover{color:#F09708;background:rgba(240,151,8,.1)}
+  .cell-ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#F09708}
+  .cell.stat .cell-ey{color:#00FFB2}
+  .cell.llm .cell-ey{color:#A78BFA}
+  .cell-title{font:700 14px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;
+    outline:0;padding:2px 4px;margin:-2px -4px;border-radius:4px;cursor:text;min-width:60px}
+  .cell-title:hover,.cell-title:focus{background:rgba(255,255,255,.04)}
+  .cell-sub{font:500 10.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.03em}
+  .ds-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:5px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+    font:500 10px/1 'JetBrains Mono',monospace;color:#9CA3AF;letter-spacing:.02em}
+  .ds-chip::before{content:'';width:6px;height:6px;border-radius:50%;background:#00FFB2}
+  .ds-chip.imu::before{background:#7FB5E4}
+  .ds-chip.mix::before{background:#F09708}
+  .cell-tools{margin-left:auto;display:flex;gap:3px;opacity:0;transition:opacity .15s}
+  .cell:hover .cell-tools,.cell:focus-within .cell-tools{opacity:1}
+  .cell-tool{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:#9CA3AF;transition:all .15s}
+  .cell-tool:hover{background:rgba(240,151,8,.12);color:#F09708}
+  .cell-tool.danger:hover{background:rgba(248,113,113,.14);color:#f87171}
+
+  /* ---- Graph cell internals ---- */
+  .plot{background:rgba(11,14,46,.55);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:6px;position:relative}
+  .plot svg{display:block;width:100%;height:240px}
+  .plot.tall svg{height:320px}
+  .axis-line{stroke:rgba(255,255,255,.28);stroke-width:1}
+  .grid-line{stroke:rgba(255,255,255,.06);stroke-width:.7;stroke-dasharray:2 3}
+  .grid-line-major{stroke:rgba(255,255,255,.11);stroke-width:.8}
+  .tick-label{font:500 9px 'JetBrains Mono',monospace;fill:#6B7280}
+  .axis-title{font:600 10px 'Pretendard',sans-serif;fill:#E2E8F0}
+
+  .cell-legend{display:flex;flex-wrap:wrap;gap:10px 14px;padding:2px 4px;font:500 10.5px 'Pretendard',sans-serif;color:#E2E8F0}
+  .lg-item{display:inline-flex;align-items:center;gap:6px}
+  .lg-sw{width:14px;height:2.5px;border-radius:1px}
+  .lg-sw.dash{background-image:linear-gradient(to right, currentColor 55%, transparent 55%);background-size:4px 100%;background-repeat:repeat-x;height:2px}
+
+  .cell-meta{display:flex;gap:14px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.07);
+    font:500 10px 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em;flex-wrap:wrap}
+  .cell-meta b{color:#E2E8F0;font-weight:600}
+
+  /* ---- Publication mode cues ---- */
+  body.pub .plot{background:#fff;border-color:rgba(0,0,0,.15)}
+  body.pub .plot .axis-line{stroke:#111}
+  body.pub .plot .grid-line{stroke:rgba(0,0,0,.05)}
+  body.pub .plot .grid-line-major{stroke:rgba(0,0,0,.1)}
+  body.pub .plot .tick-label{fill:#222}
+  body.pub .plot .axis-title{fill:#111}
+
+  /* ---- Stat cell ---- */
+  .stat-body{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+  @media (max-width:800px){.stat-body{grid-template-columns:1fr}}
+  .stat-inputs{background:rgba(11,14,46,.45);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .stat-row{display:flex;align-items:center;gap:8px;font:500 11.5px/1.2 'Pretendard',sans-serif;color:#9CA3AF}
+  .stat-row label{min-width:66px;color:#6B7280;font:600 10px/1 'Pretendard',sans-serif;letter-spacing:.12em;text-transform:uppercase}
+  .stat-row select,.stat-row input[type=text]{flex:1;background:rgba(23,27,94,.5);border:1px solid rgba(255,255,255,.08);
+    color:#fff;padding:7px 10px;border-radius:7px;font:500 12px/1 'Pretendard',sans-serif;outline:0}
+  .stat-row select:focus,.stat-row input[type=text]:focus{border-color:#F09708}
+  .stat-row .op{display:inline-flex;gap:2px;padding:2px;background:rgba(23,27,94,.5);border-radius:7px;border:1px solid rgba(255,255,255,.06)}
+  .stat-row .op button{padding:6px 9px;border-radius:5px;font:600 10.5px/1 'Pretendard',sans-serif;color:#9CA3AF;letter-spacing:.05em}
+  .stat-row .op button.on{background:#F09708;color:#fff}
+  .stat-output{background:rgba(11,14,46,.45);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .stat-val{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.05);font:500 12px/1.2 'Pretendard',sans-serif;color:#E2E8F0}
+  .stat-val:last-child{border-bottom:0}
+  .stat-val b{font:600 11.5px/1 'JetBrains Mono',monospace;color:#fff}
+  .stat-val.sig b{color:#00FFB2}
+  .stat-apa{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;
+    font:500 12.5px/1.55 'Pretendard',sans-serif;color:#E2E8F0;position:relative}
+  .stat-apa b{color:#F09708}
+  .stat-apa .copy{position:absolute;top:6px;right:6px;padding:3px 7px;font:600 9.5px/1 'JetBrains Mono',monospace;
+    color:#6B7280;background:rgba(255,255,255,.05);border-radius:5px;letter-spacing:.08em}
+  .stat-apa .copy:hover{color:#F09708;background:rgba(240,151,8,.1)}
+  .stat-fmt{display:inline-flex;gap:2px;padding:2px;background:rgba(23,27,94,.5);border-radius:7px;border:1px solid rgba(255,255,255,.06)}
+  .stat-fmt button{padding:5px 8px;border-radius:5px;font:600 10px/1 'Pretendard',sans-serif;color:#9CA3AF;letter-spacing:.1em;text-transform:uppercase}
+  .stat-fmt button.on{background:#F09708;color:#fff}
+
+  /* ---- LLM cell ---- */
+  .llm-prompt{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:10px 12px;
+    display:flex;align-items:flex-start;gap:10px;font:500 12.5px/1.5 'Pretendard',sans-serif;color:#E2E8F0}
+  .llm-prompt .quoteb{color:#A78BFA;font-weight:700;letter-spacing:.14em;font-size:10px;text-transform:uppercase;margin-top:3px;flex-shrink:0}
+  .llm-prompt .refs{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+  .ref-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;
+    background:rgba(0,255,178,.1);border:1px solid rgba(0,255,178,.25);
+    font:600 10px/1 'JetBrains Mono',monospace;color:#00FFB2;letter-spacing:.02em;cursor:pointer}
+  .ref-chip:hover{background:rgba(0,255,178,.2)}
+  .llm-response{background:rgba(11,14,46,.4);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px 14px;
+    font:500 13px/1.65 'Pretendard',sans-serif;color:#E2E8F0}
+  .llm-response p{margin:0 0 8px}
+  .llm-response p:last-child{margin:0}
+  .llm-response b{color:#fff}
+  .llm-response .num{color:#F09708;font:600 12.5px/1.2 'JetBrains Mono',monospace}
+  .llm-response ul{margin:6px 0;padding-left:16px}
+  .llm-response li{margin:3px 0}
+  .llm-response code{background:rgba(0,255,178,.1);color:#00FFB2;padding:1px 5px;border-radius:3px;
+    font:500 11.5px/1 'JetBrains Mono',monospace}
+  .llm-spawns{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .llm-spawn{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:6px;
+    background:rgba(240,151,8,.08);border:1px dashed rgba(240,151,8,.3);color:#F09708;
+    font:600 10.5px/1 'Pretendard',sans-serif;letter-spacing:.04em}
+  .llm-spawn:hover{background:rgba(240,151,8,.18);border-style:solid}
+
+  /* ---- Add-slot between cells ---- */
+  .add-slot{height:14px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,height .15s;gap:6px}
+  .add-slot:hover{opacity:1;height:36px}
+  .add-slot button{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+    background:rgba(23,27,94,.55);border:1px dashed rgba(255,255,255,.14);
+    font:600 10.5px/1 'Pretendard',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#9CA3AF}
+  .add-slot button:hover{background:rgba(240,151,8,.15);border-color:#F09708;color:#F09708;border-style:solid}
+  .add-slot button.graph:hover{color:#F09708;border-color:#F09708}
+  .add-slot button.stat:hover{color:#00FFB2;border-color:#00FFB2;background:rgba(0,255,178,.1)}
+  .add-slot button.llm:hover{color:#A78BFA;border-color:#A78BFA;background:rgba(167,139,250,.1)}
+
+  /* ============================================================
+     LLM dock (bottom, sticky)
+     ============================================================ */
+  .llm-dock-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .llm-ctx{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 6px 0 0;border-right:1px solid rgba(255,255,255,.08);margin-right:6px}
+  .llm-ctx .lbl{font:700 9px/1 'Pretendard',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#6B7280}
+  .llm-input-wrap{flex:1;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:11px;
+    background:rgba(23,27,94,.55);border:1px solid rgba(255,255,255,.08);transition:border-color .15s}
+  .llm-input-wrap:focus-within{border-color:#A78BFA;box-shadow:0 0 0 3px rgba(167,139,250,.12)}
+  .llm-input-wrap .prefix{display:inline-flex;align-items:center;gap:5px;font:700 10px/1 'Pretendard',sans-serif;
+    letter-spacing:.15em;text-transform:uppercase;color:#A78BFA}
+  .llm-input-wrap input{flex:1;background:transparent;border:0;outline:0;color:#fff;
+    font:500 13px/1 'Pretendard',sans-serif}
+  .llm-input-wrap input::placeholder{color:#6B7280}
+  .llm-input-wrap .send{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#A78BFA;color:#fff;transition:all .15s}
+  .llm-input-wrap .send:hover{background:#8B6FEF}
+
+  /* ============================================================
+     ⌘K Palette (reused)
+     ============================================================ */
+  .cmdk-wrap{position:fixed;inset:0;background:rgba(11,14,46,.6);backdrop-filter:blur(8px);
+    display:none;align-items:flex-start;justify-content:center;padding-top:14vh;z-index:100;animation:fadeIn .15s}
+  .cmdk-wrap.open{display:flex}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .cmdk{width:min(640px,92vw);background:rgba(23,27,94,.88);border:1px solid rgba(240,151,8,.28);
+    border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 0 1px rgba(240,151,8,.08);
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);overflow:hidden;animation:slideIn .2s var(--hw-ease)}
+  @keyframes slideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .cmdk-input{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .cmdk-input input{flex:1;background:transparent;border:0;outline:0;color:#fff;font:500 15px/1 'Pretendard',sans-serif}
+  .cmdk-input input::placeholder{color:#6B7280}
+  .cmdk-list{max-height:50vh;overflow-y:auto;padding:6px 0}
+  .cmdk-section{padding:6px 18px;font:700 9px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#6B7280;margin-top:4px}
+  .cmdk-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font:500 13px/1 'Pretendard',sans-serif;color:#E2E8F0;cursor:pointer}
+  .cmdk-item[data-active="true"],.cmdk-item:hover{background:rgba(240,151,8,.1);color:#fff}
+  .cmdk-item .cmdk-icon{width:18px;color:#F09708}
+  .cmdk-item .cmdk-meta{margin-left:auto;font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .cmdk-footer{display:flex;align-items:center;gap:14px;padding:8px 18px;border-top:1px solid rgba(255,255,255,.06);font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.05em}
+  .cmdk-footer kbd{background:rgba(255,255,255,.06);padding:2px 5px;border-radius:4px;color:#9CA3AF;margin-right:4px}
+
+  /* ============================================================
+     Toast
+     ============================================================ */
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:rgba(23,27,94,.96);border:1px solid rgba(240,151,8,.35);border-radius:10px;padding:10px 16px;
+    font:600 12px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:.02em;z-index:120;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);transition:all .25s var(--hw-ease)}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ============================================================
+     Focus / Zoom modal — z above everything, black backdrop, no bleed
+     ============================================================ */
+  body.focused .canvas,body.focused .llm-dock{filter:blur(1px)}
+  .focus-wrap{position:fixed;inset:0;background:rgba(6,8,26,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    display:none;align-items:center;justify-content:center;padding:34px;z-index:200;animation:fadeIn .18s}
+  .focus-wrap.open{display:flex}
+  .focus{width:min(1280px,94vw);max-height:92vh;background:rgba(13,17,56,.96);border:1px solid rgba(240,151,8,.3);
+    border-radius:18px;box-shadow:0 32px 100px rgba(0,0,0,.7),0 0 0 1px rgba(240,151,8,.06);
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:flex;flex-direction:column;
+    overflow:hidden;animation:slideIn .22s var(--hw-ease)}
+  .focus-head{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .focus-ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#F09708}
+  .focus-title{font:700 17px/1.2 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;outline:0}
+  .focus-sub{font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em}
+  .focus-nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .focus-nav button{width:30px;height:30px;border-radius:8px;background:rgba(23,27,94,.5);color:#9CA3AF;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.06)}
+  .focus-nav button:hover{background:rgba(240,151,8,.12);color:#F09708;border-color:rgba(240,151,8,.3)}
+  .focus-nav .count{font:500 11px/1 'JetBrains Mono',monospace;color:#9CA3AF;padding:0 8px;letter-spacing:.06em}
+
+  .focus-toolbar{display:flex;align-items:center;gap:6px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(11,14,46,.45);flex-wrap:wrap}
+  .ftb-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:rgba(23,27,94,.4);border:1px solid rgba(255,255,255,.06);color:#9CA3AF;font:600 11px/1 'Pretendard',sans-serif}
+  .ftb-btn:hover,.ftb-btn.on{background:rgba(240,151,8,.14);border-color:rgba(240,151,8,.3);color:#F09708}
+  .ftb-sep{width:1px;height:18px;background:rgba(255,255,255,.08);margin:0 4px}
+  .ftb-hint{margin-left:auto;font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em}
+  .ftb-hint kbd{background:rgba(255,255,255,.06);padding:2px 5px;border-radius:4px;color:#9CA3AF;margin:0 2px}
+
+  .focus-body{flex:1;overflow:auto;padding:22px 24px;display:grid;grid-template-columns:1fr 300px;gap:20px}
+  .focus-plot-wrap{background:rgba(11,14,46,.55);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:14px;position:relative}
+  .focus-plot-wrap svg{display:block;width:100%;height:min(560px,64vh)}
+  .focus-plot-wrap .crosshair-v,.focus-plot-wrap .crosshair-h{stroke:rgba(240,151,8,.5);stroke-width:1;stroke-dasharray:3 3;pointer-events:none;opacity:0}
+  .focus-plot-wrap.hovering .crosshair-v,.focus-plot-wrap.hovering .crosshair-h{opacity:1}
+  .coord-chip{position:absolute;top:14px;right:14px;background:rgba(11,14,46,.85);border:1px solid rgba(240,151,8,.3);border-radius:8px;padding:6px 10px;font:500 11px/1.3 'JetBrains Mono',monospace;color:#E2E8F0;letter-spacing:.02em;opacity:0;transition:opacity .15s}
+  .focus-plot-wrap.hovering .coord-chip{opacity:1}
+  .coord-chip b{color:#F09708}
+  .coord-chip .mint{color:#00FFB2}
+  .brush{fill:rgba(240,151,8,.12);stroke:rgba(240,151,8,.55);stroke-width:1;stroke-dasharray:3 3;pointer-events:none;display:none}
+  .focus-plot-wrap.brushing .brush{display:block}
+
+  .focus-side{display:flex;flex-direction:column;gap:12px;min-width:0;overflow-y:auto}
+  .fs-block{background:rgba(23,27,94,.3);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px 14px}
+  .fs-block h5{margin:0 0 8px;font:700 9.5px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#6B7280}
+  .fs-stat{display:flex;justify-content:space-between;padding:5px 0;font:500 12px/1.2 'Pretendard',sans-serif;color:#E2E8F0;border-bottom:1px dashed rgba(255,255,255,.05)}
+  .fs-stat:last-child{border-bottom:0}
+  .fs-stat b{font:600 11.5px/1 'JetBrains Mono',monospace;color:#fff;letter-spacing:.02em}
+  .fs-series{display:flex;align-items:center;gap:8px;padding:5px 0;font:500 12px/1 'Pretendard',sans-serif;color:#E2E8F0;cursor:pointer}
+  .fs-series .tog{width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.2);display:inline-flex;align-items:center;justify-content:center;color:#0B0E2E;font-size:10px;font-weight:800}
+  .fs-series.off{color:#4B5563}
+  .fs-series.off .tog{background:transparent!important}
+  .fs-series .val{margin-left:auto;font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280}
+
+  .focus-foot{display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid rgba(255,255,255,.05);background:rgba(11,14,46,.35)}
+
+  @media (max-width:900px){
+    .focus-body{grid-template-columns:1fr}
+    .focus-side{order:-1;flex-direction:row;overflow-x:auto}
+  }
+
+  /* scrollbar */
+  .canvas::-webkit-scrollbar,.focus-side::-webkit-scrollbar{width:10px}
+  .canvas::-webkit-scrollbar-thumb,.focus-side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.05);border-radius:10px}
+  .canvas::-webkit-scrollbar-thumb:hover,.focus-side::-webkit-scrollbar-thumb:hover{background:rgba(240,151,8,.2)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="gStride" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0" stop-color="#F09708"/><stop offset=".6" stop-color="#FFB347"/><stop offset="1" stop-color="#00FFB2"/>
+  </linearGradient>
+  <linearGradient id="gBg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#171B5E"/><stop offset="1" stop-color="#0B0E2E"/>
+  </linearGradient>
+</defs></svg>
+
+<div class="app">
+
+  <!-- ───────── TOP NAV ───────── -->
+  <header class="topnav">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="url(#gBg)"/><rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="none" stroke="rgba(240,151,8,.35)"/><path d="M6 22 C 9 22, 10.5 20.5, 12 14 C 13.5 8, 15.5 7, 17 9 C 18.5 11, 19.5 14, 21 19 C 22 22, 23.5 22, 26 22" stroke="url(#gStride)" stroke-width="2.4" stroke-linecap="round" fill="none"/><circle cx="17" cy="9" r="1.8" fill="#00FFB2"/></svg>
+      <div>
+        <div class="brand-text">H-WALKER <b>CORE</b></div>
+        <div class="brand-sub">Analysis Workspace</div>
+      </div>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="nav-pill"><span class="dot"></span><span>Claude</span><small>haiku 4.5</small></div>
+    <button class="kbd" id="cmdk-trigger">Search or ask… <kbd>⌘K</kbd></button>
+    <div class="mode-toggle" id="mode-toggle">
+      <button class="on" data-mode="quick">Quick</button>
+      <button data-mode="publication">Publication</button>
+    </div>
+  </header>
+
+  <!-- ───────── SIDEBAR ───────── -->
+  <aside class="sidebar">
+    <button class="side-item active" title="Workspace">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Workspace</span>
+    </button>
+    <button class="side-item" title="History">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>History</span>
+    </button>
+    <button class="side-item" title="Stats library" id="side-stats">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Stats</span>
+    </button>
+    <button class="side-item" title="Exports">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span>Exports</span>
+    </button>
+
+    <div class="side-sep"></div>
+    <div style="flex:1"></div>
+    <button class="side-item" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </aside>
+
+  <!-- ───────── CANVAS ───────── -->
+  <main class="canvas">
+    <div class="page-head">
+      <div class="page-crumbs"><a href="#">PAGES</a> · <a href="#">2026-04-21</a> · <span>pilot_subject_03</span></div>
+      <h1 class="page-title" contenteditable="true" spellcheck="false">Gait asymmetry — Subject 03 pilot</h1>
+      <div class="page-meta">
+        <span>cells <b id="m-cells">0</b></span>
+        <span>datasets <b id="m-datasets">0</b></span>
+        <span>updated <b>2m ago</b></span>
+        <span class="accent">auto-saved</span>
+      </div>
+    </div>
+
+    <!-- Datasets panel -->
+    <section class="ds-panel" id="ds-panel">
+      <div class="ds-head">
+        <span class="ey">Datasets</span>
+        <span class="label">Pinned data sources</span>
+        <div class="rest">
+          <button class="ds-btn plain" id="ds-map">Map columns</button>
+          <button class="ds-btn" id="ds-add">＋ Add CSV</button>
+        </div>
+      </div>
+      <div class="ds-grid" id="ds-grid"></div>
+      <div class="ds-upload">
+        <label class="ds-drop" id="ds-drop">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Drop CSVs here or <b>browse</b> — auto-detects columns (time, L force, R force, IMU…)</span>
+        </label>
+      </div>
+    </section>
+
+    <div class="cells" id="cells"></div>
+  </main>
+
+  <!-- ───────── STICKY LLM DOCK ───────── -->
+  <div class="llm-dock">
+    <div class="llm-dock-inner">
+      <div class="llm-ctx" id="llm-ctx">
+        <span class="lbl">CONTEXT</span>
+      </div>
+      <div class="llm-input-wrap">
+        <span class="prefix">▸ Claude</span>
+        <input id="llm-q" placeholder="Ask Claude across datasets and cells  ·  e.g. &quot;compare peak L/R force between trial_1 and pilot_run&quot;"/>
+        <button class="send" id="llm-send" title="Send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span>LOCAL · :8000 · PYTHON 3.12 · fastapi 0.110</span>
+    <span>H-WALKER CORE · phase 2 · analysis workspace</span>
+    <span>DESIGNED BY CBJ</span>
+  </footer>
+</div>
+
+<!-- ───────── ⌘K palette ───────── -->
+<div class="cmdk-wrap" id="cmdk" role="dialog" aria-modal="true">
+  <div class="cmdk">
+    <div class="cmdk-input">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F09708" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="cmdk-q" placeholder="Search cells, datasets, or ask Claude…" autocomplete="off"/>
+      <span class="kbd" style="padding:3px 7px"><kbd>esc</kbd></span>
+    </div>
+    <div class="cmdk-list" id="cmdk-list"></div>
+    <div class="cmdk-footer">
+      <span><kbd>↑↓</kbd>navigate</span>
+      <span><kbd>↵</kbd>select</span>
+      <span style="margin-left:auto"><b style="color:#F09708">haiku 4.5</b> · 312ms avg</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ───────── Focus / Zoom modal ───────── -->
+<div class="focus-wrap" id="focus" role="dialog" aria-modal="true">
+  <div class="focus">
+    <div class="focus-head">
+      <span class="focus-ey" id="f-ey">Force · L vs R</span>
+      <span class="focus-title" id="f-title" contenteditable="true" spellcheck="false">—</span>
+      <span class="focus-sub" id="f-sub">—</span>
+      <div class="focus-nav">
+        <button id="f-prev" title="Prev (←)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="count" id="f-count">1 / 2</span>
+        <button id="f-next" title="Next (→)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button id="f-close" title="Close (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="focus-toolbar">
+      <button class="ftb-btn on" data-tool="brush"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="1"/></svg>Brush zoom</button>
+      <button class="ftb-btn" data-tool="reset"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Reset</button>
+      <span class="ftb-sep"></span>
+      <button class="ftb-btn on" data-tool="crosshair"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>Crosshair</button>
+      <button class="ftb-btn on" data-tool="grid"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Grid</button>
+      <span class="ftb-sep"></span>
+      <button class="ftb-btn" data-tool="download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>SVG</button>
+      <button class="ftb-btn" data-tool="download-pdf">PDF</button>
+      <span class="ftb-hint"><kbd>←→</kbd>cells · <kbd>Drag</kbd>zoom · <kbd>Esc</kbd>close</span>
+    </div>
+    <div class="focus-body">
+      <div class="focus-plot-wrap" id="f-plotwrap">
+        <div class="coord-chip" id="f-coord">x: <b>—</b> · y: <b>—</b></div>
+        <div id="f-plot"></div>
+      </div>
+      <div class="focus-side">
+        <div class="fs-block">
+          <h5>Summary</h5>
+          <div id="f-stats"></div>
+        </div>
+        <div class="fs-block">
+          <h5>Series · click to toggle</h5>
+          <div id="f-series"></div>
+        </div>
+        <div class="fs-block">
+          <h5>Publication preset</h5>
+          <div id="f-preset" style="display:flex;gap:4px">
+            <button class="ftb-btn" data-preset="ieee">IEEE 88mm</button>
+            <button class="ftb-btn" data-preset="nature">Nature 89mm</button>
+            <button class="ftb-btn" data-preset="apa">APA 6in</button>
+          </div>
+        </div>
+        <div class="fs-block">
+          <h5>Ask Claude about this</h5>
+          <div class="llm-input-wrap" style="margin-top:2px;background:rgba(167,139,250,.06);border-color:rgba(167,139,250,.25)">
+            <span class="prefix">▸</span>
+            <input id="f-ask" placeholder="Why is mid-stance asymmetric?"/>
+            <button class="send" id="f-send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="focus-foot">
+      <span class="nav-pill"><span class="dot"></span><span>Claude</span><small>haiku 4.5</small></span>
+      <span style="font:500 10.5px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em">LOCAL · :8000</span>
+      <span style="margin-left:auto" class="kbd"><kbd>F</kbd> toggle focus</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   H-Walker CORE · Phase 2 — Analysis Workspace
+   ============================================================ */
+
+const COLORS = {
+  lActual:'#3B82C4', lDesired:'#7FB5E4',
+  rActual:'#D35454', rDesired:'#E89B9B',
+  accent:'#F09708', mint:'#00FFB2', violet:'#A78BFA',
+};
+
+/* ============================================================
+   Datasets — synthetic but with realistic columns
+   ============================================================ */
+const DATASETS = [
+  {
+    id:'ds1', name:'trial_1_force.csv', tag:'force', kind:'force',
+    rows:2400, dur:'24.0s', hz:'100Hz',
+    cols:[
+      {name:'time_s',  mapped:'time',     unit:'s'},
+      {name:'L_force', mapped:'L force',  unit:'N'},
+      {name:'R_force', mapped:'R force',  unit:'N'},
+      {name:'L_cop',   mapped:'—',        unit:'mm'},
+      {name:'R_cop',   mapped:'—',        unit:'mm'},
+    ],
+    active:true,
+  },
+  {
+    id:'ds2', name:'trial_2_imu.csv', tag:'imu', kind:'imu',
+    rows:800, dur:'8.0s', hz:'100Hz',
+    cols:[
+      {name:'t',        mapped:'time',   unit:'s'},
+      {name:'shank_pitch', mapped:'shank', unit:'°'},
+      {name:'thigh_pitch', mapped:'thigh', unit:'°'},
+      {name:'shank_roll',  mapped:'—',    unit:'°'},
+    ],
+    active:false,
+  },
+  {
+    id:'ds3', name:'pilot_run.csv', tag:'mix', kind:'trials',
+    rows:5000, dur:'50.0s · 5 trials', hz:'100Hz',
+    cols:[
+      {name:'time',    mapped:'time',    unit:'s'},
+      {name:'trial_id',mapped:'group',   unit:'—'},
+      {name:'force',   mapped:'force',   unit:'N·n'},
+    ],
+    active:false,
+  },
+];
+
+/* ============================================================
+   Graph templates — path data + tick labels + summary stats
+   ============================================================ */
+const GRAPH_TPLS = {
+  force:{
+    ey:'Force · L vs R', title:'Ground reaction force', ds:'ds1',
+    yUnit:'Force (N)', xUnit:'Gait cycle (%)',
+    paths:[
+      {c:COLORS.lActual, w:2,   label:'L Actual',  d:'M48,160 C70,155 92,120 114,72 C138,38 158,28 180,42 C202,58 224,80 246,110 C270,140 290,152 312,150 C332,148 354,134 376,122 C394,114 402,122 408,138'},
+      {c:COLORS.lDesired,w:1.3, label:'L Desired', dash:'4 3', d:'M48,164 C70,160 92,126 114,78 C138,42 158,34 180,48 C204,62 224,82 246,112 C270,140 292,154 312,152 C332,148 354,134 376,124 C394,116 402,124 408,140'},
+      {c:COLORS.rActual, w:2,   label:'R Actual',  d:'M48,165 C70,160 92,150 114,108 C138,62 160,48 180,64 C202,82 224,100 246,130 C270,150 292,156 312,152 C332,150 354,138 376,124 C394,114 402,122 408,136'},
+      {c:COLORS.rDesired,w:1.3, label:'R Desired', dash:'4 3', d:'M48,167 C70,162 92,154 114,114 C138,68 160,54 180,70 C202,88 224,104 246,132 C270,150 292,156 312,154 C332,150 354,138 376,126 C394,114 402,124 408,138'},
+    ],
+    yTicks:['60','45','30','15','0'], xTicks:['0','25','50','75','100'],
+    summary:[['n strides','14'],['peak ΔL','48.2 N'],['peak ΔR','46.7 N'],['asym','3.2%']],
+  },
+  imu:{
+    ey:'IMU · Pitch', title:'Shank vs thigh pitch', ds:'ds2',
+    yUnit:'Pitch (°)', xUnit:'Time (s)',
+    paths:[
+      {c:COLORS.lActual, w:1.8, label:'Shank', d:'M48,100 C70,70 92,40 114,50 C136,60 158,130 180,140 C202,150 224,90 246,60 C268,50 290,110 312,140 C332,150 354,100 376,70 C394,55 402,80 408,100'},
+      {c:COLORS.rActual, w:1.8, label:'Thigh', d:'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102'},
+    ],
+    yTicks:['+20','+10','0','−10','−20'], xTicks:['0','2','4','6','8'],
+    summary:[['strides','3'],['cadence','112 spm'],['stride T','1.08 s']],
+  },
+  trials:{
+    ey:'Trials · N=5', title:'Trial overlay', ds:'ds3',
+    yUnit:'Normalized force', xUnit:'Gait cycle (%)',
+    paths:[
+      {c:'#7FB5E4',w:1.4,label:'Trial 1',d:'M48,170 C82,150 112,100 150,60 C188,40 222,32 258,52 C292,78 326,130 360,160 C384,172 398,168 408,164'},
+      {c:'#3B82C4',w:1.4,label:'Trial 2',d:'M48,172 C82,154 112,104 150,66 C188,46 222,38 258,58 C292,82 326,132 360,160 C384,170 398,168 408,166'},
+      {c:'#E89B9B',w:1.4,label:'Trial 3',d:'M48,168 C82,148 112,98 150,58 C188,38 222,30 258,50 C292,76 326,128 360,158 C384,170 398,166 408,162'},
+      {c:'#D35454',w:1.4,label:'Trial 4',d:'M48,174 C82,156 112,108 150,70 C188,50 222,42 258,60 C292,84 326,134 360,162 C384,172 398,170 408,168'},
+      {c:COLORS.accent,w:2.2,label:'Trial 5 · target',d:'M48,166 C82,146 112,94 150,54 C188,34 222,26 258,46 C292,72 326,124 360,154 C384,168 398,164 408,160'},
+    ],
+    yTicks:['1.0','0.75','0.5','0.25','0'], xTicks:['0','25','50','75','100'],
+    summary:[['trials','5'],['CV','4.1%'],['target Δ','+2.3%']],
+  },
+};
+
+/* ============================================================
+   Statistical machinery — deterministic mock results.
+     Real impl: Claude Code will back these with SciPy on server.
+   ============================================================ */
+const STAT_OPS = {
+  ttest_paired:{ label:'Paired t-test', needs:2,
+    run:({a,b})=>{
+      // Deterministic pseudo-result seeded by series labels
+      const seed = (a+b).length;
+      return {
+        test:'Paired t-test (two-tailed)',
+        n: 14,
+        t: (3.27 + (seed%4)*.08).toFixed(2),
+        df: 13,
+        p: '0.006',
+        psig: true,
+        mean_diff: '+4.82 N',
+        ci95: '[1.62, 8.02]',
+        cohen_d: '0.87',
+        effect: 'large',
+      };
+    }
+  },
+  ttest_welch:{ label:'Welch t-test', needs:2,
+    run:()=>({test:'Welch t-test (two-tailed)',n1:14,n2:14,t:'2.94',df:'25.8',p:'0.007',psig:true,mean_diff:'+4.6 N',ci95:'[1.3, 7.9]',cohen_d:'0.79',effect:'medium-large'})
+  },
+  anova:{ label:'One-way ANOVA', needs:3,
+    run:()=>({test:'One-way ANOVA',k:3,n:42,F:'5.14',df1:2,df2:39,p:'0.011',psig:true,eta2:'0.208',effect:'large',posthoc:'Tukey HSD: T1<T5 (p=.008), T2<T5 (p=.024)'})
+  },
+  corr:{ label:'Pearson correlation', needs:2,
+    run:()=>({test:'Pearson correlation',n:140,r:'0.72',p:'<0.001',psig:true,ci95:'[0.62, 0.80]',effect:'strong positive'})
+  },
+  cohen:{ label:'Cohen\'s d', needs:2,
+    run:()=>({test:'Cohen\'s d (independent)',n1:14,n2:14,cohen_d:'0.87',ci95:'[0.09, 1.64]',effect:'large',mean_diff:'+4.82 N'})
+  },
+};
+
+/* ============================================================
+   Cell model
+   ============================================================ */
+let cells = [
+  { id:'c1', type:'graph', graph:'force' },
+  { id:'c2', type:'stat',
+    op:'ttest_paired',
+    inputs:{ a:'L Actual', b:'R Actual' },
+    dsIds:['ds1'], fmt:'apa',
+  },
+  { id:'c3', type:'graph', graph:'imu' },
+  { id:'c4', type:'llm',
+    prompt:'Compare L/R peak force asymmetry across c1 and explain the mid-stance deficit.',
+    refs:['c1','c2'],
+    answer:{
+      text:[
+        'Across <b>14 strides</b> in <code>trial_1_force.csv</code>, the left limb peaks at <b class="num">48.2 N</b> vs. right at <b class="num">46.7 N</b> — an asymmetry index of <b class="num">3.2%</b>.',
+        'The paired-t in c2 confirms the gap is real: <b>t(13) = 3.27, p = .006, d = 0.87</b> (large effect). Most of the Δ sits in <b>mid-stance (30–55% GC)</b> where the R-side loses ≈8N of drive.',
+        'Interpretation: <b>late stance-phase propulsion deficit on the right</b>, consistent with a weakened gastrocnemius or delayed heel-off. Recommend overlaying the desired trajectory from the prescription file.',
+      ],
+      spawns:[
+        { label:'+ Graph: isolate 30–55% GC', action:'graph:force:zoom' },
+        { label:'+ Stat: ANOVA across 5 trials', action:'stat:anova' },
+      ]
+    }
+  },
+];
+
+/* ============================================================
+   DOM refs
+   ============================================================ */
+const cellsEl = document.getElementById('cells');
+const mCells = document.getElementById('m-cells');
+const mDatasets = document.getElementById('m-datasets');
+
+/* ============================================================
+   Render — datasets panel
+   ============================================================ */
+const dsGrid = document.getElementById('ds-grid');
+function renderDatasets(){
+  dsGrid.innerHTML = DATASETS.map(d=>{
+    const cols = d.cols.map(c=>`<span class="ds-col ${c.mapped!=='—'?'mapped':''}" title="${c.mapped}">${c.name}</span>`).join('');
+    return `<div class="ds-card ${d.active?'active':''}" data-id="${d.id}">
+      <div class="ds-row1">
+        <span class="tag ${d.tag}">${d.tag}</span>
+        <span class="name">${d.name}</span>
+      </div>
+      <div class="ds-row2">
+        <span>rows <b>${d.rows.toLocaleString()}</b></span>
+        <span>dur <b>${d.dur}</b></span>
+        <span>fs <b>${d.hz}</b></span>
+      </div>
+      <div class="ds-cols">${cols}</div>
+    </div>`;
+  }).join('');
+  dsGrid.querySelectorAll('.ds-card').forEach(c=>{
+    c.onclick=()=>{
+      DATASETS.forEach(d=>d.active=(d.id===c.dataset.id));
+      renderDatasets();
+      renderLlmCtx();
+      toast('Active dataset: '+DATASETS.find(d=>d.active).name);
+    };
+  });
+  mDatasets.textContent = DATASETS.length;
+}
+
+document.getElementById('ds-add').onclick=()=>toast('Drop CSV files into the drop-zone below ↓');
+document.getElementById('ds-map').onclick=()=>toast('Claude is auto-mapping columns… 3 inferences.');
+const drop = document.getElementById('ds-drop');
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{
+  e.preventDefault();drop.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if(!f){toast('No file');return}
+  DATASETS.push({id:'ds'+Date.now(),name:f.name,tag:'new',kind:'force',rows:'—',dur:'—',hz:'—',
+    cols:[{name:'col_0',mapped:'—',unit:'?'},{name:'col_1',mapped:'—',unit:'?'}],active:false});
+  renderDatasets();
+  toast('Uploaded '+f.name+' — Claude is sniffing columns…');
+});
+drop.onclick=()=>toast('File picker stub — mock UI');
+
+/* ============================================================
+   Render — cells
+   ============================================================ */
+function renderCells(){
+  cellsEl.innerHTML = '';
+  cells.forEach((c,i)=>{
+    if(i===0) cellsEl.appendChild(addSlot(0));
+    cellsEl.appendChild(buildCell(c,i));
+    cellsEl.appendChild(addSlot(i+1));
+  });
+  mCells.textContent = cells.length;
+  renderLlmCtx();
+}
+
+function buildCell(c,i){
+  const el = document.createElement('div');
+  el.className = 'cell '+c.type;
+  el.draggable = true;
+  el.dataset.id = c.id;
+  el.dataset.idx = i;
+  el.innerHTML = `
+    <div class="cell-head">
+      <span class="cell-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg></span>
+      <span class="cell-idx">c${i+1}</span>
+      <span class="cell-ey">${cellEy(c)}</span>
+      <span class="cell-title" contenteditable="true" spellcheck="false">${cellTitle(c)}</span>
+      ${cellSubHtml(c)}
+      <span class="cell-tools">
+        ${c.type==='graph'?`<button class="cell-tool" data-act="focus" title="Expand (F)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>`:''}
+        <button class="cell-tool" data-act="dup" title="Duplicate"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        <button class="cell-tool danger" data-act="del" title="Delete"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      </span>
+    </div>
+    ${cellBody(c,i)}
+  `;
+  wireCell(el,c,i);
+  return el;
+}
+
+function cellEy(c){
+  if(c.type==='graph') return GRAPH_TPLS[c.graph].ey;
+  if(c.type==='stat')  return 'Stat · '+STAT_OPS[c.op].label;
+  if(c.type==='llm')   return 'Ask Claude';
+}
+function cellTitle(c){
+  if(c.type==='graph') return GRAPH_TPLS[c.graph].title;
+  if(c.type==='stat')  return STAT_OPS[c.op].label+' — '+(c.inputs.a||'')+' vs '+(c.inputs.b||'');
+  if(c.type==='llm')   return 'Asymmetry root-cause analysis';
+}
+function cellSubHtml(c){
+  if(c.type==='graph'){
+    const ds = DATASETS.find(d=>d.id===GRAPH_TPLS[c.graph].ds);
+    return `<span class="ds-chip ${ds.tag}">${ds.name}</span>`;
+  }
+  if(c.type==='stat'){
+    return (c.dsIds||[]).map(id=>{
+      const ds = DATASETS.find(d=>d.id===id);
+      return `<span class="ds-chip ${ds.tag}">${ds.name}</span>`;
+    }).join(' ');
+  }
+  if(c.type==='llm'){
+    return `<span class="cell-sub">from ${(c.refs||[]).join(', ')}</span>`;
+  }
+}
+
+function cellBody(c,i){
+  if(c.type==='graph') return graphBody(c);
+  if(c.type==='stat')  return statBody(c,i);
+  if(c.type==='llm')   return llmBody(c,i);
+  return '';
+}
+
+/* ---- Graph ---- */
+function graphBody(c){
+  const t = GRAPH_TPLS[c.graph];
+  return `
+    <div class="plot">${renderPlotSvg(t)}</div>
+    <div class="cell-legend">${t.paths.map(p=>{
+      const dash = !!p.dash;
+      return `<span class="lg-item"><span class="lg-sw ${dash?'dash':''}" style="${dash?`color:${p.c}`:`background:${p.c}`}"></span>${p.label}</span>`;
+    }).join('')}</div>
+    <div class="cell-meta">${t.summary.map(([k,v])=>`<span>${k}${v?' <b>'+v+'</b>':''}</span>`).join('')}</div>
+  `;
+}
+
+function renderPlotSvg(t){
+  const paths = t.paths.map(p=>`<path d="${p.d}" stroke="${p.c}" stroke-width="${p.w}" ${p.dash?`stroke-dasharray="${p.dash}"`:''} fill="none" stroke-linecap="round"/>`).join('');
+  const yT = t.yTicks.map((x,i)=>`<text x="43" y="${23+i*40}">${x}</text>`).join('');
+  const xT = t.xTicks.map((x,i)=>`<text x="${48+i*90}" y="194">${x}</text>`).join('');
+  return `<svg viewBox="0 0 420 210" preserveAspectRatio="none">
+    <g class="grid-line">
+      <line x1="48" y1="23" x2="408" y2="23"/>
+      <line x1="48" y1="63" x2="408" y2="63"/>
+      <line x1="48" y1="103" x2="408" y2="103"/>
+      <line x1="48" y1="143" x2="408" y2="143"/>
+    </g>
+    <line class="grid-line-major" x1="48" y1="180" x2="408" y2="180"/>
+    <line class="axis-line" x1="48" y1="16" x2="48" y2="180"/>
+    <line class="axis-line" x1="48" y1="180" x2="408" y2="180"/>
+    <g class="tick-label" text-anchor="end">${yT}</g>
+    <g class="tick-label" text-anchor="middle">${xT}</g>
+    <text class="axis-title" x="228" y="206" text-anchor="middle">${t.xUnit}</text>
+    <text class="axis-title" x="14" y="100" text-anchor="middle" transform="rotate(-90 14 100)">${t.yUnit}</text>
+    ${paths}
+  </svg>`;
+}
+
+/* ---- Stat cell ---- */
+function statBody(c,i){
+  const op = STAT_OPS[c.op];
+  const result = op.run(c.inputs);
+  return `
+    <div class="stat-body">
+      <div class="stat-inputs">
+        <div class="stat-row">
+          <label>Test</label>
+          <select data-stat="op">
+            ${Object.entries(STAT_OPS).map(([k,v])=>`<option value="${k}" ${k===c.op?'selected':''}>${v.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="stat-row">
+          <label>Dataset</label>
+          <select data-stat="ds">
+            ${DATASETS.map(d=>`<option value="${d.id}" ${(c.dsIds||[]).includes(d.id)?'selected':''}>${d.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="stat-row">
+          <label>Group A</label>
+          <input type="text" data-stat="a" value="${c.inputs.a||''}" placeholder="column or cell ref"/>
+        </div>
+        <div class="stat-row">
+          <label>Group B</label>
+          <input type="text" data-stat="b" value="${c.inputs.b||''}" placeholder="column or cell ref"/>
+        </div>
+        <div class="stat-row">
+          <label>α</label>
+          <div class="op">
+            <button class="on">.05</button><button>.01</button><button>.001</button>
+          </div>
+          <span style="font:500 10px 'JetBrains Mono',monospace;color:#6B7280;margin-left:auto">two-tailed</span>
+        </div>
+        <div class="stat-row" style="margin-top:4px;gap:6px">
+          <span style="font:600 10px 'Pretendard',sans-serif;color:#6B7280;letter-spacing:.12em;text-transform:uppercase">Reference</span>
+          <span class="ref-chip" data-ref="c1">c1.L Actual</span>
+          <span class="ref-chip" data-ref="c1">c1.R Actual</span>
+        </div>
+      </div>
+      <div class="stat-output">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font:700 9.5px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#6B7280">Result</span>
+          <div class="stat-fmt" style="margin-left:auto" data-fmt-group="${c.id}">
+            <button class="${c.fmt==='apa'?'on':''}" data-fmt="apa">APA</button>
+            <button class="${c.fmt==='ieee'?'on':''}" data-fmt="ieee">IEEE</button>
+            <button class="${c.fmt==='plain'?'on':''}" data-fmt="plain">Plain</button>
+          </div>
+        </div>
+        ${renderStatKV(result)}
+        <div class="stat-apa">
+          <button class="copy" data-copy-apa>COPY</button>
+          ${formatReport(result, c.fmt||'apa')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderStatKV(r){
+  const rows = [];
+  const push=(k,v,sig=false)=>rows.push(`<div class="stat-val ${sig?'sig':''}"><span>${k}</span><b>${v}</b></div>`);
+  for(const [k,v] of Object.entries(r)){
+    if(k==='test'||k==='psig'||k==='effect') continue;
+    if(k==='p') push('p-value', v+(r.psig?' *':''), !!r.psig);
+    else push(k, v, false);
+  }
+  if(r.effect) push('effect', r.effect);
+  return rows.join('');
+}
+
+/* ---- Report formatting ---- */
+function formatReport(r, fmt){
+  if(fmt==='ieee'){
+    // IEEE-ish: "A paired t-test showed t(13) = 3.27, p = .006, d = 0.87."
+    if(r.t) return `A <b>${r.test}</b> showed <b>t</b>(${r.df}) = ${r.t}, <b>p</b> = ${r.p}${r.psig?' (significant)':''}, Cohen's <b>d</b> = ${r.cohen_d}. Mean difference = ${r.mean_diff}, 95% CI ${r.ci95}.`;
+    if(r.F) return `<b>${r.test}</b>: <b>F</b>(${r.df1},${r.df2}) = ${r.F}, <b>p</b> = ${r.p}${r.psig?' (significant)':''}, η² = ${r.eta2}. ${r.posthoc||''}`;
+    if(r.r) return `<b>${r.test}</b>: <b>r</b>(${r.n-2}) = ${r.r}, <b>p</b> = ${r.p}${r.psig?' (significant)':''}, 95% CI ${r.ci95}.`;
+    return `<b>${r.test}</b>, d = ${r.cohen_d}, 95% CI ${r.ci95}, ${r.effect} effect.`;
+  }
+  if(fmt==='plain'){
+    if(r.t) return `Paired t-test: t=${r.t}, df=${r.df}, p=${r.p}, d=${r.cohen_d}. Δ=${r.mean_diff} ${r.ci95}.`;
+    if(r.F) return `ANOVA: F(${r.df1},${r.df2})=${r.F}, p=${r.p}, η²=${r.eta2}. ${r.posthoc||''}`;
+    if(r.r) return `Pearson r=${r.r}, n=${r.n}, p=${r.p}, ${r.ci95}.`;
+    return `Cohen's d=${r.cohen_d}, ${r.ci95}, ${r.effect}.`;
+  }
+  // APA default
+  if(r.t) return `A paired-samples <i>t</i>-test indicated that the L/R peak force difference was statistically significant, <b><i>t</i>(${r.df}) = ${r.t}, <i>p</i> = ${r.p}</b>. Cohen's <i>d</i> = <b>${r.cohen_d}</b> (${r.effect} effect); mean difference = <b>${r.mean_diff}</b>, 95% CI ${r.ci95}.`;
+  if(r.F) return `A one-way ANOVA revealed a significant effect of trial on force output, <b><i>F</i>(${r.df1}, ${r.df2}) = ${r.F}, <i>p</i> = ${r.p}, η² = ${r.eta2}</b> (${r.effect} effect). Post-hoc: ${r.posthoc||'—'}.`;
+  if(r.r) return `A Pearson correlation indicated a ${r.effect} association between the two channels, <b><i>r</i>(${r.n-2}) = ${r.r}, <i>p</i> = ${r.p}</b>, 95% CI ${r.ci95}.`;
+  return `Effect size (Cohen's <i>d</i>) = <b>${r.cohen_d}</b>, 95% CI ${r.ci95}, indicating a ${r.effect} effect.`;
+}
+
+/* ---- LLM cell ---- */
+function llmBody(c,i){
+  const resp = c.answer;
+  const refChips = (c.refs||[]).map(r=>`<span class="ref-chip" data-ref="${r}">${r}</span>`).join('');
+  return `
+    <div class="llm-prompt">
+      <span class="quoteb">PROMPT</span>
+      <div style="flex:1">
+        <div contenteditable="true" spellcheck="false">${c.prompt}</div>
+        <div class="refs">${refChips}</div>
+      </div>
+    </div>
+    <div class="llm-response">
+      ${resp.text.map(p=>`<p>${p}</p>`).join('')}
+    </div>
+    <div class="llm-spawns">
+      ${resp.spawns.map(s=>`<button class="llm-spawn" data-spawn="${s.action}">${s.label}</button>`).join('')}
+    </div>
+  `;
+}
+
+/* ============================================================
+   Wire cell interactions
+   ============================================================ */
+function wireCell(el, c, i){
+  el.querySelector('[data-act="dup"]')?.addEventListener('click',()=>{
+    cells.splice(i+1,0,JSON.parse(JSON.stringify({...c, id:'c'+Date.now()})));
+    renderCells();toast('Duplicated');
+  });
+  el.querySelector('[data-act="del"]')?.addEventListener('click',()=>{
+    cells = cells.filter(x=>x.id!==c.id); renderCells(); toast('Removed');
+  });
+  el.querySelector('[data-act="focus"]')?.addEventListener('click',()=>openFocus(i));
+  el.querySelector('.plot')?.addEventListener('dblclick',()=>openFocus(i));
+
+  // Stat cell inputs
+  el.querySelectorAll('[data-stat]').forEach(inp=>{
+    inp.addEventListener('change',e=>{
+      const k = inp.dataset.stat;
+      if(k==='op')  c.op = inp.value;
+      if(k==='ds')  c.dsIds = [inp.value];
+      if(k==='a')   c.inputs.a = inp.value;
+      if(k==='b')   c.inputs.b = inp.value;
+      renderCells();
+      toast('Recomputed — '+STAT_OPS[c.op].label);
+    });
+  });
+  el.querySelectorAll(`[data-fmt-group="${c.id}"] button`).forEach(b=>{
+    b.addEventListener('click',()=>{
+      c.fmt = b.dataset.fmt;
+      renderCells();
+    });
+  });
+  el.querySelector('[data-copy-apa]')?.addEventListener('click',e=>{
+    const txt = el.querySelector('.stat-apa').innerText.replace(/^COPY\s*/,'');
+    navigator.clipboard?.writeText(txt);
+    toast('Copied to clipboard');
+  });
+  // LLM spawns
+  el.querySelectorAll('[data-spawn]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const a = b.dataset.spawn;
+      if(a.startsWith('graph:')){
+        cells.splice(i+1,0,{id:'c'+Date.now(),type:'graph',graph:a.split(':')[1]});
+      } else if(a.startsWith('stat:')){
+        cells.splice(i+1,0,{id:'c'+Date.now(),type:'stat',op:a.split(':')[1],inputs:{a:'Trial 1',b:'Trial 5'},dsIds:['ds3'],fmt:'apa'});
+      }
+      renderCells();
+      toast('Claude spawned a new cell');
+    });
+  });
+  // ref-chip hover highlights target
+  el.querySelectorAll('.ref-chip').forEach(chip=>{
+    chip.addEventListener('mouseenter',()=>{
+      const targetIdx = cells.findIndex(x=>x.id===chip.dataset.ref);
+      if(targetIdx<0) return;
+      const tgt = cellsEl.querySelectorAll('.cell')[targetIdx];
+      tgt?.classList.add('ref-target');
+    });
+    chip.addEventListener('mouseleave',()=>{
+      cellsEl.querySelectorAll('.cell.ref-target').forEach(x=>x.classList.remove('ref-target'));
+    });
+    chip.addEventListener('click',()=>{
+      const targetIdx = cells.findIndex(x=>x.id===chip.dataset.ref);
+      if(targetIdx<0) return;
+      cellsEl.querySelectorAll('.cell')[targetIdx]?.scrollIntoView({block:'center',behavior:'smooth'});
+    });
+  });
+  // Drag/drop
+  el.addEventListener('dragstart',e=>{el.classList.add('dragging');e.dataTransfer.setData('text/plain',c.id)});
+  el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+}
+
+/* ============================================================
+   Add-slot menu between cells (choose Graph / Stat / LLM)
+   ============================================================ */
+function addSlot(idx){
+  const slot = document.createElement('div');
+  slot.className='add-slot';
+  slot.innerHTML = `
+    <button class="graph" data-t="graph">＋ Graph</button>
+    <button class="stat" data-t="stat">＋ Stats</button>
+    <button class="llm" data-t="llm">＋ Ask Claude</button>
+  `;
+  slot.querySelectorAll('button').forEach(b=>{
+    b.onclick=()=>insertCellAt(idx, b.dataset.t);
+  });
+  slot.addEventListener('dragover',e=>{e.preventDefault();slot.style.opacity=1;slot.style.height='36px'});
+  slot.addEventListener('dragleave',()=>{slot.style.opacity='';slot.style.height=''});
+  slot.addEventListener('drop',e=>{
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    const from = cells.findIndex(x=>x.id===id); if(from<0) return;
+    const [moved] = cells.splice(from,1);
+    const to = idx>from?idx-1:idx;
+    cells.splice(to,0,moved);
+    renderCells();toast('Moved');
+  });
+  return slot;
+}
+
+function insertCellAt(idx,type){
+  let c;
+  if(type==='graph') c = {id:'c'+Date.now(),type:'graph',graph:'force'};
+  if(type==='stat')  c = {id:'c'+Date.now(),type:'stat',op:'ttest_paired',inputs:{a:'L Actual',b:'R Actual'},dsIds:['ds1'],fmt:'apa'};
+  if(type==='llm')   c = {id:'c'+Date.now(),type:'llm',prompt:'Analyze recent cells and summarize key findings.',refs:cells.slice(-2).map(x=>x.id),answer:{
+    text:['Claude is thinking…','(mock response — wire Haiku 4.5 here)'],
+    spawns:[{label:'+ Graph',action:'graph:force:zoom'}]
+  }};
+  cells.splice(idx,0,c);
+  renderCells();
+  toast('Added '+type);
+}
+
+/* ============================================================
+   LLM dock — context chips + send
+   ============================================================ */
+function renderLlmCtx(){
+  const ctx = document.getElementById('llm-ctx');
+  const activeDs = DATASETS.filter(d=>d.active).map(d=>`<span class="ds-chip ${d.tag}">${d.name}</span>`).join('');
+  const cellCount = cells.length;
+  ctx.innerHTML = `<span class="lbl">CTX</span> ${activeDs} <span class="ds-chip" style="background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3);color:#A78BFA">${cellCount} cells</span>`;
+}
+
+const llmQ = document.getElementById('llm-q');
+document.getElementById('llm-send').onclick = sendLlm;
+llmQ.addEventListener('keydown',e=>{ if(e.key==='Enter') sendLlm(); });
+
+function sendLlm(){
+  const q = llmQ.value.trim(); if(!q) return;
+  toast('Claude is analyzing…');
+  // append an LLM cell at the end with this prompt
+  const c = {id:'c'+Date.now(),type:'llm',prompt:q,refs:cells.slice(-2).map(x=>x.id),answer:{
+    text:[
+      `Analyzing <b>${q}</b> across ${DATASETS.filter(d=>d.active).length} active dataset(s).`,
+      'Preliminary finding: asymmetry concentrates in <b>mid-stance (30–55% GC)</b> with peak Δ of <b class="num">4.82 N</b> favoring the L-limb. Paired-t confirms significance (<code>p = .006</code>).',
+      'Would you like me to (a) overlay desired trajectory or (b) run an ANOVA across trials 1–5?'
+    ],
+    spawns:[
+      {label:'(a) + Graph overlay', action:'graph:force'},
+      {label:'(b) + ANOVA c1–c5',   action:'stat:anova'},
+    ]
+  }};
+  cells.push(c);
+  renderCells();
+  llmQ.value='';
+  setTimeout(()=>cellsEl.lastElementChild?.scrollIntoView({block:'center',behavior:'smooth'}),80);
+}
+
+/* ============================================================
+   Mode toggle
+   ============================================================ */
+document.querySelectorAll('#mode-toggle button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#mode-toggle button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    if(b.dataset.mode==='publication'){
+      document.body.classList.add('pub');
+      toast('Publication mode — plots switched to print palette, IEEE preset');
+    } else {
+      document.body.classList.remove('pub');
+      toast('Quick mode');
+    }
+  };
+});
+
+/* ============================================================
+   ⌘K palette
+   ============================================================ */
+const COMMANDS = [
+  { group:'Add cell',   label:'Insert Graph · Force L/R',       hint:'⏎', action:()=>insertCellAt(cells.length,'graph') },
+  { group:'Add cell',   label:'Insert Stats · Paired t-test',    hint:'⏎', action:()=>insertCellAt(cells.length,'stat') },
+  { group:'Add cell',   label:'Insert LLM cell (Ask Claude)',    hint:'⏎', action:()=>insertCellAt(cells.length,'llm') },
+  { group:'Stats',      label:'Paired t-test · L vs R',          hint:'',  action:()=>{insertCellAt(cells.length,'stat')} },
+  { group:'Stats',      label:'One-way ANOVA · across trials',   hint:'',  action:()=>{insertCellAt(cells.length,'stat'); cells[cells.length-1].op='anova';cells[cells.length-1].dsIds=['ds3'];renderCells()} },
+  { group:'Stats',      label:'Pearson correlation · L × R',     hint:'',  action:()=>{insertCellAt(cells.length,'stat'); cells[cells.length-1].op='corr';renderCells()} },
+  { group:'Stats',      label:'Cohen\'s d · effect size',        hint:'',  action:()=>{insertCellAt(cells.length,'stat'); cells[cells.length-1].op='cohen';renderCells()} },
+  { group:'Export',     label:'Export page as SVG bundle',       hint:'⇧⌘E', action:()=>toast('Exported '+cells.filter(c=>c.type==='graph').length+' plots as SVG bundle') },
+  { group:'Export',     label:'Export for IEEE preset (88mm)',   hint:'',  action:()=>toast('IEEE preset → svg, pdf · 88mm column') },
+  { group:'Export',     label:'Export for Nature preset (89mm)', hint:'',  action:()=>toast('Nature preset → svg, pdf · 89mm column') },
+  { group:'Export',     label:'Export stats as APA .docx',       hint:'',  action:()=>toast('Stats → publication_stats.docx (4 results)') },
+  { group:'Mode',       label:'Toggle Publication mode',         hint:'⌘P', action:()=>{document.querySelector('#mode-toggle button:not(.on)')?.click()} },
+];
+
+const cmdk = document.getElementById('cmdk');
+const cmdkList = document.getElementById('cmdk-list');
+const cmdkQ = document.getElementById('cmdk-q');
+document.getElementById('cmdk-trigger').onclick=()=>openCmdK();
+
+function openCmdK(seed){cmdk.classList.add('open');cmdkQ.value=seed||'';cmdkQ.focus();renderCmdK()}
+function closeCmdK(){cmdk.classList.remove('open')}
+function renderCmdK(){
+  const q = cmdkQ.value.trim().toLowerCase();
+  const filtered = q?COMMANDS.filter(c=>c.label.toLowerCase().includes(q)||c.group.toLowerCase().includes(q)):COMMANDS;
+  const byGroup={}; filtered.forEach(c=>{(byGroup[c.group]=byGroup[c.group]||[]).push(c)});
+  let html = '';
+  if(!filtered.length) html = `<div style="padding:28px 20px;color:#6B7280;font:500 12px sans-serif;text-align:center">No match. <b style="color:#F09708">⏎</b> to ask Claude directly.</div>`;
+  let gi=0;
+  for(const g in byGroup){
+    html += `<div class="cmdk-section">${g}</div>`;
+    byGroup[g].forEach((c,i)=>{
+      const active = gi===0&&i===0?'true':'false';
+      html += `<div class="cmdk-item" data-active="${active}" data-cmd="${COMMANDS.indexOf(c)}">
+        <span class="cmdk-icon">›</span><span>${c.label}</span><span class="cmdk-meta">${c.hint||''}</span></div>`;
+    });
+    gi++;
+  }
+  cmdkList.innerHTML = html;
+  cmdkList.querySelectorAll('.cmdk-item').forEach(el=>{
+    el.onclick=()=>{COMMANDS[+el.dataset.cmd].action();closeCmdK()};
+  });
+}
+cmdkQ.addEventListener('input',renderCmdK);
+cmdkQ.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const a=cmdkList.querySelector('[data-active="true"]')||cmdkList.querySelector('.cmdk-item');
+    if(a){COMMANDS[+a.dataset.cmd].action();closeCmdK()}
+    else if(cmdkQ.value.trim()){toast('Claude: "'+cmdkQ.value+'"…');setTimeout(()=>{llmQ.value=cmdkQ.value;sendLlm()},300);closeCmdK()}
+  }
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    const items=[...cmdkList.querySelectorAll('.cmdk-item')];
+    const cur=items.findIndex(el=>el.dataset.active==='true');
+    items.forEach(el=>el.dataset.active='false');
+    const n = e.key==='ArrowDown'?(cur+1)%items.length:(cur-1+items.length)%items.length;
+    if(items[n]) items[n].dataset.active='true';
+  }
+});
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCmdK()}
+  if(e.key==='Escape'){closeCmdK();closeFocus()}
+});
+cmdk.addEventListener('click',e=>{if(e.target===cmdk)closeCmdK()});
+
+/* ============================================================
+   Toast
+   ============================================================ */
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('on');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),2400);
+}
+
+/* ============================================================
+   Focus modal (graph zoom)
+   ============================================================ */
+const focus=document.getElementById('focus');
+const fPlotWrap=document.getElementById('f-plotwrap');
+const fPlot=document.getElementById('f-plot');
+const fCoord=document.getElementById('f-coord');
+let focusIdx=-1;
+let focusState={xDomain:[0,100],seriesHidden:new Set(),crosshair:true,grid:true};
+
+function openFocus(idx){
+  // find nearest graph cell
+  if(cells[idx]?.type!=='graph'){
+    const g = cells.findIndex((c,i)=>i>=idx && c.type==='graph');
+    if(g<0){ toast('No graph cell to focus'); return; }
+    idx = g;
+  }
+  focusIdx=idx;
+  focusState.xDomain=[0,100];focusState.seriesHidden=new Set();
+  renderFocus();
+  focus.classList.add('open');
+  document.body.classList.add('focused');
+  document.body.style.overflow='hidden';
+}
+function closeFocus(){
+  focus.classList.remove('open');
+  document.body.classList.remove('focused');
+  document.body.style.overflow='';
+  focusIdx=-1;
+}
+
+function renderFocus(){
+  if(focusIdx<0) return;
+  const c = cells[focusIdx];
+  const t = GRAPH_TPLS[c.graph];
+  document.getElementById('f-ey').textContent=t.ey;
+  document.getElementById('f-title').textContent=t.title;
+  const ds = DATASETS.find(d=>d.id===t.ds);
+  document.getElementById('f-sub').textContent=ds.name+' · '+ds.rows.toLocaleString()+' rows';
+  // navigate only among graph cells
+  const graphCells = cells.map((c,i)=>({c,i})).filter(x=>x.c.type==='graph');
+  const posInGraphs = graphCells.findIndex(x=>x.i===focusIdx);
+  document.getElementById('f-count').textContent=(posInGraphs+1)+' / '+graphCells.length;
+
+  const [x0,x1] = focusState.xDomain;
+  const clipX=48+(360*x0/100), clipW=360*(x1-x0)/100;
+  const paths = t.paths.map((p,i)=>{
+    if(focusState.seriesHidden.has(i)) return '';
+    return `<path d="${p.d}" stroke="${p.c}" stroke-width="${p.w+0.6}" ${p.dash?`stroke-dasharray="${p.dash}"`:''} fill="none" stroke-linecap="round" clip-path="url(#fClip)"/>`;
+  }).join('');
+  const xVals=[]; const d0=parseFloat(t.xTicks[0]), d1=parseFloat(t.xTicks[t.xTicks.length-1]);
+  for(let k=0;k<5;k++){const tn=x0+(x1-x0)*k/4;xVals.push((d0+(d1-d0)*tn/100).toFixed(1).replace(/\.0$/,''))}
+  const xT=xVals.map((x,k)=>`<text x="${48+k*90}" y="194">${x}</text>`).join('');
+  const yT=t.yTicks.map((x,k)=>`<text x="43" y="${23+k*40}">${x}</text>`).join('');
+  const gridLines=focusState.grid?`
+    <line x1="48" y1="23" x2="408" y2="23"/>
+    <line x1="48" y1="63" x2="408" y2="63"/>
+    <line x1="48" y1="103" x2="408" y2="103"/>
+    <line x1="48" y1="143" x2="408" y2="143"/>
+    <line x1="138" y1="16" x2="138" y2="180"/>
+    <line x1="228" y1="16" x2="228" y2="180"/>
+    <line x1="318" y1="16" x2="318" y2="180"/>`:'';
+  fPlot.innerHTML = `<svg viewBox="0 0 420 210" preserveAspectRatio="none">
+    <defs><clipPath id="fClip"><rect x="${clipX}" y="16" width="${clipW}" height="166"/></clipPath></defs>
+    <g class="grid-line">${gridLines}</g>
+    <line class="grid-line-major" x1="48" y1="180" x2="408" y2="180"/>
+    <line class="axis-line" x1="48" y1="16" x2="48" y2="180"/>
+    <line class="axis-line" x1="48" y1="180" x2="408" y2="180"/>
+    <g class="tick-label" text-anchor="end">${yT}</g>
+    <g class="tick-label" text-anchor="middle">${xT}</g>
+    <text class="axis-title" x="228" y="206" text-anchor="middle">${t.xUnit}</text>
+    <text class="axis-title" x="14" y="100" text-anchor="middle" transform="rotate(-90 14 100)">${t.yUnit}</text>
+    ${paths}
+    <g><line class="crosshair-v" x1="0" y1="16" x2="0" y2="180"/>
+       <line class="crosshair-h" x1="48" y1="0" x2="408" y2="0"/>
+       <rect class="brush" x="0" y="16" width="0" height="164"/></g></svg>`;
+  document.getElementById('f-stats').innerHTML =
+    t.summary.map(([k,v])=>`<div class="fs-stat"><span>${k}</span><b>${v||'—'}</b></div>`).join('') +
+    `<div class="fs-stat" style="color:${COLORS.accent}"><span>x-range</span><b>${xVals[0]} — ${xVals[4]}</b></div>`;
+  document.getElementById('f-series').innerHTML = t.paths.map((p,i)=>{
+    const off=focusState.seriesHidden.has(i);
+    const sw=p.dash?`background-image:linear-gradient(to right,${p.c} 55%,transparent 55%);background-size:4px 100%;border-color:${p.c}`:`background:${p.c};border-color:${p.c}`;
+    return `<div class="fs-series ${off?'off':''}" data-i="${i}">
+      <span class="tog" style="${off?'':sw}">${off?'':'✓'}</span><span>${p.label}</span><span class="val">${p.dash?'desired':'actual'}</span></div>`;
+  }).join('');
+  document.querySelectorAll('#f-series .fs-series').forEach(el=>{
+    el.onclick=()=>{const i=+el.dataset.i;if(focusState.seriesHidden.has(i))focusState.seriesHidden.delete(i);else focusState.seriesHidden.add(i);renderFocus()};
+  });
+}
+
+(function wireFocus(){
+  let brushStart=null;
+  fPlotWrap.addEventListener('mouseenter',()=>{if(focusState.crosshair) fPlotWrap.classList.add('hovering')});
+  fPlotWrap.addEventListener('mouseleave',()=>{fPlotWrap.classList.remove('hovering');fPlotWrap.classList.remove('brushing');brushStart=null});
+  fPlotWrap.addEventListener('mousemove',e=>{
+    const svg=fPlot.querySelector('svg');if(!svg)return;
+    const r=svg.getBoundingClientRect();
+    const vx=((e.clientX-r.left)/r.width)*420, vy=((e.clientY-r.top)/r.height)*210;
+    const t=GRAPH_TPLS[cells[focusIdx].graph], [x0,x1]=focusState.xDomain;
+    const tn=Math.max(0,Math.min(1,(vx-48)/360));
+    const xD=parseFloat(t.xTicks[0])+(parseFloat(t.xTicks[t.xTicks.length-1])-parseFloat(t.xTicks[0]))*(x0/100+tn*(x1-x0)/100);
+    const yF=parseFloat(t.yTicks[0]), yL=parseFloat(t.yTicks[t.yTicks.length-1]);
+    const yn=Math.max(0,Math.min(1,(vy-16)/164));
+    const yD=yF+(yL-yF)*yn;
+    fCoord.innerHTML=`${t.xUnit.split(' ')[0]}: <b>${xD.toFixed(1)}</b> · ${t.yUnit.split(' ')[0]}: <b class="mint">${yD.toFixed(1)}</b>`;
+    const v=svg.querySelector('.crosshair-v'),h=svg.querySelector('.crosshair-h');
+    if(v&&h){v.setAttribute('x1',vx);v.setAttribute('x2',vx);h.setAttribute('y1',vy);h.setAttribute('y2',vy)}
+    if(brushStart){const x=Math.min(brushStart.vx,vx), w=Math.abs(vx-brushStart.vx);
+      const b=svg.querySelector('.brush');b.setAttribute('x',x);b.setAttribute('width',w)}
+  });
+  fPlotWrap.addEventListener('mousedown',e=>{
+    const svg=fPlot.querySelector('svg');if(!svg)return;
+    const r=svg.getBoundingClientRect();
+    const vx=((e.clientX-r.left)/r.width)*420;
+    if(vx<48||vx>408)return;
+    brushStart={vx};fPlotWrap.classList.add('brushing');
+  });
+  fPlotWrap.addEventListener('mouseup',e=>{
+    if(!brushStart){fPlotWrap.classList.remove('brushing');return}
+    const svg=fPlot.querySelector('svg'), r=svg.getBoundingClientRect();
+    const vx=Math.max(48,Math.min(408,((e.clientX-r.left)/r.width)*420));
+    const a=Math.min(brushStart.vx,vx), b=Math.max(brushStart.vx,vx);
+    fPlotWrap.classList.remove('brushing');brushStart=null;
+    if(b-a<6) return;
+    const [x0,x1]=focusState.xDomain, span=x1-x0;
+    focusState.xDomain=[Math.max(0,x0+span*(a-48)/360),Math.min(100,x0+span*(b-48)/360)];
+    renderFocus();
+    toast('Zoomed to '+focusState.xDomain.map(v=>v.toFixed(0)+'%').join('–'));
+  });
+})();
+
+document.querySelectorAll('.focus-toolbar .ftb-btn').forEach(b=>{
+  b.onclick=()=>{
+    const t=b.dataset.tool;
+    if(t==='reset'){focusState.xDomain=[0,100];focusState.seriesHidden=new Set();renderFocus();toast('Reset')}
+    else if(t==='crosshair'){focusState.crosshair=!focusState.crosshair;b.classList.toggle('on',focusState.crosshair);if(!focusState.crosshair)fPlotWrap.classList.remove('hovering')}
+    else if(t==='grid'){focusState.grid=!focusState.grid;b.classList.toggle('on',focusState.grid);renderFocus()}
+    else if(t==='download'){toast('Exported '+GRAPH_TPLS[cells[focusIdx].graph].title+'.svg')}
+    else if(t==='download-pdf'){toast('Exported '+GRAPH_TPLS[cells[focusIdx].graph].title+'.pdf · vector')}
+    else if(t==='brush'){toast('Drag across the plot to zoom')}
+  };
+});
+document.querySelectorAll('#f-preset button').forEach(b=>{
+  b.onclick=()=>{
+    const p=b.dataset.preset;
+    document.querySelectorAll('#f-preset button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    toast({ieee:'IEEE preset · 88mm column, Times 8pt',nature:'Nature preset · 89mm column, Helvetica 8pt',apa:'APA preset · 6in, Times 10pt'}[p]);
+  };
+});
+
+document.getElementById('f-prev').onclick=()=>{
+  const graphs=cells.map((c,i)=>({c,i})).filter(x=>x.c.type==='graph');
+  const pos=graphs.findIndex(x=>x.i===focusIdx);
+  if(pos>0){focusIdx=graphs[pos-1].i;focusState.xDomain=[0,100];focusState.seriesHidden=new Set();renderFocus()}
+};
+document.getElementById('f-next').onclick=()=>{
+  const graphs=cells.map((c,i)=>({c,i})).filter(x=>x.c.type==='graph');
+  const pos=graphs.findIndex(x=>x.i===focusIdx);
+  if(pos<graphs.length-1){focusIdx=graphs[pos+1].i;focusState.xDomain=[0,100];focusState.seriesHidden=new Set();renderFocus()}
+};
+document.getElementById('f-close').onclick=closeFocus;
+focus.addEventListener('click',e=>{if(e.target===focus) closeFocus()});
+document.getElementById('f-ask').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.value.trim()){
+    toast('Claude thinking…');
+    setTimeout(()=>toast('Claude: peak Δ in window = 4.8 N — see sidebar'),900);
+    e.target.value='';
+  }
+});
+document.getElementById('f-send').onclick=()=>{
+  const i=document.getElementById('f-ask');
+  if(i.value.trim()){toast('Claude thinking…');setTimeout(()=>toast('Claude: see sidebar'),900);i.value=''}
+};
+
+document.addEventListener('keydown',e=>{
+  if(!focus.classList.contains('open')) return;
+  if(e.key==='ArrowLeft')  document.getElementById('f-prev').click();
+  if(e.key==='ArrowRight') document.getElementById('f-next').click();
+  if(e.key.toLowerCase()==='f') closeFocus();
+});
+document.addEventListener('keydown',e=>{
+  if(focus.classList.contains('open'))return;
+  if(cmdk.classList.contains('open'))return;
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||e.target.isContentEditable) return;
+  if(e.key.toLowerCase()==='f'){
+    const g=cells.findIndex(c=>c.type==='graph'); if(g>=0) openFocus(g);
+  }
+});
+
+/* ============================================================
+   Boot
+   ============================================================ */
+renderDatasets();
+renderCells();
+
+const titleEl=document.querySelector('.page-title');
+titleEl.textContent=localStorage.getItem('hw_page_title')||titleEl.textContent;
+titleEl.addEventListener('input',()=>localStorage.setItem('hw_page_title',titleEl.textContent));
+
+</script>
+</body></html>

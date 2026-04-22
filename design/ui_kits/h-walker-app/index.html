@@ -1,0 +1,410 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>H-Walker UI Kit</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#0B0E2E;color:#E2E8F0;font-family:Pretendard,'Apple SD Gothic Neo',sans-serif;-webkit-font-smoothing:antialiased}
+  #root{height:100vh}
+  @keyframes hwPulse{0%,100%{opacity:1}50%{opacity:.55}}
+  @keyframes hwShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .screen-switch{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:100;
+    display:flex;gap:4px;background:rgba(11,14,46,.9);backdrop-filter:blur(12px);
+    border:1px solid rgba(240,151,8,.15);border-radius:16px;padding:4px;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:Pretendard,'Apple SD Gothic Neo',sans-serif}
+  .screen-switch button{padding:8px 16px;border:0;border-radius:12px;cursor:pointer;
+    font:700 11px Pretendard,'Apple SD Gothic Neo',sans-serif;letter-spacing:.08em;text-transform:uppercase;
+    background:transparent;color:#9CA3AF;transition:all .3s}
+  .screen-switch button.active{background:#F09708;color:#fff;box-shadow:0 0 20px rgba(240,151,8,.4)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+// ============ components ============
+const Icon = ({ d, size = 16, sw = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"
+       dangerouslySetInnerHTML={{ __html: d }} />
+);
+
+const I = {
+  zap:    <Icon d='<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' sw={2.5}/>,
+  folder: <Icon d='<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'/>,
+  file:   <Icon d='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' sw={1.8}/>,
+  msg:    <Icon d='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'/>,
+  send:   <Icon d='<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>' sw={2.5}/>,
+  search: <Icon d='<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'/>,
+  upload: <Icon d='<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'/>,
+  chev:   <Icon d='<polyline points="9 18 15 12 9 6"/>' sw={3} size={10}/>,
+  plus:   <Icon d='<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>' sw={3}/>,
+  x:      <Icon d='<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' sw={2.5}/>,
+  copy:   <Icon d='<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'/>,
+  dl:     <Icon d='<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'/>,
+};
+
+const Logo = ({ size = 32 }) => (
+  <div style={{width:size,height:size,borderRadius:9,background:'linear-gradient(135deg,#F09708,#FFB347)',
+               display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',
+               boxShadow:'0 0 15px rgba(240,151,8,0.3)'}}>
+    <svg width={size*0.55} height={size*0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+  </div>
+);
+
+const Eyebrow = ({ children, tone = "gray" }) => {
+  const colors = { gray: "#9CA3AF", accent: "#F09708", mint: "#00FFB2", white: "#fff" };
+  return <span style={{font:"700 11px/1 Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:".2em",textTransform:"uppercase",color:colors[tone]}}>{children}</span>;
+};
+
+const LiveDot = ({ color = "#00FFB2" }) => (
+  <span style={{width:8,height:8,borderRadius:"50%",background:color,boxShadow:`0 0 10px ${color}`,animation:"hwPulse 2s ease-in-out infinite",display:"inline-block"}}/>
+);
+
+const Chip = ({ children, tone = "orange" }) => {
+  const t = tone === "mint"
+    ? {bg:"rgba(0,255,178,.1)",bd:"rgba(0,255,178,.25)",fg:"#00FFB2"}
+    : {bg:"rgba(240,151,8,.1)",bd:"rgba(240,151,8,.2)",fg:"#F09708"};
+  return <span style={{background:t.bg,border:`1px solid ${t.bd}`,color:t.fg,padding:"3px 8px",borderRadius:6,font:"500 10px Pretendard,'Apple SD Gothic Neo',sans-serif"}}>{children}</span>;
+};
+
+const PrimaryBtn = ({ children, onClick, disabled, icon }) => (
+  <button onClick={onClick} disabled={disabled}
+    style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,
+      background:disabled?"#1f2937":"#F09708",color:disabled?"#4b5563":"#fff",
+      font:"700 13px/1 Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:"-0.01em",textTransform:"uppercase",
+      padding:"12px 16px",borderRadius:12,border:0,cursor:disabled?"not-allowed":"pointer",
+      boxShadow:disabled?"none":"0 0 15px rgba(240,151,8,.2)",transition:"all .2s"}}>
+    {icon}{children}
+  </button>
+);
+
+const IconBtn = ({ icon, onClick, disabled, title }) => (
+  <button onClick={onClick} disabled={disabled} title={title} aria-label={title}
+    style={{background:disabled?"#1f2937":"#F09708",color:"#fff",border:0,padding:12,borderRadius:14,
+      cursor:disabled?"not-allowed":"pointer",display:"inline-flex",boxShadow:disabled?"none":"0 0 15px rgba(240,151,8,.2)"}}>
+    {icon}
+  </button>
+);
+
+const GhostBtn = ({ children, onClick, icon }) => (
+  <button onClick={onClick}
+    style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(23,27,94,.4)",
+      color:"#E2E8F0",border:"1px solid rgba(255,255,255,.06)",padding:"8px 12px",
+      borderRadius:10,font:"600 11px Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:".04em",cursor:"pointer",transition:"all .2s"}}>
+    {icon}{children}
+  </button>
+);
+
+function TopNav({ mode, setMode }) {
+  return (
+    <nav style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",
+      background:"rgba(11,14,46,.9)",backdropFilter:"blur(24px)",
+      borderBottom:"1px solid rgba(240,151,8,.15)",position:"relative",zIndex:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginRight:32}}>
+        <Logo/>
+        <div style={{display:"flex",flexDirection:"column",lineHeight:1.1}}>
+          <span style={{font:"800 15px Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:"-0.01em",color:"#fff"}}>
+            H-WALKER <span style={{color:"#F09708"}}>CORE</span>
+          </span>
+          <span style={{font:"600 10px Pretendard,'Apple SD Gothic Neo',sans-serif",color:"#6B7280",letterSpacing:".2em",textTransform:"uppercase"}}>Analysis Engine</span>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:4,background:"rgba(23,27,94,.4)",borderRadius:16,padding:4,border:"1px solid rgba(255,255,255,.05)"}}>
+        {["quick","publication"].map(m=>(
+          <button key={m} onClick={()=>setMode(m)}
+            style={{padding:"6px 24px",borderRadius:12,border:0,cursor:"pointer",
+              font:"700 11px Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:".08em",textTransform:"uppercase",
+              background:mode===m?"#F09708":"transparent",
+              color:mode===m?"#fff":"#9CA3AF",
+              boxShadow:mode===m?"0 0 20px rgba(240,151,8,.4)":"none",transition:"all .3s"}}>
+            {m}
+          </button>
+        ))}
+      </div>
+      <div style={{flex:1}}/>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"6px 12px",background:"rgba(23,27,94,.3)",
+        borderRadius:12,border:"1px solid rgba(255,255,255,.05)"}}>
+        <LiveDot/>
+        <span style={{font:"700 11px JetBrains Mono,monospace",color:"#00FFB2",letterSpacing:".05em"}}>GEMMA 4:E4B</span>
+      </div>
+    </nav>
+  );
+}
+</script>
+
+<script type="text/babel">
+// ============ screens ============
+function InsightCardEmbed() {
+  return (
+    <div style={{background:"rgba(23,27,94,.4)",backdropFilter:"blur(8px)",borderRadius:16,padding:14,
+      border:"1px solid rgba(255,255,255,.05)",boxShadow:"0 10px 40px rgba(0,0,0,.4)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:22,height:22,borderRadius:8,background:"rgba(240,151,8,.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"#F09708"}}>{I.zap}</div>
+          <Eyebrow tone="accent">Target Detected</Eyebrow>
+        </div>
+        <span style={{font:"500 9px JetBrains Mono,monospace",color:"#9CA3AF",background:"rgba(255,255,255,.04)",
+          border:"1px solid rgba(255,255,255,.08)",padding:"3px 8px",borderRadius:999}}>ID: X7K2Q9</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <div style={{background:"rgba(11,14,46,.6)",border:"1px solid rgba(255,255,255,.05)",borderRadius:10,padding:"8px 10px"}}>
+          <div style={{font:"700 9px Pretendard,'Apple SD Gothic Neo',sans-serif",textTransform:"uppercase",color:"#6B7280",marginBottom:4}}>Analysis Type</div>
+          <div style={{font:"500 12px JetBrains Mono,monospace",color:"#fff"}}>force</div>
+        </div>
+        <div style={{background:"rgba(11,14,46,.6)",border:"1px solid rgba(255,255,255,.05)",borderRadius:10,padding:"8px 10px"}}>
+          <div style={{font:"700 9px Pretendard,'Apple SD Gothic Neo',sans-serif",textTransform:"uppercase",color:"#6B7280",marginBottom:4}}>Normalization</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,color:"#00FFB2",font:"700 12px Pretendard,'Apple SD Gothic Neo',sans-serif"}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:"#00FFB2",boxShadow:"0 0 5px #00FFB2"}}/>ACTIVE</div>
+        </div>
+      </div>
+      <div style={{background:"rgba(11,14,46,.6)",border:"1px solid rgba(255,255,255,.05)",borderRadius:10,padding:"8px 10px"}}>
+        <div style={{font:"700 9px Pretendard,'Apple SD Gothic Neo',sans-serif",textTransform:"uppercase",color:"#6B7280",marginBottom:6}}>Selected Columns</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          <Chip>L_ActForce_N</Chip><Chip>R_ActForce_N</Chip><Chip>L_DesForce_N</Chip><Chip>R_DesForce_N</Chip>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LegacyShell() {
+  const [mode, setMode] = React.useState("quick");
+  const [selected, setSelected] = React.useState("trial_2_imu.csv");
+  const [input, setInput] = React.useState("");
+  const [messages, setMessages] = React.useState([
+    { role: "user", content: "오늘 실험 Force 비교해줘" },
+    { role: "assistant", content: "Force 분석을 시작합니다. L/R_ActForce_N 컬럼에서 peak force와 보행 대칭성(Symmetry Index)을 계산 중입니다…" },
+  ]);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#0B0E2E",color:"#E2E8F0",font:"400 13px Pretendard,'Apple SD Gothic Neo',sans-serif"}}>
+      <TopNav mode={mode} setMode={setMode}/>
+      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+        <aside style={{width:240,background:"rgba(11,14,46,.9)",borderRight:"1px solid rgba(255,255,255,.05)",
+          display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{color:"#F09708"}}>{I.folder}</span>
+            <Eyebrow>Drive Explorer</Eyebrow>
+          </div>
+          <div style={{margin:"12px 12px 8px",display:"flex",background:"rgba(23,27,94,.4)",borderRadius:10,padding:4,border:"1px solid rgba(255,255,255,.05)"}}>
+            {["DRIVE","LOCAL"].map((t,i)=>(
+              <button key={t} style={{flex:1,padding:"8px 0",border:0,borderRadius:8,cursor:"pointer",
+                font:"700 10px Pretendard,'Apple SD Gothic Neo',sans-serif",letterSpacing:".1em",
+                background:i===0?"#F09708":"transparent",color:i===0?"#fff":"#6B7280"}}>{t}</button>
+            ))}
+          </div>
+          <div style={{padding:"0 10px",flex:1,overflow:"auto"}}>
+            {["2026-04-15 trial","2026-04-08 pilot"].map((f,i)=>(
+              <div key={f}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,cursor:"pointer",color:"#E2E8F0"}}>
+                  <span style={{color:"#6B7280",transform:i===0?"rotate(90deg)":"none",display:"inline-flex"}}>{I.chev}</span>
+                  <span style={{color:"rgba(240,151,8,.8)"}}>{I.folder}</span>
+                  <span style={{fontSize:12}}>{f}</span>
+                </div>
+                {i===0 && (
+                  <div style={{marginLeft:16,borderLeft:"1px solid rgba(255,255,255,.05)",paddingLeft:4}}>
+                    {["trial_1_force.csv","trial_2_imu.csv","gait_events.csv"].map(fn=>(
+                      <div key={fn} onClick={()=>setSelected(fn)}
+                        style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,cursor:"pointer",
+                          fontSize:12,color:selected===fn?"#fff":"#9CA3AF",
+                          background:selected===fn?"rgba(240,151,8,.1)":"transparent"}}>
+                        <span style={{color:selected===fn?"#F09708":"#6B7280"}}>{I.file}</span>
+                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fn}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{padding:14,borderTop:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.03)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <LiveDot color="#F09708"/>
+              <span style={{font:"700 11px Pretendard,'Apple SD Gothic Neo',sans-serif",color:"#E2E8F0",letterSpacing:".02em"}}>1 FILE SELECTED</span>
+            </div>
+            <div style={{width:"100%"}}><PrimaryBtn icon={I.zap}>Run Analysis</PrimaryBtn></div>
+          </div>
+        </aside>
+
+        <main style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:20,overflow:"auto"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center"}}>
+            <div style={{position:"relative",marginBottom:32}}>
+              <div style={{width:96,height:96,borderRadius:32,background:"rgba(23,27,94,.2)",
+                display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid rgba(255,255,255,.05)",backdropFilter:"blur(8px)"}}>
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3v18h18"/>
+                  <path d="M7 16l4-6 4 4 5-8" stroke="#F09708" strokeOpacity=".6"/>
+                </svg>
+              </div>
+              <div style={{position:"absolute",bottom:-8,right:-8,width:32,height:32,borderRadius:12,
+                background:"rgba(240,151,8,.1)",border:"1px solid rgba(240,151,8,.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"#F09708"}}>
+                {I.plus}
+              </div>
+            </div>
+            <p style={{font:"700 16px Pretendard,'Apple SD Gothic Neo',sans-serif",color:"#fff",margin:"0 0 8px"}}>H-WALKER 분석 준비 완료</p>
+            <p style={{fontSize:12,color:"#6B7280",maxWidth:260,lineHeight:1.6,margin:"0 0 24px"}}>
+              Google Drive에서 CSV 파일을 선택한 뒤<br/>AI 파트너에게 데이터 분석을 요청하세요
+            </p>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",background:"rgba(255,255,255,.04)",
+              border:"1px solid rgba(255,255,255,.05)",borderRadius:16,font:"400 11px JetBrains Mono,monospace",color:"#9CA3AF"}}>
+              <span style={{color:"#F09708",fontWeight:700}}>&gt;</span>
+              "오늘 걸음 데이터의 Force 비교해줘"
+            </div>
+          </div>
+        </main>
+
+        <aside style={{width:320,background:"rgba(11,14,46,.9)",borderLeft:"1px solid rgba(255,255,255,.05)",
+          display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:22,height:22,borderRadius:8,background:"rgba(240,151,8,.1)",display:"flex",alignItems:"center",justifyContent:"center",color:"#F09708"}}>
+              <Icon size={12} d='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'/>
+            </div>
+            <Eyebrow>AI Partner</Eyebrow>
+            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:"#F09708",boxShadow:"0 0 8px #F09708"}}/>
+              <span style={{font:"700 10px Pretendard,'Apple SD Gothic Neo',sans-serif",color:"#F09708",textTransform:"uppercase",letterSpacing:"-0.02em"}}>live</span>
+            </div>
+          </div>
+          <div style={{flex:1,padding:12,display:"flex",flexDirection:"column",gap:10,overflow:"auto"}}>
+            {messages.map((m,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+                <div style={{maxWidth:"88%",padding:"10px 14px",fontSize:13,lineHeight:1.5,
+                  background:m.role==="user"?"linear-gradient(135deg,#171B5E,#0B0E2E)":"rgba(23,27,94,.3)",
+                  color:m.role==="user"?"#fff":"#E2E8F0",
+                  border:"1px solid rgba(255,255,255,.05)",
+                  borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",
+                  boxShadow:"0 4px 12px rgba(0,0,0,.2)"}}>{m.content}</div>
+              </div>
+            ))}
+            <InsightCardEmbed/>
+          </div>
+          <div style={{padding:12,borderTop:"1px solid rgba(255,255,255,.05)"}}>
+            <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+              <textarea value={input} onChange={e=>setInput(e.target.value)} rows={2} placeholder="AI에게 데이터 분석 요청…"
+                style={{flex:1,background:"rgba(11,14,46,.6)",color:"#E2E8F0",resize:"none",
+                  border:"1px solid rgba(255,255,255,.05)",borderRadius:16,padding:"10px 14px",
+                  font:"400 13px Pretendard,'Apple SD Gothic Neo',sans-serif",outline:"none"}}/>
+              <div style={{marginBottom:-4}}><IconBtn icon={I.send} title="전송"
+                onClick={()=>{ if(input.trim()){ setMessages([...messages,{role:"user",content:input}]); setInput("");} }}/></div>
+            </div>
+            <p style={{margin:"6px 0 0 4px",font:"400 10px Pretendard,'Apple SD Gothic Neo',sans-serif",color:"#4B5563"}}>Enter 전송 · Shift+Enter 줄바꿈</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function GraphCard({ card, onRemove }) {
+  const loading = card.state === "loading";
+  return (
+    <div style={{background:"rgba(23,27,94,.3)",border:"1px solid rgba(255,255,255,.06)",borderRadius:16,padding:14,
+      display:"flex",flexDirection:"column",gap:10,minHeight:220,backdropFilter:"blur(8px)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <Eyebrow tone={loading?"gray":"accent"}>{loading?"Loading…":card.type}</Eyebrow>
+        <span style={{marginLeft:"auto",fontSize:13,color:"#fff",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%"}}>{card.title}</span>
+        <button onClick={onRemove} aria-label="remove" style={{background:"transparent",border:0,color:"#6B7280",cursor:"pointer",padding:4,display:"inline-flex"}}>{I.x}</button>
+      </div>
+      <div style={{flex:1,background:"rgba(11,14,46,.6)",borderRadius:10,minHeight:120,position:"relative",overflow:"hidden",
+        ...(loading?{background:"linear-gradient(90deg,rgba(255,255,255,.02),rgba(240,151,8,.08),rgba(255,255,255,.02))",backgroundSize:"200% 100%",animation:"hwShimmer 1.8s infinite"}:{})}}>
+        {!loading && (
+          <svg viewBox="0 0 300 120" preserveAspectRatio="none" style={{width:"100%",height:"100%"}}>
+            <polyline fill="none" stroke="#F09708" strokeWidth="1.5" points="0,90 30,85 60,60 90,30 120,50 150,40 180,25 210,40 240,20 270,55 300,75"/>
+            <polyline fill="none" stroke="#00FFB2" strokeWidth="1.5" opacity=".85" points="0,80 30,72 60,62 90,45 120,55 150,35 180,32 210,42 240,30 270,52 300,70"/>
+          </svg>
+        )}
+      </div>
+      {!loading && (
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <Chip>peak L: 42.7 N</Chip>
+          <Chip>peak R: 39.1 N</Chip>
+          <Chip tone="mint">SI 8.4%</Chip>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <GhostBtn icon={I.copy}>Dup</GhostBtn>
+            <GhostBtn icon={I.dl}>SVG</GhostBtn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaperStudio() {
+  const [mode, setMode] = React.useState("quick");
+  const [request, setRequest] = React.useState("");
+  const [cards, setCards] = React.useState([
+    { id: 1, title: "Force · L/R comparison", type: "force", state: "ready" },
+    { id: 2, title: "IMU Pitch timeline", type: "imu", state: "ready" },
+  ]);
+  const [nextId, setNextId] = React.useState(3);
+
+  const submit = () => {
+    if (!request.trim()) return;
+    const id = nextId;
+    setCards([{ id, title: request, type: "force", state: "loading" }, ...cards]);
+    setNextId(nextId+1);
+    setRequest("");
+    setTimeout(()=>{
+      setCards(c=>c.map(x=>x.id===id?{...x,state:"ready"}:x));
+    }, 1400);
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#0B0E2E",color:"#E2E8F0",font:"400 13px Pretendard,'Apple SD Gothic Neo',sans-serif"}}>
+      <TopNav mode={mode} setMode={setMode}/>
+      <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"280px 1fr 220px",gap:16,alignItems:"center",
+        background:"rgba(11,14,46,.5)",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"rgba(23,27,94,.3)",
+          border:"1px dashed rgba(240,151,8,.25)",borderRadius:12,cursor:"pointer"}}>
+          <span style={{color:"#F09708"}}>{I.upload}</span>
+          <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
+            <span style={{fontSize:12,color:"#E2E8F0",fontWeight:600}}>Drop CSV or browse</span>
+            <span style={{font:"500 10px JetBrains Mono,monospace",color:"#6B7280"}}>trial_2_imu.csv · +2 loaded</span>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(11,14,46,.6)",
+          borderRadius:14,padding:"4px 4px 4px 16px",border:"1px solid rgba(255,255,255,.05)"}}>
+          <span style={{color:"#F09708",fontWeight:700}}>&gt;</span>
+          <input value={request} onChange={e=>setRequest(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}
+            placeholder="예: 왼쪽 Force만 다시, 범례 빼고"
+            style={{flex:1,background:"transparent",border:0,color:"#fff",font:"400 13px Pretendard,'Apple SD Gothic Neo',sans-serif",outline:"none"}}/>
+          <PrimaryBtn icon={I.zap} onClick={submit}>Plot</PrimaryBtn>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <GhostBtn icon={I.dl}>Export all</GhostBtn>
+        </div>
+      </div>
+      <div style={{flex:1,overflow:"auto",padding:24,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16,alignContent:"start"}}>
+        {cards.map(c=><GraphCard key={c.id} card={c} onRemove={()=>setCards(cards.filter(x=>x.id!==c.id))}/>)}
+      </div>
+    </div>
+  );
+}
+</script>
+
+<script type="text/babel">
+function App() {
+  const saved = (typeof localStorage!=='undefined' && localStorage.getItem('hw-screen')) || 'studio';
+  const [screen, setScreen] = React.useState(saved);
+  React.useEffect(()=>{ try{ localStorage.setItem('hw-screen', screen); }catch(e){} }, [screen]);
+  return (
+    <div data-screen-label={screen==='studio'?'01 Paper Studio (redesign)':'02 Legacy 3-Panel Shell'}>
+      {screen==='studio' ? <PaperStudio/> : <LegacyShell/>}
+      <div className="screen-switch">
+        <button className={screen==='studio'?'active':''} onClick={()=>setScreen('studio')}>Paper Studio</button>
+        <button className={screen==='legacy'?'active':''} onClick={()=>setScreen('legacy')}>Legacy 3-Panel</button>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

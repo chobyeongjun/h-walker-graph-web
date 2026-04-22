@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:#0B0E2E;color:#E2E8F0;font-family:'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .page{padding:22px 24px;display:flex;flex-direction:column;gap:18px}
+  .intro{color:#9CA3AF;font-size:11.5px;line-height:1.55;max-width:680px}
+  .intro b{color:#E2E8F0;font-weight:700}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .row-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .sec{display:flex;flex-direction:column;gap:10px;padding:16px;background:rgba(23,27,94,.22);border:1px solid rgba(255,255,255,.05);border-radius:14px}
+  .sec-head{display:flex;align-items:baseline;gap:10px}
+  .ey{font:700 10px/1 'Pretendard',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#F09708}
+  .tl{font:700 13px/1 'Pretendard',sans-serif;color:#fff;letter-spacing:-0.01em}
+  .de{font-size:10.5px;color:#9CA3AF;margin-left:auto;font-family:'JetBrains Mono',monospace}
+
+  button{font-family:inherit;cursor:pointer;border:0}
+  /* primary */
+  .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#F09708;color:#fff;font:700 13px/1 'Pretendard',sans-serif;text-transform:uppercase;letter-spacing:.02em;padding:12px 16px;border-radius:12px;box-shadow:0 0 15px rgba(240,151,8,.2);transition:all .15s ease}
+  .primary:hover{background:#D68607;box-shadow:0 0 25px rgba(240,151,8,.4);transform:translateY(-1px)}
+  .primary.active{background:#B47307;box-shadow:0 0 10px rgba(240,151,8,.3),inset 0 2px 4px rgba(0,0,0,.3);transform:translateY(1px)}
+
+  /* ghost */
+  .ghost{background:rgba(23,27,94,.4);color:#E2E8F0;border:1px solid rgba(255,255,255,.08);padding:10px 14px;border-radius:12px;font:600 12px/1 'Pretendard',sans-serif;letter-spacing:.02em;transition:all .15s}
+  .ghost:hover{background:rgba(23,27,94,.75);color:#fff;border-color:rgba(255,255,255,.15)}
+
+  /* icon */
+  .icon{background:#F09708;color:#fff;padding:10px;border-radius:12px;box-shadow:0 0 15px rgba(240,151,8,.2);display:inline-flex;transition:all .15s}
+  .icon:hover{background:#D68607;box-shadow:0 0 24px rgba(240,151,8,.4)}
+
+  /* ───── PROCESSING VARIANTS ───── */
+  /* A — orange dimmed + spinner (still-alive look) */
+  .proc-a{display:inline-flex;align-items:center;gap:8px;background:rgba(240,151,8,.55);color:#fff;font:700 13px/1 'Pretendard',sans-serif;text-transform:uppercase;letter-spacing:.02em;padding:12px 16px;border-radius:12px;cursor:progress;box-shadow:0 0 12px rgba(240,151,8,.15),inset 0 0 0 1px rgba(255,255,255,.08)}
+  .spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:rot .85s linear infinite}
+  @keyframes rot{to{transform:rotate(360deg)}}
+
+  /* B — orange shimmer bar */
+  .proc-b{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:rgba(240,151,8,.18);color:#F09708;font:700 13px/1 'Pretendard',sans-serif;text-transform:uppercase;letter-spacing:.02em;padding:12px 16px;border-radius:12px;cursor:progress;border:1px solid rgba(240,151,8,.4);overflow:hidden}
+  .proc-b::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(240,151,8,.35),transparent);background-size:200% 100%;animation:shim 1.6s infinite linear}
+  @keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .proc-b > *{position:relative;z-index:1}
+
+  /* C — pulsing mint (async / streaming) */
+  .proc-c{display:inline-flex;align-items:center;gap:8px;background:rgba(0,255,178,.08);color:#00FFB2;font:700 13px/1 'Pretendard',sans-serif;text-transform:uppercase;letter-spacing:.02em;padding:12px 16px;border-radius:12px;cursor:progress;border:1px solid rgba(0,255,178,.4)}
+  .pulse{width:8px;height:8px;border-radius:50%;background:#00FFB2;box-shadow:0 0 8px #00FFB2;animation:puls 1.2s ease-in-out infinite}
+  @keyframes puls{0%,100%{opacity:.4;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+
+  /* D — disabled (not processing, just off) */
+  .disabled{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.04);color:#4B5563;font:700 13px/1 'Pretendard',sans-serif;text-transform:uppercase;letter-spacing:.02em;padding:12px 16px;border-radius:12px;cursor:not-allowed;border:1px solid rgba(255,255,255,.06)}
+
+  /* Micro caption */
+  .cap{font:500 10px/1.4 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.02em}
+  .cap b{color:#E2E8F0;font-weight:600}
+</style></head>
+<body><div class="page">
+
+<div class="intro">
+  Button system built around one CTA color (<b>#F09708</b>). Previously "Processing…" collapsed to dead grey — reads as a crash, not a state. New approach: <b>four distinct processing variants</b>, each mapped to a different async duration and feedback channel. Grey <i>only</i> means disabled.
+</div>
+
+<!-- Base buttons -->
+<div class="sec">
+  <div class="sec-head"><span class="ey">01</span><span class="tl">Primary CTA · Ghost · Icon</span><span class="de">default / hover / active</span></div>
+  <div class="row">
+    <button class="primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Run Analysis</button>
+    <button class="ghost">Cancel</button>
+    <button class="icon" aria-label="send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+
+<!-- Processing states -->
+<div class="sec">
+  <div class="sec-head"><span class="ey">02</span><span class="tl">Processing States</span><span class="de">4 variants · pick by duration</span></div>
+  <div class="row-grid">
+
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+      <button class="proc-a"><span class="spin"></span>Processing</button>
+      <span class="cap"><b>A · Spinner</b><br>Short tasks &lt; 2s · file parse</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+      <button class="proc-b">Analyzing</button>
+      <span class="cap"><b>B · Shimmer</b><br>Medium 2–10s · Claude call</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+      <button class="proc-c"><span class="pulse"></span>Streaming</button>
+      <span class="cap"><b>C · Mint pulse</b><br>Streaming response · AI chat</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+      <button class="disabled">Disabled</button>
+      <span class="cap"><b>D · Disabled</b><br>Off state · no file selected</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Inline AI bubble example -->
+<div class="sec">
+  <div class="sec-head"><span class="ey">03</span><span class="tl">In Context</span><span class="de">how they sit in the UI</span></div>
+  <div class="row" style="padding:12px;background:rgba(11,14,46,.6);border:1px solid rgba(255,255,255,.05);border-radius:10px;gap:10px">
+    <span style="font:500 11px/1 'JetBrains Mono',monospace;color:#9CA3AF">AI › </span>
+    <button class="proc-c"><span class="pulse"></span>Thinking</button>
+    <span style="font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;margin-left:auto">haiku-4.5 · 312ms</span>
+  </div>
+  <div class="row" style="padding:12px;background:rgba(11,14,46,.6);border:1px solid rgba(255,255,255,.05);border-radius:10px;gap:10px">
+    <span style="font:500 11px/1 'JetBrains Mono',monospace;color:#9CA3AF">FILE › </span>
+    <button class="proc-a"><span class="spin"></span>Parsing trial_3.csv</button>
+    <span style="font:500 11px/1 'JetBrains Mono',monospace;color:#6B7280;margin-left:auto">24 800 rows</span>
+  </div>
+</div>
+
+</div></body></html>

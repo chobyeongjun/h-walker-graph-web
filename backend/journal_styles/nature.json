@@ -1,0 +1,1 @@
+{"name": "Nature", "key": "nature", "font_family": "Helvetica", "font_size": 7, "line_width": 0.5, "figure_width_mm": 89, "figure_height_mm": 67, "dpi": 300, "legend_frameon": false, "color_cycle": ["#000000", "#E64B35", "#4DBBD5", "#00A087", "#3C5488"], "spine_linewidth": 0.5, "tick_direction": "in", "tick_labelsize": 6, "axes_labelsize": 7, "title_size": 7, "pad_inches": 0.01}

@@ -210,7 +210,27 @@ export const useWorkspace = create<WorkspaceState>()(
       }),
 
       addDataset: (d) => {
-        set((s) => ({ datasets: [...s.datasets, d] }));
+        // Dedup by id — backend's SHA256 hash returns the existing ds_id
+        // on repeat uploads, so if this id is already in the store we
+        // just refresh the record in place instead of appending a duplicate
+        // card. Also defensively dedup by _content-derived (name, rows) for
+        // any legacy state that pre-dates the backend dedup.
+        const existing = get().datasets.findIndex((x) => x.id === d.id);
+        if (existing >= 0) {
+          set((s) => ({
+            datasets: s.datasets.map((x, i) =>
+              i === existing ? { ...x, ...d, active: true } : { ...x, active: false },
+            ),
+          }));
+          get().showToast(`${d.name} already loaded — reusing existing`);
+          return;
+        }
+        set((s) => ({
+          datasets: [
+            ...s.datasets.map((x) => ({ ...x, active: false })),
+            { ...d, active: true },
+          ],
+        }));
         get().logHistory({
           kind: 'upload', actor: 'you',
           label: `Imported ${d.name} (${d.rows.toLocaleString()} rows, ${d.kind})`,
@@ -490,7 +510,7 @@ export const useWorkspace = create<WorkspaceState>()(
       showToast: (msg) => set({ toast: { msg, id: ++_toastSeq } }),
     }),
     {
-      name: 'hw_workspace_v3',
+      name: 'hw_workspace_v4',
       // Strip live (non-serializable) state before persisting
       partialize: (s) => ({
         cells: s.cells.map((c) => {
@@ -509,6 +529,23 @@ export const useWorkspace = create<WorkspaceState>()(
         pageTitle: s.pageTitle,
         history: s.history,
       }),
+      // One-shot rehydration pass: dedup any dataset entries that old
+      // code paths left in localStorage (so the user doesn't need to
+      // clear storage manually).
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const seen = new Set<string>();
+        const uniq: Dataset[] = [];
+        for (const d of state.datasets || []) {
+          if (seen.has(d.id)) continue;
+          seen.add(d.id);
+          uniq.push(d);
+        }
+        if (uniq.length !== (state.datasets || []).length) {
+          state.datasets = uniq;
+          console.info(`[workspace] deduplicated ${(state.datasets as unknown as Dataset[]).length} datasets on rehydrate`);
+        }
+      },
     },
   ),
 );

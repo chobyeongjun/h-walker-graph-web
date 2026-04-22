@@ -184,6 +184,8 @@ export default function Drawer() {
                 <button onClick={() => runBundle(preset, 'svg', 'col2', graphCellsForBundle, showToast)}>SVG</button>
                 <button onClick={() => runBundle(preset, 'pdf', 'col2', graphCellsForBundle, showToast)}>PDF</button>
               </div>
+
+              <PageBackup close={close} />
             </>
           )}
 
@@ -323,54 +325,6 @@ function SettingsPanel() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function exportPage() {
-    const blob = new Blob([JSON.stringify({
-      schema: 'hw_page_v1',
-      exported_at: new Date().toISOString(),
-      pageTitle,
-      globalPreset,
-      datasets,
-      cells,
-      history,
-    }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `hwalker_page_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showToast('Page exported');
-  }
-
-  function importPage() {
-    const inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = '.json,application/json';
-    inp.onchange = async () => {
-      const f = inp.files?.[0];
-      if (!f) return;
-      try {
-        const text = await f.text();
-        const data = JSON.parse(text);
-        if (!data.schema || !data.schema.startsWith('hw_page_')) {
-          throw new Error('Not a H-Walker page file');
-        }
-        if (!confirm('Replace current page with imported file?')) return;
-        localStorage.setItem('hw_page_v1', JSON.stringify({ state: {
-          cells: data.cells || [],
-          datasets: data.datasets || [],
-          currentPreset: data.globalPreset || 'ieee',
-          globalPreset: data.globalPreset || 'ieee',
-          pageTitle: data.pageTitle || 'Imported page',
-          history: data.history || [],
-        }, version: 0 }));
-        location.reload();
-      } catch (e) {
-        showToast(`Import failed: ${(e as Error).message}`);
-      }
-    };
-    inp.click();
   }
 
   function resetEverything() {
@@ -519,12 +473,6 @@ function SettingsPanel() {
           </div>
         </div>
         <div className="set-actions">
-          <button onClick={exportPage}>
-            <Download size={12} /> Export page JSON
-          </button>
-          <button onClick={importPage}>
-            <Upload size={12} /> Import page JSON
-          </button>
           <button onClick={() => { if (confirm('Clear history timeline?')) clearHistory(); }}>
             <Trash2 size={12} /> Clear history
           </button>
@@ -532,7 +480,101 @@ function SettingsPanel() {
             <RotateCcw size={12} /> Reset everything (current page + saved pages)
           </button>
         </div>
+        <div style={{ padding: '8px 0 0', color: '#6B7280', fontSize: 10.5 }}>
+          Tip: backup/restore this page as a JSON file in the <b style={{ color: '#F09708' }}>Exports</b> drawer.
+        </div>
       </div>
     </>
+  );
+}
+
+/**
+ * PageBackup · portable JSON export/import of the current page.
+ *
+ * Lives in the Exports drawer alongside the paper-figure bundle —
+ * both are "downloadable artifacts" from the current work. The saved-
+ * Pages list (in-browser named snapshots) stays in Settings since it's
+ * a different concept (project management, not a one-off artifact).
+ */
+function PageBackup({ close }: { close: () => void }) {
+  const pageTitle = usePage((s) => s.pageTitle);
+  const globalPreset = usePage((s) => s.globalPreset);
+  const datasets = usePage((s) => s.datasets);
+  const cells = usePage((s) => s.cells);
+  const history = usePage((s) => s.history);
+  const showToast = usePage((s) => s.showToast);
+
+  function exportPage() {
+    const blob = new Blob([JSON.stringify({
+      schema: 'hw_page_v1',
+      exported_at: new Date().toISOString(),
+      pageTitle,
+      globalPreset,
+      datasets,
+      cells,
+      history,
+    }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const safe = (pageTitle || 'page').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 40);
+    a.download = `hwalker_${safe}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast('Page JSON downloaded');
+  }
+
+  function importPage() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files?.[0];
+      if (!f) return;
+      try {
+        const text = await f.text();
+        const data = JSON.parse(text);
+        if (!data.schema || !data.schema.startsWith('hw_page_')) {
+          throw new Error('Not a H-Walker page file');
+        }
+        if (!confirm('Replace current page with imported file? (Save-as first if you want to keep this one)')) return;
+        localStorage.setItem('hw_page_v1', JSON.stringify({
+          state: {
+            cells: data.cells || [],
+            datasets: data.datasets || [],
+            currentPreset: data.globalPreset || 'ieee',
+            globalPreset: data.globalPreset || 'ieee',
+            pageTitle: data.pageTitle || 'Imported page',
+            history: data.history || [],
+          },
+          version: 0,
+        }));
+        close();
+        location.reload();
+      } catch (e) {
+        showToast(`Import failed: ${(e as Error).message}`);
+      }
+    };
+    inp.click();
+  }
+
+  return (
+    <div className="exp-group">
+      <h4>Page backup · JSON</h4>
+      <div style={{ padding: '0 0 10px', color: '#9CA3AF', fontSize: 11.5, lineHeight: 1.5 }}>
+        Snapshot the whole page (datasets, cells, history, preset) to a
+        portable JSON file. Use this to hand off a study to a collaborator
+        or restore a page on a different computer.
+      </div>
+      <div className="exp-grid">
+        <button className="exp-card" onClick={exportPage}>
+          <span className="name"><Download size={13} /> Export page JSON</span>
+          <span className="sub">{cells.length} cells · {datasets.length} datasets</span>
+        </button>
+        <button className="exp-card" onClick={importPage}>
+          <span className="name"><Upload size={13} /> Import page JSON</span>
+          <span className="sub">Replaces current page (save-as first)</span>
+        </button>
+      </div>
+    </div>
   );
 }

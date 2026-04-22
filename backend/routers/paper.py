@@ -248,10 +248,30 @@ def _stat_apa_latex(idx: int, cell: CellSpec, r: dict[str, Any]) -> str:
     )
 
 
+def _infer_sample_rate(req: BundleRequest) -> int:
+    """Best-effort infer sample rate from any dataset bound to any cell.
+    Falls back to 100 Hz (H-Walker firmware default)."""
+    from backend.routers.datasets import _REGISTRY
+    for cell in req.cells:
+        for dsid in [cell.dataset_id] + [s.get("id") for s in (cell.datasets or [])]:
+            if not dsid:
+                continue
+            d = _REGISTRY.get(dsid)
+            if d:
+                hz = d.get("hz", "")
+                if hz:
+                    try:
+                        return int(str(hz).replace("Hz", "").strip())
+                    except ValueError:
+                        pass
+    return 100
+
+
 def _main_tex(req: BundleRequest, figure_files: list[str], table_files: list[str]) -> str:
     """Minimal compile-ready skeleton. Uses article + graphicx + booktabs.
     Figures go at the actual journal width via \\includegraphics."""
     title = req.paper_title or "Untitled study"
+    fs = _infer_sample_rate(req)
     body_figs = "\n".join(
         f"\\begin{{figure}}[!t]\n"
         f"  \\centering\n"
@@ -289,7 +309,7 @@ Replace with 150–250 word abstract.
 Motivation and prior work.
 
 \\section{{Methods}}
-Participants, data acquisition (H-Walker @ {{fs}} Hz), signal processing
+Participants, data acquisition (H-Walker @ {fs} Hz), signal processing
 (heel-strike detection, stride filtering IQR × 2), and analysis (Shapiro-
 Wilk normality screening before t-tests, non-parametric fall-back, effect
 size reported).
@@ -309,7 +329,8 @@ Interpretation + limitations.
 """
 
 
-def _readme(req: BundleRequest, manifest: list[dict[str, Any]]) -> str:
+def _readme(req: BundleRequest, manifest: list[dict[str, Any]],
+            errors: Optional[list[str]] = None) -> str:
     lines = [
         "H-Walker CORE · paper bundle",
         "============================",
@@ -319,6 +340,17 @@ def _readme(req: BundleRequest, manifest: list[dict[str, Any]]) -> str:
         f"Figure format: {req.format.upper()}",
         f"DPI: {req.dpi or 'preset default'}",
         f"Paper title: {req.paper_title or '(none)'}",
+    ]
+    if errors:
+        lines += [
+            "",
+            "⚠️  WARNINGS — some cells failed to render",
+            "------------------------------------------",
+            f"  {len(errors)} cell(s) were dropped from this bundle. See ERRORS.txt.",
+            *[f"    • {e.strip()}" for e in errors],
+            "  Fix the flagged cells in the app and re-export.",
+        ]
+    lines += [
         "",
         "Artifact provenance",
         "-------------------",
@@ -435,8 +467,9 @@ def bundle(req: BundleRequest):
         zf.writestr("captions.txt", "\n\n".join(captions) or "(no captions)")
         # main.tex skeleton
         zf.writestr("main.tex", _main_tex(req, fig_files, table_files))
-        # README with full provenance trail
-        zf.writestr("README.txt", _readme(req, manifest))
+        # README with full provenance trail (errors surfaced prominently
+        # at the top so the user sees them even without unzipping fully).
+        zf.writestr("README.txt", _readme(req, manifest, errors=errors))
         # Errors sidecar, if any
         if errors:
             zf.writestr("ERRORS.txt", "\n".join(errors))
@@ -444,10 +477,17 @@ def bundle(req: BundleRequest):
     buf.seek(0)
     stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     fname = f"hwalker_paper_{req.preset}_{stamp}.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{fname}"'}
+    if errors:
+        # Surface failures via a response header so the frontend can
+        # toast a prominent warning instead of silently downloading
+        # a zip with ERRORS.txt buried inside.
+        headers["X-Bundle-Errors"] = str(len(errors))
+        headers["X-Bundle-First-Error"] = errors[0].strip()[:120]
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        headers=headers,
     )
 
 

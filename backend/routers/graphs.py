@@ -36,6 +36,13 @@ def presets() -> list[dict]:
     return list_presets()
 
 
+class DatasetSeries(BaseModel):
+    """Phase 1 multi-dataset — one dataset contributes one colored trace."""
+    id: str
+    label: Optional[str] = None
+    color: Optional[str] = None
+
+
 class RenderRequest(BaseModel):
     template: str
     preset: str = "ieee"
@@ -45,10 +52,13 @@ class RenderRequest(BaseModel):
     stride_avg: bool = False
     colorblind_safe: Optional[bool] = None
     keep_palette: bool = False
-    dataset_id: Optional[str] = None  # Phase B: pull numeric data from real CSV
-    # Phase 2E: optional user-provided title. Journal convention is no
-    # in-figure title (caption lives below in the manuscript), so this
-    # defaults to empty string = no title drawn.
+    # Single-dataset legacy path
+    dataset_id: Optional[str] = None
+    # Phase 1: multi-dataset overlay. When non-empty, takes precedence
+    # over `dataset_id`. Each entry contributes one trace labeled+colored
+    # per the series config (color falls back to the preset palette).
+    datasets: list[DatasetSeries] = []
+    # Phase 2E: optional user-provided title.
     title: Optional[str] = None
 
 
@@ -64,6 +74,222 @@ REAL_DATA_TEMPLATES = {
     "imu", "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
 }
+
+# Phase 1: templates that support clean multi-dataset overlay.
+# For these, `datasets[]` produces one trace per dataset with distinct
+# colors. Templates omitted from this set fall back to first-dataset
+# rendering (single-plot semantics are clearer for boxplots/radars).
+MULTI_DATASET_TEMPLATES = {
+    "force_avg",         # overlay L+R mean±SD per subject, color per subject
+    "imu_avg",           # overlay joint angle profiles per subject
+    "stride_time_trend", # overlay stride-time series per subject
+    "asymmetry",         # overlay asymmetry series per subject
+    "cyclogram",         # overlay phase portraits per subject
+}
+
+_DEFAULT_SERIES_PALETTE = [
+    "#3B82C4", "#D35454", "#F09708", "#00FFB2", "#A78BFA",
+    "#1E5F9E", "#9E3838", "#FFB347", "#56B4E9", "#009E73",
+    "#CC79A7", "#F0E442", "#0072B2", "#E69F00", "#7FB5E4",
+]
+
+
+def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
+    """Phase 1 · Multi-dataset overlay.
+
+    Returns None if this path isn't applicable (template doesn't support
+    overlay, no datasets list, etc.) — caller falls through to single-
+    dataset rendering.
+    """
+    if not req.datasets or len(req.datasets) < 2:
+        return None
+    if req.template not in MULTI_DATASET_TEMPLATES:
+        return None
+
+    from backend.routers.analyze import analyze_cached
+    from backend.routers.datasets import get_path, _REGISTRY
+    from backend.services.compute_engine import resample_column
+    import numpy as _np
+    import pandas as _pd
+
+    # Color assignment — respect user-provided colors, fall back to palette
+    def color_for(i: int, series: DatasetSeries) -> str:
+        return series.color or _DEFAULT_SERIES_PALETTE[i % len(_DEFAULT_SERIES_PALETTE)]
+
+    def label_for(series: DatasetSeries) -> str:
+        if series.label:
+            return series.label
+        reg = _REGISTRY.get(series.id)
+        return (reg or {}).get("name", series.id)
+
+    traces: list[Trace] = []
+    gcp_axis = list(_np.linspace(0, 100, 101))
+
+    # ── force_avg · GRF mean±SD per subject (L side, overlay)
+    if req.template == "force_avg":
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None or res.left_force_profile.mean is None:
+                continue
+            mean = res.left_force_profile.mean
+            std = res.left_force_profile.std
+            c = color_for(i, s)
+            if std is not None:
+                traces.append(Trace(kind="band", name="",
+                                    x=gcp_axis, y=list(mean),
+                                    y_upper=list(mean + std), y_lower=list(mean - std),
+                                    color=c, opacity=0.15))
+            traces.append(Trace(kind="line", name=label_for(s),
+                                x=gcp_axis, y=list(mean),
+                                color=c, width=1.8))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Gait cycle (%)", y_label="Force (N)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── imu_avg · joint angle mean per subject
+    if req.template == "imu_avg":
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None:
+                continue
+            path = get_path(s.id)
+            if not path:
+                continue
+            try:
+                df = _pd.read_csv(path)
+            except Exception:
+                continue
+            ls = res.left_stride
+            result = resample_column(df, "L_Pitch", ls.hs_indices, ls.valid_mask)
+            if result is None:
+                continue
+            mean, std = result
+            c = color_for(i, s)
+            traces.append(Trace(kind="band", name="",
+                                x=gcp_axis, y=list(mean),
+                                y_upper=list(mean + std), y_lower=list(mean - std),
+                                color=c, opacity=0.12))
+            traces.append(Trace(kind="line", name=label_for(s),
+                                x=gcp_axis, y=list(mean),
+                                color=c, width=1.8))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Gait cycle (%)", y_label="Pitch (°)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── stride_time_trend · per-subject stride-time series + fit
+    if req.template == "stride_time_trend":
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None or len(res.left_stride.stride_times) < 2:
+                continue
+            times = res.left_stride.stride_times
+            xs = list(range(1, len(times) + 1))
+            c = color_for(i, s)
+            traces.append(Trace(kind="scatter", name=label_for(s),
+                                x=xs, y=list(times),
+                                color=c, width=1.8, opacity=0.7))
+            if len(times) >= 3:
+                coef = _np.polyfit(xs, times, 1)
+                fit_y = list(_np.polyval(coef, xs))
+                traces.append(Trace(kind="line", name="",
+                                    x=xs, y=fit_y,
+                                    color=c, width=1.1, dash=True))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Stride #", y_label="Stride time (s)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── asymmetry · per-subject asymmetry series
+    if req.template == "asymmetry":
+        from backend.services.compute_engine import _asym_idx
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None:
+                continue
+            lfp, rfp = res.left_force_profile, res.right_force_profile
+            if lfp.individual is None or rfp.individual is None:
+                continue
+            n = min(lfp.individual.shape[0], rfp.individual.shape[0])
+            peaks_l = lfp.individual[:n].max(axis=1)
+            peaks_r = rfp.individual[:n].max(axis=1)
+            asym = [_asym_idx(float(pl), float(pr)) for pl, pr in zip(peaks_l, peaks_r)]
+            xs = list(range(1, n + 1))
+            c = color_for(i, s)
+            traces.append(Trace(kind="line", name=label_for(s),
+                                x=xs, y=asym,
+                                color=c, width=1.8))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Stride #", y_label="Asymmetry (%)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── cyclogram · multi-subject phase portraits
+    if req.template == "cyclogram":
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None:
+                continue
+            path = get_path(s.id)
+            if not path:
+                continue
+            try:
+                df = _pd.read_csv(path)
+            except Exception:
+                continue
+            if "L_Pitch" not in df.columns or "R_Pitch" not in df.columns:
+                continue
+            ls = res.left_stride
+            xr = resample_column(df, "L_Pitch", ls.hs_indices, ls.valid_mask)
+            yr = resample_column(df, "R_Pitch", ls.hs_indices, ls.valid_mask)
+            if xr is None or yr is None:
+                continue
+            c = color_for(i, s)
+            traces.append(Trace(kind="line", name=label_for(s),
+                                x=list(xr[0]), y=list(yr[0]),
+                                color=c, width=1.6))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="L_Pitch (°)", y_label="R_Pitch (°)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    return None
 
 
 def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
@@ -455,15 +681,30 @@ def render_endpoint(req: RenderRequest):
             status_code=400,
             detail=f"Unknown preset '{req.preset}'. Known: {sorted(JOURNAL_PRESETS.keys())}",
         )
-    # Real-data path (dataset_id provided + supported template)
+    # Phase 1 · multi-dataset overlay first (datasets[] ≥ 2)
     try:
-        real = _render_real_data(req)
+        multi = _render_multi_dataset(req)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"real-data render failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"multi-dataset render failed: {exc}") from exc
 
-    if real is not None:
+    # Real-data single-dataset path
+    real = None
+    if multi is None:
+        # If datasets[] has exactly one entry, treat its id as dataset_id
+        if req.datasets and not req.dataset_id:
+            req = req.copy(update={"dataset_id": req.datasets[0].id})
+        try:
+            real = _render_real_data(req)
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"real-data render failed: {exc}") from exc
+
+    if multi is not None:
+        data, mime = multi
+    elif real is not None:
         data, mime = real
     else:
         try:

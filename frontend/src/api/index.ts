@@ -171,8 +171,9 @@ export interface RenderGraphRequest {
   stride_avg?: boolean;
   colorblind_safe?: boolean;
   keep_palette?: boolean;
-  dataset_id?: string;   // when set + template supports binding → real data
-  title?: string;        // optional in-figure title; empty = caption-only
+  dataset_id?: string;   // single-dataset path (legacy)
+  datasets?: Array<{ id: string; label?: string; color?: string }>;  // Phase 1 overlay
+  title?: string;
 }
 
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {

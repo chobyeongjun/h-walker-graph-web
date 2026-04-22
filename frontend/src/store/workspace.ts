@@ -35,6 +35,10 @@ export interface Cell {
   statData?: StatsResponse;
   previewBlobUrl?: string;
   previewVariant?: 'col1' | 'col2' | 'onehalf';
+  // Phase 1: multi-dataset overlay. When `series` has ≥ 2 entries, the
+  // graph renders as a multi-subject overlay with one colored trace per
+  // entry. dsIds mirrors `series[].dsId` for backwards compat + filtering.
+  series?: Array<{ dsId: string; label?: string; color?: string }>;
 }
 
 export interface DatasetColumn {
@@ -344,17 +348,25 @@ export const useWorkspace = create<WorkspaceState>()(
       runPreview: async (cellId, variant) => {
         const cell = get().cells.find((c) => c.id === cellId);
         if (!cell || cell.type !== 'graph' || !cell.graph) return;
-        const dsId = cell.dsIds[0];
         const preset = cell.preset || get().globalPreset;
         const v = variant || cell.previewVariant || 'col2';
         get().updateCell(cellId, { loading: true, error: undefined });
         try {
+          // Phase 1: multi-dataset overlay when series present
+          const seriesList: Array<{ dsId: string; label?: string; color?: string }> =
+            (cell.series && cell.series.length > 0)
+              ? cell.series
+              : cell.dsIds.map((id) => ({ dsId: id }));
+          const datasets = seriesList.length >= 2
+            ? seriesList.map((s) => ({ id: s.dsId, label: s.label, color: s.color }))
+            : undefined;
           const blob = await renderGraph({
             template: cell.graph,
             preset,
             variant: v,
             format: 'svg',
-            dataset_id: dsId,
+            dataset_id: datasets ? undefined : seriesList[0]?.dsId,
+            datasets,
             stride_avg: !!cell.strideAvg,
             title: cell.title || '',
           });

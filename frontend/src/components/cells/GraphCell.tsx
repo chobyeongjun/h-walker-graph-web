@@ -12,7 +12,9 @@ export default function GraphCell({ cell }: Props) {
   const updateCell = useWorkspace((s) => s.updateCell);
   const showToast = useWorkspace((s) => s.showToast);
   const runPreview = useWorkspace((s) => s.runPreview);
+  const allDatasets = useWorkspace((s) => s.datasets);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [overlayOpen, setOverlayOpen] = useState(false);
   const [svgInline, setSvgInline] = useState<string | null>(null);
 
   const activeKey =
@@ -31,13 +33,15 @@ export default function GraphCell({ cell }: Props) {
     }
   }, [hasDataset, cell.previewBlobUrl, cell.loading, cell.error, cell.id, runPreview]);
 
-  // Re-run when the graph template, global preset, strideAvg, or title changes.
+  // Re-run when the graph template, global preset, strideAvg, title, or
+  // the multi-dataset overlay series list changes.
   useEffect(() => {
     if (!hasDataset) return;
     const h = setTimeout(() => { runPreview(cell.id); }, 180);
     return () => clearTimeout(h);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cell.graph, cell.strideAvg, cell.title, globalPreset]);
+  }, [cell.graph, cell.strideAvg, cell.title, globalPreset,
+      JSON.stringify(cell.series)]);
 
   useEffect(() => {
     if (!cell.previewBlobUrl) { setSvgInline(null); return; }
@@ -110,6 +114,60 @@ export default function GraphCell({ cell }: Props) {
           >
             {cell.loading ? '…' : '⟳ Run'}
           </button>
+        )}
+        {hasDataset && allDatasets.length > 1 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              className="gt-btn"
+              title="Add another dataset as an overlay"
+              onClick={() => setOverlayOpen((v) => !v)}
+            >
+              + Overlay ({(cell.series?.length || cell.dsIds.length) || 1})
+            </button>
+            {overlayOpen && (
+              <div className="gt-menu" onMouseLeave={() => setOverlayOpen(false)}
+                   style={{ minWidth: 240, padding: '6px' }}>
+                <div style={{ padding: '4px 8px', font: '600 9px/1 JetBrains Mono, monospace',
+                              color: '#6B7280', letterSpacing: '.18em', textTransform: 'uppercase' }}>
+                  Datasets in this plot
+                </div>
+                {allDatasets.map((d) => {
+                  const active = (cell.series || cell.dsIds.map((id) => ({ dsId: id })))
+                    .some((s) => ('dsId' in s ? s.dsId : s) === d.id);
+                  return (
+                    <label key={d.id} className="gt-mitem"
+                           style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => {
+                          const cur: Array<{ dsId: string; label?: string; color?: string }> =
+                            cell.series && cell.series.length
+                              ? [...cell.series]
+                              : cell.dsIds.map((id) => ({ dsId: id }));
+                          const idx = cur.findIndex((s) => s.dsId === d.id);
+                          if (idx >= 0) cur.splice(idx, 1);
+                          else cur.push({ dsId: d.id, label: d.name });
+                          updateCell(cell.id, {
+                            series: cur,
+                            dsIds: cur.map((s) => s.dsId),
+                          });
+                        }}
+                      />
+                      <span className={`tag ${d.tag}`} style={{ padding: '1px 5px', fontSize: 9 }}>{d.tag}</span>
+                      <span style={{ fontSize: 11, color: '#E2E8F0', flex: 1 }}>{d.name}</span>
+                    </label>
+                  );
+                })}
+                <div style={{ padding: '6px 8px 2px', font: '500 9.5px/1.3 Pretendard,sans-serif',
+                              color: '#6B7280', borderTop: '1px solid rgba(255,255,255,.06)', marginTop: 4 }}>
+                  {(cell.series?.length || cell.dsIds.length) >= 2
+                    ? 'Overlay mode · one colored line per dataset'
+                    : 'Add ≥ 2 datasets to overlay them on the same figure'}
+                </div>
+              </div>
+            )}
+          </div>
         )}
         <span className="gt-meta">
           {P?.name} · {P?.col2.w}mm · {P?.dpi}dpi · {P?.sizes.body}pt {P?.font}

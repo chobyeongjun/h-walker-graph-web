@@ -12,3 +12,10 @@ ollama>=0.3
 google-api-python-client>=2.100
 google-auth-oauthlib>=1.1
 python-multipart>=0.0.9
+
+# --- Phase 2D · Desktop packaging ---------------------------------------
+pywebview>=5.0         # native window (mac/win/linux)
+cairosvg>=2.7          # SVG → PNG for icon rebuild
+# Packagers (install only on the build machine):
+#   pip install py2app        # macOS .app
+#   pip install pyinstaller   # Windows / Linux bundle

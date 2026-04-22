@@ -99,19 +99,54 @@ npm run dev
 
 ---
 
-## 6. Mac .app 번들 (선택사항)
+## 6. 데스크톱 앱 (Phase 2D) — 아이콘 더블클릭 실행
 
-아이콘 더블클릭으로 실행하고 싶으면:
+pywebview 기반 네이티브 윈도우에서 바로 열림 (브라우저 열 필요 없음):
+
 ```bash
-# 리포지토리에 이미 AppIcon.icns 포함. 필요시 재생성:
-sips -s format png -Z 1024 frontend/public/brand/mark-dark.svg --out /tmp/icon.png
-# 자세한 스크립트는 docs/MAKE_APP.md 참고 (있으면)
+# 개발 실행
+pip3 install pywebview          # requirements.txt에 이미 포함
+python3 desktop.py              # 네이티브 창 pop
+python3 desktop.py --headless   # pywebview 스킵, 기존 브라우저 모드로
 ```
-또는 그냥 `python3 run.py` 를 zshrc alias 로 등록:
+
+아이콘 재생성 (로고 SVG 변경 시):
 ```bash
-echo 'alias hwgraph="cd ~/h-walker-graph-web && python3 run.py"' >> ~/.zshrc
+pip3 install cairosvg           # requirements.txt에 이미 포함
+python3 tools/build_icons.py
+# → AppIcon.icns (mac) + AppIcon.ico (win) + icons/*.png 전부 재생성
+```
+
+### 6-1. macOS .app 번들
+
+```bash
+pip3 install py2app
+cd frontend && npm run build && cd ..
+python3 tools/build_icons.py
+python3 packaging/setup_py2app.py py2app
+# → dist/H-Walker CORE.app
+open "dist/H-Walker CORE.app"   # 더블클릭과 동일
+```
+
+서명 없는 앱 처음 열 때 Mac 보안 경고: **우클릭 → Open → 확인**. 서명/공증은
+별도(`codesign` + `notarytool`).
+
+### 6-2. Windows / Linux 번들
+
+```bash
+pip install pyinstaller
+cd frontend && npm run build && cd ..
+python3 tools/build_icons.py
+pyinstaller packaging/hwalker.spec --noconfirm
+# → dist/H-Walker CORE/H-Walker CORE(.exe)
+```
+
+### 6-3. 빠른 시작용 alias (번들 없이)
+
+```bash
+echo 'alias hwalker="cd ~/h-walker-graph-web && python3 desktop.py"' >> ~/.zshrc
 source ~/.zshrc
-# 이제 어디서든 hwgraph 치면 실행됨
+# 이제 어디서든 hwalker 치면 네이티브 창 pop
 ```
 
 ---

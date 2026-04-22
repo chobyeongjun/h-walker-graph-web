@@ -39,6 +39,10 @@ export interface Cell {
   // graph renders as a multi-subject overlay with one colored trace per
   // entry. dsIds mirrors `series[].dsId` for backwards compat + filtering.
   series?: Array<{ dsId: string; label?: string; color?: string }>;
+  // Phase 3: cross-file stat cell — if set, overrides a_col/b_col mode.
+  statDatasetsA?: Array<{ id: string; metric: string }>;
+  statDatasetsB?: Array<{ id: string; metric: string }>;
+  statMetric?: string;   // default metric when the user picks datasets
 }
 
 export interface DatasetColumn {
@@ -350,11 +354,22 @@ export const useWorkspace = create<WorkspaceState>()(
         if (!cell || cell.type !== 'stat' || !cell.op) return;
         get().updateCell(cellId, { loading: true, error: undefined });
         try {
+          // Phase 3 · cross-file path
+          if ((cell.statDatasetsA?.length || 0) > 0 || (cell.statDatasetsB?.length || 0) > 0) {
+            const data = await runStats({
+              op: cell.op as StatOpKey,
+              datasets_a: cell.statDatasetsA,
+              datasets_b: cell.statDatasetsB,
+            });
+            get().updateCell(cellId, { loading: false, statData: data });
+            return;
+          }
+          // Legacy · single dataset + columns
           const dsId = cell.dsIds[0];
           const a_col = cell.inputs?.a?.trim();
           const b_col = cell.inputs?.b?.trim();
           if (!dsId || !a_col) {
-            throw new Error('dataset_id + a_col required');
+            throw new Error('dataset_id + a_col required (or switch to cross-file mode)');
           }
           const needsB = cell.op !== 'shapiro' && cell.op !== 'anova1';
           const data = await runStats({

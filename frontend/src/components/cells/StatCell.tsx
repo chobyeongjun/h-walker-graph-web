@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Cell } from '../../store/workspace';
 import { useWorkspace } from '../../store/workspace';
 import { STAT_OPS, type StatResult } from '../../data/statOps';
-import type { StatsResponse } from '../../api';
+import { listStatMetrics, type StatsResponse, type MetricDescriptor } from '../../api';
 
 interface Props { cell: Cell; }
 
@@ -12,8 +12,17 @@ export default function StatCell({ cell }: Props) {
   const update = useWorkspace((s) => s.updateCell);
   const runStat = useWorkspace((s) => s.runStat);
   const showToast = useWorkspace((s) => s.showToast);
+  const allDatasets = useWorkspace((s) => s.datasets);
   const hasDataset = !!cell.dsIds[0];
-  const canRunBackend = hasDataset && BACKEND_OPS.includes(cell.op || '') && !!cell.inputs?.a;
+  const crossFile = (cell.statDatasetsA?.length || 0) > 0 || (cell.statDatasetsB?.length || 0) > 0;
+  const canRunBackend = crossFile
+    ? BACKEND_OPS.includes(cell.op || '')
+    : hasDataset && BACKEND_OPS.includes(cell.op || '') && !!cell.inputs?.a;
+
+  const [metrics, setMetrics] = useState<MetricDescriptor[]>([]);
+  useEffect(() => {
+    listStatMetrics().then(setMetrics).catch(() => {});
+  }, []);
 
   // Mock fallback (when no dataset, keeps demo working)
   const mockOp = STAT_OPS[cell.op || 'ttest_paired'];
@@ -80,6 +89,96 @@ export default function StatCell({ cell }: Props) {
           </div>
         </div>
         <div className="stat-row">
+          <label>Mode</label>
+          <div className="op" style={{ flexWrap: 'wrap', gap: 4 }}>
+            <button
+              className={!crossFile ? 'on' : ''}
+              onClick={() => update(cell.id, {
+                statDatasetsA: undefined, statDatasetsB: undefined,
+                statData: undefined,
+              })}
+            >Single · columns</button>
+            <button
+              className={crossFile ? 'on' : ''}
+              onClick={() => {
+                if (!allDatasets.length) { showToast('Upload datasets first'); return; }
+                const defaultMetric = cell.statMetric || 'peak_force_L';
+                // If no cross-file already set, group by 'condition' field if available,
+                // else split datasets in half as a rough placeholder.
+                const withCond = allDatasets.filter((d) => !!d.condition);
+                if (withCond.length >= 2) {
+                  const conds = [...new Set(withCond.map((d) => d.condition))];
+                  const A = withCond.filter((d) => d.condition === conds[0]);
+                  const B = withCond.filter((d) => d.condition === conds[1]);
+                  update(cell.id, {
+                    statDatasetsA: A.map((d) => ({ id: d.id, metric: defaultMetric })),
+                    statDatasetsB: B.map((d) => ({ id: d.id, metric: defaultMetric })),
+                    statMetric: defaultMetric,
+                    statData: undefined,
+                  });
+                } else {
+                  const mid = Math.ceil(allDatasets.length / 2);
+                  update(cell.id, {
+                    statDatasetsA: allDatasets.slice(0, mid).map((d) => ({ id: d.id, metric: defaultMetric })),
+                    statDatasetsB: allDatasets.slice(mid).map((d) => ({ id: d.id, metric: defaultMetric })),
+                    statMetric: defaultMetric,
+                    statData: undefined,
+                  });
+                }
+              }}
+            >Cross-file · groups</button>
+          </div>
+        </div>
+
+        {crossFile && (
+          <>
+            <div className="stat-row">
+              <label>Metric</label>
+              <select
+                className="gt-sel"
+                value={cell.statMetric || 'peak_force_L'}
+                onChange={(e) => {
+                  const m = e.target.value;
+                  update(cell.id, {
+                    statMetric: m,
+                    statDatasetsA: (cell.statDatasetsA || []).map((r) => ({ ...r, metric: m })),
+                    statDatasetsB: (cell.statDatasetsB || []).map((r) => ({ ...r, metric: m })),
+                    statData: undefined,
+                  });
+                }}
+              >
+                {metrics.length === 0 && <option>loading…</option>}
+                {metrics.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label} [{m.unit}]
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="stat-row">
+              <label>Group A</label>
+              <DatasetGroupEditor
+                refs={cell.statDatasetsA || []}
+                metric={cell.statMetric || 'peak_force_L'}
+                onChange={(refs) => update(cell.id, { statDatasetsA: refs, statData: undefined })}
+                datasets={allDatasets}
+              />
+            </div>
+            {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
+              <div className="stat-row">
+                <label>Group B</label>
+                <DatasetGroupEditor
+                  refs={cell.statDatasetsB || []}
+                  metric={cell.statMetric || 'peak_force_L'}
+                  onChange={(refs) => update(cell.id, { statDatasetsB: refs, statData: undefined })}
+                  datasets={allDatasets}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="stat-row">
           <label>Run</label>
           <div>
             <button
@@ -88,9 +187,11 @@ export default function StatCell({ cell }: Props) {
               disabled={!canRunBackend || !!cell.loading}
               style={{ opacity: canRunBackend ? 1 : 0.5 }}
             >
-              {cell.loading ? '…running' : hasDataset ? '▸ Run on dataset' : '▸ Run (mock only)'}
+              {cell.loading ? '…running' :
+                crossFile ? '▸ Run cross-file stats' :
+                hasDataset ? '▸ Run on dataset' : '▸ Run (mock only)'}
             </button>
-            {hasDataset && live && <span style={{ marginLeft: 8, color: '#00FFB2', fontSize: 10 }}>● live</span>}
+            {(hasDataset || crossFile) && live && <span style={{ marginLeft: 8, color: '#00FFB2', fontSize: 10 }}>● live</span>}
           </div>
         </div>
       </div>
@@ -194,6 +295,60 @@ function MockKV({ r }: { r: StatResult }) {
         </div>
       ))}
     </>
+  );
+}
+
+function DatasetGroupEditor({ refs, metric, onChange, datasets }: {
+  refs: Array<{ id: string; metric: string }>;
+  metric: string;
+  onChange: (refs: Array<{ id: string; metric: string }>) => void;
+  datasets: Array<{ id: string; name: string; tag: string; condition?: string; subject_id?: string }>;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {refs.map((r) => {
+          const d = datasets.find((x) => x.id === r.id);
+          return (
+            <span key={r.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', background: 'rgba(240,151,8,.08)',
+              border: '1px solid rgba(240,151,8,.3)', borderRadius: 5,
+              fontSize: 11,
+            }}>
+              {d?.subject_id || d?.name || r.id}
+              {d?.condition && <span style={{ color: '#A78BFA' }}>/{d.condition}</span>}
+              <button
+                onClick={() => onChange(refs.filter((x) => x.id !== r.id))}
+                style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#f87171', padding: 0, fontSize: 12,
+                }}
+              >×</button>
+            </span>
+          );
+        })}
+      </div>
+      <select
+        className="gt-sel"
+        value=""
+        onChange={(e) => {
+          if (e.target.value && !refs.some((r) => r.id === e.target.value)) {
+            onChange([...refs, { id: e.target.value, metric }]);
+          }
+        }}
+        style={{ maxWidth: 280 }}
+      >
+        <option value="">+ add dataset…</option>
+        {datasets
+          .filter((d) => !refs.some((r) => r.id === d.id))
+          .map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.subject_id ? `${d.subject_id} · ` : ''}{d.condition ? `[${d.condition}] ` : ''}{d.name}
+            </option>
+          ))}
+      </select>
+    </div>
   );
 }
 

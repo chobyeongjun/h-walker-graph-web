@@ -142,12 +142,27 @@ export interface StatsRequest {
   b?: number[];
   groups?: number[][];
   paired?: boolean;
-  // Dataset-backed convenience
+  // Dataset-backed convenience (single dataset + columns)
   dataset_id?: string;
   a_col?: string;
   b_col?: string;
   groups_cols?: string[];
+  // Phase 3 cross-dataset
+  datasets_a?: Array<{ id: string; metric: string }>;
+  datasets_b?: Array<{ id: string; metric: string }>;
+  datasets_groups?: Array<Array<{ id: string; metric: string }>>;
 }
+
+export interface MetricDescriptor {
+  key: string;
+  label: string;
+  unit: string;
+  side: string;
+  kind: string;
+}
+
+export const listStatMetrics = () =>
+  json<MetricDescriptor[]>('/api/stats/metrics');
 
 export interface StatsResponse {
   op: string;

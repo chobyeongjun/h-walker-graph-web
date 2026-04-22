@@ -26,21 +26,38 @@ input,textarea,select{font-family:inherit}
      [             | llm dock (60)                       ]
      [ footer (24)                                       ]
    ============================================================ */
-.app{display:grid;grid-template-columns:56px 1fr;
-     grid-template-rows:52px 1fr auto 24px;height:100vh}
-.topnav{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 18px;
+.app{
+  display:grid;
+  grid-template-columns:56px minmax(0,1fr) 380px;
+  grid-template-rows:52px minmax(0,1fr) 24px;
+  height:100vh;
+}
+.topnav{grid-column:1/-1;grid-row:1;display:flex;align-items:center;gap:14px;padding:0 18px;
   background:rgba(11,14,46,.82);border-bottom:1px solid rgba(240,151,8,.14);
   backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);z-index:10;position:relative}
-.sidebar{grid-row:2/4;background:rgba(23,27,94,.22);border-right:1px solid rgba(255,255,255,.05);
+.sidebar{grid-column:1;grid-row:2;background:rgba(23,27,94,.22);border-right:1px solid rgba(255,255,255,.05);
   display:flex;flex-direction:column;align-items:stretch;padding:10px 0;gap:4px;overflow:visible;
   width:56px;z-index:5;position:relative}
-.canvas{overflow-y:auto;padding:28px 40px 28px;position:relative}
-.llm-dock{border-top:1px solid rgba(240,151,8,.14);
-  background:linear-gradient(to bottom, rgba(11,14,46,.92), rgba(11,14,46,.98));
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:10px 40px;z-index:5}
-.footer{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+.workarea{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-height:0;min-width:0}
+.canvas{overflow-y:auto;padding:28px 40px 28px;position:relative;flex:1;min-height:0}
+.chat-rail{
+  grid-column:3;grid-row:2;
+  background:rgba(11,14,46,.75);
+  border-left:1px solid rgba(240,151,8,.14);
+  display:flex;flex-direction:column;min-height:0;min-width:0;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.footer{grid-column:1/-1;grid-row:3;display:flex;align-items:center;justify-content:space-between;
   padding:0 16px;font:500 10px/1 'JetBrains Mono',monospace;color:#4B5563;letter-spacing:.12em;
   background:rgba(11,14,46,.5);border-top:1px solid rgba(255,255,255,.04)}
+
+@media (max-width:1200px){
+  .app{grid-template-columns:56px minmax(0,1fr) 320px}
+}
+@media (max-width:980px){
+  .app{grid-template-columns:56px minmax(0,1fr)}
+  .chat-rail{display:none}
+}
 
 /* ============================================================
    Top nav
@@ -620,25 +637,106 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
 .cell-legend .lg-sw{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
 .cell-legend .lg-sw.dash{background:transparent!important;border-top:2px dashed currentColor;height:0;margin-top:-2px}
 
-/* User-editable figure caption — lives BELOW the plot, journal-style.
-   Empty value: no caption in the exported figure either. */
+/* User-editable figure caption — appears PROMINENTLY above the plot so
+   the user always sees what graph they're editing. Empty caption = no
+   title in the export either (journal convention). */
 .fig-caption{
-  display:flex;align-items:baseline;gap:8px;
-  padding:6px 12px 2px;
-  font:500 11.5px/1.5 'Pretendard','Apple SD Gothic Neo',sans-serif;
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px 8px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  font:600 14px/1.4 'Pretendard','Apple SD Gothic Neo',sans-serif;
   color:#E2E8F0;
 }
 .fig-cap-prefix{
   font:700 10px/1.3 'JetBrains Mono',monospace;
   color:#F09708;letter-spacing:.14em;text-transform:uppercase;
-  flex-shrink:0;
+  flex-shrink:0;padding:3px 7px;border-radius:4px;
+  background:rgba(240,151,8,.08);border:1px solid rgba(240,151,8,.2);
 }
 .fig-cap-input{
   flex:1;background:transparent;border:none;outline:none;color:#E2E8F0;
-  font:inherit;padding:2px 4px;border-radius:3px;
+  font:inherit;padding:4px 6px;border-radius:4px;min-width:0;
 }
-.fig-cap-input:focus{background:rgba(240,151,8,.06);box-shadow:inset 0 0 0 1px rgba(240,151,8,.3)}
-.fig-cap-input::placeholder{color:#4B5563;font-style:italic}
+.fig-cap-input:focus{background:rgba(240,151,8,.06);box-shadow:inset 0 0 0 1px rgba(240,151,8,.35)}
+.fig-cap-input::placeholder{color:#6B7280;font-style:italic;font-weight:500}
+
+/* ============================================================
+   Chat rail (right-hand column) · Phase 2E
+   ============================================================ */
+.chat{display:flex;flex-direction:column;height:100%;min-height:0}
+.chat-head{
+  display:flex;align-items:center;gap:8px;padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:rgba(23,27,94,.3);
+}
+.chat-head-title{font:700 13px/1 'Pretendard',sans-serif;color:#fff;flex:1}
+.chat-head-meta{font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.06em}
+
+.chat-ctx{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  font:500 10.5px/1.3 'Pretendard',sans-serif;color:#9CA3AF;
+  flex-wrap:wrap;
+}
+.chat-ctx .lbl{font:700 9px/1 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.18em;text-transform:uppercase}
+.chat-ctx-sub{color:#6B7280;font-size:10.5px}
+
+.chat-list{
+  flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px;
+}
+.chat-empty{padding:30px 10px;color:#9CA3AF;font:500 12px/1.6 'Pretendard',sans-serif}
+.chat-empty-title{font:700 14px/1.4 'Pretendard',sans-serif;color:#F09708;margin-bottom:10px}
+.chat-empty-hint p{margin:0 0 6px 0;color:#9CA3AF}
+.chat-empty-hint ul{margin:0;padding-left:16px;color:#E2E8F0}
+.chat-empty-hint li{padding:3px 0;color:#A78BFA;font-style:italic;font-size:11.5px}
+
+.chat-msg{display:flex;flex-direction:column;gap:10px}
+.chat-role{
+  font:700 9px/1 'JetBrains Mono',monospace;
+  letter-spacing:.22em;text-transform:uppercase;color:#6B7280;
+}
+.chat-user .chat-role{color:#F09708}
+.chat-assistant .chat-role{color:#A78BFA}
+.chat-bubble{
+  padding:9px 12px;border-radius:10px;margin-top:4px;
+  font:500 12.5px/1.55 'Pretendard','Apple SD Gothic Neo',sans-serif;color:#E2E8F0;
+  word-wrap:break-word;overflow-wrap:break-word;
+}
+.chat-bubble.you{
+  background:rgba(240,151,8,.09);
+  border:1px solid rgba(240,151,8,.22);
+  border-left:3px solid #F09708;
+}
+.chat-bubble.claude{
+  background:rgba(167,139,250,.07);
+  border:1px solid rgba(167,139,250,.18);
+  border-left:3px solid #A78BFA;
+}
+.chat-bubble code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#FFB347;background:rgba(240,151,8,.08);padding:1px 4px;border-radius:3px}
+.chat-bubble ul{margin:6px 0;padding-left:18px}
+
+.chat-input-wrap{
+  display:flex;gap:6px;padding:10px 12px;
+  border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(11,14,46,.6);
+}
+.chat-input{
+  flex:1;min-width:0;background:rgba(23,27,94,.5);
+  border:1px solid rgba(255,255,255,.08);border-radius:8px;
+  padding:9px 11px;color:#E2E8F0;outline:0;
+  font:500 12.5px/1.4 'Pretendard','Apple SD Gothic Neo',sans-serif;
+  transition:border-color .12s,background .12s;
+}
+.chat-input:focus{border-color:rgba(240,151,8,.4);background:rgba(23,27,94,.7)}
+.chat-input::placeholder{color:#6B7280}
+.chat-send{
+  width:36px;height:auto;flex-shrink:0;
+  background:#F09708;color:#0B0E2E;border:none;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform .12s,box-shadow .12s;
+}
+.chat-send:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 14px rgba(240,151,8,.4)}
+.chat-send:disabled{opacity:.4;cursor:not-allowed}
 
 /* Empty-state message in Dataset panel */
 .ds-empty{

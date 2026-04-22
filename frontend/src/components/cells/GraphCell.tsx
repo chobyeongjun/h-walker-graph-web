@@ -135,6 +135,18 @@ export default function GraphCell({ cell }: Props) {
         </div>
       </div>
 
+      {/* Figure caption — prominent, journal-style, above the plot.
+          Empty value means no in-plot title in the exported file either. */}
+      <div className="fig-caption">
+        <span className="fig-cap-prefix">Figure</span>
+        <input
+          className="fig-cap-input"
+          value={cell.title || ''}
+          placeholder="논문 캡션 — 이 그림이 뭘 보여주는지 한 줄로 (비워두면 figure 내부 제목 없음)"
+          onChange={(e) => updateCell(cell.id, { title: e.target.value })}
+        />
+      </div>
+
       <div
         className={`plot preset-pub${cell.loading ? ' plot-loading' : ''}`}
         style={{
@@ -164,17 +176,6 @@ export default function GraphCell({ cell }: Props) {
         <div className="pub-rule-ruler">
           {P?.name} · {P?.col2.w}mm · {P?.font} {P?.sizes.body}pt · {P?.dpi}dpi
         </div>
-      </div>
-
-      {/* Figure caption — edit below the plot, journal-style */}
-      <div className="fig-caption">
-        <span className="fig-cap-prefix">Fig.</span>
-        <input
-          className="fig-cap-input"
-          value={cell.title || ''}
-          placeholder="논문 캡션 형식으로 직접 입력하세요. 비워 두면 figure 내부에는 제목이 표시되지 않고 빈 캡션만 남습니다."
-          onChange={(e) => updateCell(cell.id, { title: e.target.value })}
-        />
       </div>
 
       <div className="cell-legend">

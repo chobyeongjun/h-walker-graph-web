@@ -11,12 +11,15 @@ export default function Canvas() {
   const runAllBusy = useWorkspace((s) => s.runAllBusy);
   const globalPreset = useWorkspace((s) => s.globalPreset);
 
-  const liveCount = cells.filter((c) =>
+  // Canvas shows work cells (graph / stat / compute). LLM cells live in
+  // the right-hand chat rail so the user can chat while editing graphs.
+  const workCells = cells.filter((c) => c.type !== 'llm');
+  const liveCount = workCells.filter((c) =>
     (c.type === 'graph' && c.previewBlobUrl) ||
     (c.type === 'compute' && c.computeData) ||
     (c.type === 'stat' && c.statData)
   ).length;
-  const bindableCount = cells.filter((c) => c.type !== 'llm' && c.dsIds[0]).length;
+  const bindableCount = workCells.filter((c) => c.dsIds[0]).length;
 
   return (
     <section className="canvas">
@@ -52,7 +55,7 @@ export default function Canvas() {
       <DatasetPanel />
 
       <div className="cells">
-        {cells.map((c, i) => (
+        {workCells.map((c, i) => (
           <Cell key={c.id} cell={c} index={i} />
         ))}
       </div>

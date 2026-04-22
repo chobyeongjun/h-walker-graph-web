@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Send } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Send, Sparkles } from 'lucide-react';
 import { useWorkspace, type Cell } from '../store/workspace';
 import { claudeComplete, type ToolUseBlock } from '../api';
 
@@ -10,6 +10,15 @@ export default function LlmDock() {
   const addCell = useWorkspace((s) => s.addCell);
   const showToast = useWorkspace((s) => s.showToast);
   const active = datasets.find((d) => d.active);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const llmCells = cells.filter((c) => c.type === 'llm');
+
+  // Auto-scroll the conversation to the latest message.
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [llmCells.length, llmCells[llmCells.length - 1]?.answer?.text.join('').length]);
 
   async function send() {
     const prompt = q.trim();
@@ -17,7 +26,6 @@ export default function LlmDock() {
     setQ('');
     const id = 'c' + Date.now();
 
-    // Optimistic cell
     const optimistic: Cell = {
       id, type: 'llm', dsIds: active ? [active.id] : [],
       prompt,
@@ -82,23 +90,71 @@ export default function LlmDock() {
   }
 
   return (
-    <div className="llm-dock">
-      <div className="llm-dock-inner">
-        <div className="llm-ctx">
-          <span className="lbl">Context</span>
-          {active && <span className={`ds-chip ${active.tag}`}>{active.name}</span>}
-          <span style={{ color: '#6B7280', fontSize: 10 }}>{cells.length} cells</span>
-        </div>
-        <div className="llm-input-wrap">
-          <span className="prefix">▸ ASK</span>
-          <input
-            value={q}
-            placeholder='"IEEE 2-col force 그래프 만들어줘" · "Run paired t-test on L vs R force"'
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-          />
-          <button className="send" onClick={send}><Send size={14} /></button>
-        </div>
+    <div className="chat">
+      <header className="chat-head">
+        <Sparkles size={14} style={{ color: '#A78BFA' }} />
+        <div className="chat-head-title">Assistant</div>
+        <div className="chat-head-meta">Claude Haiku 4.5</div>
+      </header>
+
+      <div className="chat-ctx">
+        {active ? (
+          <>
+            <span className="lbl">Context</span>
+            <span className={`ds-chip ${active.tag}`}>{active.name}</span>
+            <span className="chat-ctx-sub">· {cells.filter((c) => c.type !== 'llm').length} cells</span>
+          </>
+        ) : (
+          <span className="chat-ctx-sub">No active dataset · upload a CSV first</span>
+        )}
+      </div>
+
+      <div className="chat-list" ref={listRef}>
+        {llmCells.length === 0 ? (
+          <div className="chat-empty">
+            <div className="chat-empty-title">What can I help with?</div>
+            <div className="chat-empty-hint">
+              <p>Try asking:</p>
+              <ul>
+                <li>"IEEE 2-col force 그래프 만들어줘"</li>
+                <li>"Run paired t-test on L_ActForce_N vs R_ActForce_N"</li>
+                <li>"Apply the default analysis"</li>
+                <li>"Switch to Nature preset"</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          llmCells.map((c) => (
+            <div key={c.id} className="chat-msg">
+              <div className="chat-user">
+                <span className="chat-role">You</span>
+                <div className="chat-bubble you">{c.prompt || ''}</div>
+              </div>
+              <div className="chat-assistant">
+                <span className="chat-role">Claude</span>
+                <div
+                  className="chat-bubble claude"
+                  dangerouslySetInnerHTML={{
+                    __html: (c.answer?.text || []).join('<br/><br/>'),
+                  }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="chat-input-wrap">
+        <input
+          className="chat-input"
+          value={q}
+          placeholder="말로 그래프 만들거나 통계 돌리기 — Enter to send"
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+        />
+        <button className="chat-send" onClick={send} disabled={!q.trim()}>
+          <Send size={14} />
+        </button>
       </div>
     </div>
   );
@@ -108,7 +164,6 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
   const store = useWorkspace.getState();
   const input = tu.input || {};
 
-  // Every cell-spawning tool needs an active dataset
   const needsDs = ['add_graph_cell', 'add_compute_cell', 'add_stat_cell',
                    'apply_recipe', 'run_all', 'export_bundle'];
   if (needsDs.includes(tu.name) && !activeDsId) {
@@ -172,7 +227,6 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
     }
 
     case 'set_mode': {
-      // Mode toggle removed in Phase 2E — publication styling is always on.
       return `(set_mode is a no-op; publication styling is always active)`;
     }
 

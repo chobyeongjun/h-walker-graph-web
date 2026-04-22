@@ -36,13 +36,13 @@ export default function App() {
     <div className="app">
       <TopNav />
       <Sidebar />
-      <div style={{ gridColumn: 2, gridRow: '2 / 3', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="workarea">
         <PublicationBar />
         <Canvas />
       </div>
-      <div style={{ gridColumn: 2, gridRow: '3 / 4' }}>
+      <aside className="chat-rail">
         <LlmDock />
-      </div>
+      </aside>
       <div className="footer">
         <span>H-WALKER CORE · v3</span>
         <span>PRETENDARD · JETBRAINS MONO</span>

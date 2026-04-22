@@ -281,4 +281,20 @@ curl http://localhost:8000/api/claude/health
 
 ---
 
-*최종 업데이트: 2026-04-22 (Phase 2A + brand logos + publication engine)*
+## 🗄️ 이전 그래프 앱 위치 (archived)
+
+이 repo 가 유일한 소스. 과거 분산 작업 위치는 `~/_legacy_graph_apps/` 로 이동됨:
+
+| 원래 위치 | 최종 상태 | 보관 위치 |
+|---|---|---|
+| `~/h-walker-arlab` | Phase 2D 에서 멈춤 · 14 commits 뒤처짐 · h-arlab/CBJ 원격 유지 | `~/_legacy_graph_apps/h-walker-arlab_pre-phase2h` |
+| `~/h-walker-ws/tools/graph_app` | Phase 1 legacy · node_modules 제거 후 | `~/_legacy_graph_apps/graph_app_phase1` |
+| `~/h-walker-graph-web/frontend/src.legacy` | Phase 2A 전 React 트리 | **삭제됨** (gitignored 였음) |
+| `~/h-walker-ws/tools/graph_analyzer` | gait 분석 라이브러리 원본 | **유지** — `tools/graph_analyzer/` 에 vendored 사본 있음 |
+| `~/h-walker-ws/tools/auto_analyzer` | 상동 | **유지** — vendored |
+
+복구 필요시 `mv ~/_legacy_graph_apps/<name> ~/` 한 줄이면 됨.
+
+---
+
+*최종 업데이트: 2026-04-22 (통합 정리 · end-to-end 검증 완료 · 46 routes · legacy archived)*

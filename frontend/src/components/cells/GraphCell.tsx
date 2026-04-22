@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Cell } from '../../store/workspace';
 import { useWorkspace } from '../../store/workspace';
 import { GRAPH_TPLS, type GraphTemplate } from '../../data/graphTemplates';
 import { JOURNAL_PRESETS } from '../../data/journalPresets';
+import { renderGraph } from '../../api';
 
 interface Props { cell: Cell; }
 
@@ -11,7 +12,9 @@ export default function GraphCell({ cell }: Props) {
   const mode = useWorkspace((s) => s.mode);
   const updateCell = useWorkspace((s) => s.updateCell);
   const showToast = useWorkspace((s) => s.showToast);
+  const runPreview = useWorkspace((s) => s.runPreview);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [svgInline, setSvgInline] = useState<string | null>(null);
 
   const activeKey =
     cell.strideAvg && cell.graph === 'force' && GRAPH_TPLS.force_avg ? 'force_avg' : cell.graph;
@@ -20,29 +23,46 @@ export default function GraphCell({ cell }: Props) {
   const P = JOURNAL_PRESETS[preset];
   const isOverride = !!cell.preset;
   const canToggleAvg = cell.graph === 'force' || cell.graph === 'force_avg';
-  // Publication styling active when either: global mode is pub, OR the cell
-  // has an explicit per-cell preset override.
   const pubActive = mode === 'pub' || isOverride;
   const palette = P?.paletteColor?.length ? P.paletteColor : P?.palette || [];
+  const hasDataset = !!cell.dsIds[0];
+
+  // Auto-trigger backend preview when dataset is bound and no preview exists yet.
+  useEffect(() => {
+    if (hasDataset && !cell.previewBlobUrl && !cell.loading && !cell.error) {
+      runPreview(cell.id);
+    }
+  }, [hasDataset, cell.previewBlobUrl, cell.loading, cell.error, cell.id, runPreview]);
+
+  // Re-run when the graph template, preset, or strideAvg changes (debounced via effect).
+  useEffect(() => {
+    if (!hasDataset) return;
+    const h = setTimeout(() => { runPreview(cell.id); }, 180);
+    return () => clearTimeout(h);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cell.graph, cell.preset, cell.strideAvg]);
+
+  // Fetch inline SVG text when blob URL changes — so we can adapt viewport to plot box.
+  useEffect(() => {
+    if (!cell.previewBlobUrl) { setSvgInline(null); return; }
+    let cancelled = false;
+    fetch(cell.previewBlobUrl)
+      .then((r) => r.text())
+      .then((txt) => { if (!cancelled) setSvgInline(txt); })
+      .catch(() => { if (!cancelled) setSvgInline(null); });
+    return () => { cancelled = true; };
+  }, [cell.previewBlobUrl]);
 
   async function backendRender(fmt: 'svg' | 'pdf' | 'png' | 'eps' | 'tiff', variant: 'col1' | 'col2' | 'onehalf' = 'col2') {
     try {
-      const res = await fetch('/api/graphs/render', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template: activeKey,
-          preset,
-          variant,
-          format: fmt,
-          stride_avg: !!cell.strideAvg,
-        }),
+      const blob = await renderGraph({
+        template: activeKey || 'force',
+        preset,
+        variant,
+        format: fmt,
+        stride_avg: !!cell.strideAvg,
+        dataset_id: cell.dsIds[0],
       });
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`${res.status} ${detail || res.statusText}`);
-      }
-      const blob = await res.blob();
       const w = variant === 'col1' ? P?.col1.w : (variant === 'onehalf' ? P?.onehalf?.w ?? P?.col2.w : P?.col2.w);
       downloadBlob(blob, `${cell.id}_${activeKey}_${preset}_${Math.round(w || 0)}mm.${fmt}`);
       showToast(`${fmt.toUpperCase()} · ${preset} · ${Math.round(w || 0)}mm`);
@@ -52,7 +72,6 @@ export default function GraphCell({ cell }: Props) {
   }
 
   function exportSvgClient() {
-    // Client-side SVG — preview only, not journal-sized. Prefer backend render.
     const svgEl = document.getElementById(`plot-${cell.id}`);
     if (!svgEl) return;
     const xml = new XMLSerializer().serializeToString(svgEl);
@@ -99,6 +118,16 @@ export default function GraphCell({ cell }: Props) {
           </label>
         )}
         <div className="gt-spacer" />
+        {hasDataset && (
+          <button
+            className="gt-btn"
+            title="Re-render from dataset"
+            onClick={() => runPreview(cell.id)}
+            disabled={!!cell.loading}
+          >
+            {cell.loading ? '…' : '⟳ Run'}
+          </button>
+        )}
         <span className="gt-meta">{P?.col2.w}mm · {P?.dpi} dpi · {P?.sizes.body}pt</span>
         <div className="gt-export">
           <button className="gt-btn" onClick={() => setMenuOpen((v) => !v)}>Export ▾</button>
@@ -122,10 +151,8 @@ export default function GraphCell({ cell }: Props) {
       </div>
 
       <div
-        className={`plot${pubActive ? ' preset-pub' : ''}`}
+        className={`plot${pubActive ? ' preset-pub' : ''}${cell.loading ? ' plot-loading' : ''}`}
         style={pubActive ? ({
-          // CSS custom properties consumed by .plot.preset-pub rules in app.css.
-          // Keeps the preview WYSIWYG with the exported binary from /api/graphs/render.
           ['--pub-font' as never]: `'${P?.font}', ${P?.fontFallback}`,
           ['--pub-stroke' as never]: `${P?.stroke}`,
           ['--pub-grid' as never]: `${P?.gridColor}`,
@@ -133,11 +160,29 @@ export default function GraphCell({ cell }: Props) {
           ['--pub-body-pt' as never]: `${P?.sizes.body}`,
         } as React.CSSProperties) : undefined}
       >
-        <PlotSvg
-          id={`plot-${cell.id}`}
-          tpl={tpl}
-          palette={pubActive ? palette : null}
-        />
+        {cell.error ? (
+          <div className="plot-error">
+            <b>Render failed</b>
+            <div>{cell.error}</div>
+            <button onClick={() => runPreview(cell.id)}>Retry</button>
+          </div>
+        ) : hasDataset && svgInline ? (
+          <div
+            className="plot-real"
+            dangerouslySetInnerHTML={{ __html: svgInline }}
+          />
+        ) : hasDataset && cell.loading ? (
+          <div className="plot-skeleton">
+            <div className="ps-bar" /><div className="ps-bar" /><div className="ps-bar" />
+            <div className="ps-label">Rendering…</div>
+          </div>
+        ) : (
+          <PlotSvg
+            id={`plot-${cell.id}`}
+            tpl={tpl}
+            palette={pubActive ? palette : null}
+          />
+        )}
         {pubActive && (
           <div className="pub-rule-ruler">
             {P?.name} · {P?.col2.w}mm · {P?.font} {P?.sizes.body}pt · {P?.dpi}dpi
@@ -159,6 +204,9 @@ export default function GraphCell({ cell }: Props) {
 
       <div className="cell-meta">
         <span>{tpl.title}</span>
+        {hasDataset && cell.previewBlobUrl && (
+          <span style={{ color: '#00FFB2' }}>● live</span>
+        )}
         {tpl.summary.map(([k, v], i) => (
           <span key={i}>{k} <b>{v}</b></span>
         ))}
@@ -169,8 +217,6 @@ export default function GraphCell({ cell }: Props) {
 
 function PlotSvg({ id, tpl, palette }: { id: string; tpl: GraphTemplate; palette: string[] | null }) {
   const vb = '0 0 456 210';
-  // When a palette is provided (publication mode), remap mockup accent colors
-  // to the journal palette so the preview matches the exported binary.
   const pick = (original: string, idx: number): string => {
     if (!palette || palette.length === 0) return original;
     return palette[idx % palette.length];

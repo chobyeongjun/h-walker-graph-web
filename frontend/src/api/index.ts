@@ -1,5 +1,5 @@
 // Typed fetch wrappers for the H-Walker backend.
-// Endpoints match HANDOFF §2 (§3.3/§3.4 to be implemented server-side).
+// Contract mirrors backend/routers/{datasets,analyze,compute,stats,graphs,claude}.py.
 
 import type { Dataset } from '../store/workspace';
 
@@ -10,9 +10,20 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
   return res.json() as Promise<T>;
 }
+
+// ============================================================
+// Datasets
+// ============================================================
 
 export async function uploadDataset(file: File): Promise<Dataset> {
   const fd = new FormData();
@@ -32,65 +43,169 @@ export const saveMapping = (id: string, columns: Record<string, string>) =>
     body: JSON.stringify({ columns }),
   });
 
-export interface ComputeRequest {
-  dataset_id: string;
-  metric: 'per_stride' | 'per_trial' | 'per_window';
-  params: {
-    detect?: 'heel-strike' | 'toe-off' | 'threshold';
-    window?: [number, number] | null;
-    smoothing?: { method: 'lowpass'; cutoff: number } | null;
+// ============================================================
+// Analyze (GET /api/analyze/{ds_id})
+// ============================================================
+
+export interface SideStride {
+  n_strides: number;
+  stride_time_mean: number;
+  stride_time_std: number;
+  stride_time_cv: number;
+  stride_length_mean: number;
+  stride_length_std: number;
+  cadence: number;
+  stance_pct_mean: number;
+  stance_pct_std: number;
+  swing_pct_mean: number;
+  swing_pct_std: number;
+  force_tracking: { rmse: number; mae: number; peak_error: number };
+  stride_times_list: number[];
+  stride_lengths_list: number[];
+}
+
+export interface AnalysisPayload {
+  mode: 'hwalker';
+  filename: string;
+  n_samples: number;
+  duration_s: number;
+  sample_rate: number;
+  symmetry: { stride_time: number; stride_length: number; force: number; stance: number };
+  fatigue: { left_pct_change: number; right_pct_change: number };
+  left: SideStride;
+  right: SideStride;
+  profiles: {
+    left:  { available: boolean; n_points?: number; mean?: number[]; std?: number[]; des_mean?: number[]; des_std?: number[] };
+    right: { available: boolean; n_points?: number; mean?: number[]; std?: number[]; des_mean?: number[]; des_std?: number[] };
   };
 }
-export interface ComputeResponse {
-  rows: unknown[][];
+
+export interface GenericAnalysisPayload {
+  fallback_mode: 'generic';
+  filename: string;
+  n_samples: number;
+  n_columns: number;
   columns: string[];
-  summary: { mean: number[]; sd: number[]; n: number };
-  csv_url: string;
+  descriptive: Record<string, { n: number; mean: number; std: number; min: number; max: number; median: number }>;
+  note: string;
 }
-export const compute = (req: ComputeRequest) =>
+
+export type AnalyzeResponse = AnalysisPayload | GenericAnalysisPayload;
+
+export const analyzeDataset = (dsId: string) =>
+  json<AnalyzeResponse>(`/api/analyze/${dsId}`);
+
+// ============================================================
+// Compute (POST /api/compute)
+// ============================================================
+
+export type ComputeMetricKey =
+  | 'per_stride' | 'impulse' | 'loading_rate' | 'rom' | 'cadence' | 'target_dev';
+
+export interface ComputeRequest {
+  dataset_id: string;
+  metric: ComputeMetricKey;
+  options?: Record<string, unknown>;
+}
+
+export interface ComputeResponse {
+  label: string;
+  cols: string[];
+  rows: string[][];
+  summary: { mean: string[] };
+  meta?: Record<string, unknown>;
+}
+
+export const computeMetric = (req: ComputeRequest) =>
   json<ComputeResponse>('/api/compute', { method: 'POST', body: JSON.stringify(req) });
 
+// ============================================================
+// Stats (POST /api/stats)
+// ============================================================
+
+export type StatOpKey =
+  | 'ttest_paired' | 'ttest_welch' | 'anova1' | 'pearson' | 'cohens_d' | 'shapiro';
+
 export interface StatsRequest {
-  op: string;
-  inputs: { a: string; b: string };
-  fmt: 'apa' | 'ieee' | 'csv';
-  dataset_id: string;
+  op: StatOpKey;
+  // Raw series
+  a?: number[];
+  b?: number[];
+  groups?: number[][];
+  paired?: boolean;
+  // Dataset-backed convenience
+  dataset_id?: string;
+  a_col?: string;
+  b_col?: string;
+  groups_cols?: string[];
 }
+
+export interface StatsResponse {
+  op: string;
+  name: string;
+  stat: number;
+  stat_name: string;
+  p: number | null;
+  df: number | number[] | null;
+  effect_size: { name: string; value: number; label?: string } | null;
+  ci95: [number, number] | null;
+  n: number | number[];
+  assumption: { name: string; p: number; passed: boolean } | null;
+  fallback_used: boolean;
+  summary: string;
+}
+
 export const runStats = (req: StatsRequest) =>
-  json<{
-    stat: number; p: number; df: number;
-    effect_size: { name: string; value: number };
-    ci95: [number, number] | null;
-    text_apa: string; text_ieee: string;
-    passed_assumptions: { normality: boolean; equal_var: boolean };
-  }>('/api/stats', { method: 'POST', body: JSON.stringify(req) });
+  json<StatsResponse>('/api/stats', { method: 'POST', body: JSON.stringify(req) });
+
+// ============================================================
+// Graph render (POST /api/graphs/render) — returns Blob
+// ============================================================
 
 export interface RenderGraphRequest {
   template: string;
-  dataset_id: string;
-  preset: string;
-  width_mm: number;
-  dpi: number;
-  format: 'svg' | 'pdf' | 'eps' | 'tiff' | 'png';
-  options: { stride_avg: boolean; colorblind_safe: boolean };
+  preset?: string;
+  variant?: 'col1' | 'col2' | 'onehalf';
+  format?: 'svg' | 'pdf' | 'eps' | 'png' | 'tiff';
+  dpi?: number;
+  stride_avg?: boolean;
+  colorblind_safe?: boolean;
+  keep_palette?: boolean;
+  dataset_id?: string;   // when set + template supports binding → real data
 }
+
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {
   const res = await fetch(BASE + '/api/graphs/render', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
   return res.blob();
 };
 
-export interface ExportBundleRequest {
+// ============================================================
+// Bundle export (POST /api/graphs/bundle) — returns Blob
+// ============================================================
+
+export interface BundleRequest {
   preset: string;
-  include: { graphs: boolean; stats: boolean; notebook: boolean; html: boolean };
-  cell_ids: string[];
+  variant?: 'col1' | 'col2' | 'onehalf';
+  format?: 'svg' | 'pdf' | 'eps' | 'png' | 'tiff';
+  dpi?: number;
+  cells: Array<{ id: string; template: string; stride_avg?: boolean; preset?: string; variant?: string }>;
+  include_readme?: boolean;
 }
-export const exportBundle = async (req: ExportBundleRequest): Promise<Blob> => {
-  const res = await fetch(BASE + '/api/export/bundle', {
+
+export const exportBundle = async (req: BundleRequest): Promise<Blob> => {
+  const res = await fetch(BASE + '/api/graphs/bundle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
@@ -99,12 +214,33 @@ export const exportBundle = async (req: ExportBundleRequest): Promise<Blob> => {
   return res.blob();
 };
 
+// ============================================================
+// Claude (POST /api/claude/complete)
+// ============================================================
+
+export interface ToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
 export interface ClaudeCompleteRequest {
   prompt: string;
   context: { cells: unknown[]; active_dataset_id: string | null };
 }
+
+export interface ClaudeCompleteResponse {
+  reply: string;
+  tool_uses?: ToolUseBlock[];
+  suggested_cells?: unknown[];   // legacy
+}
+
 export const claudeComplete = (req: ClaudeCompleteRequest) =>
-  json<{ reply: string; suggested_cells?: unknown[] }>(
-    '/api/claude/complete',
-    { method: 'POST', body: JSON.stringify(req) },
-  );
+  json<ClaudeCompleteResponse>('/api/claude/complete', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+
+export const claudeHealth = () =>
+  json<{ provider: string; model: string; key_present: boolean }>('/api/claude/health');

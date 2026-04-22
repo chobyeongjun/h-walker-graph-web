@@ -559,3 +559,51 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
 .ref-pop .r-item{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;cursor:pointer;font:500 11.5px/1 'Pretendard',sans-serif;color:#E2E8F0}
 .ref-pop .r-item:hover,.ref-pop .r-item.on{background:rgba(240,151,8,.12);color:#fff}
 .ref-pop .r-item .tag{margin-left:auto;font:500 10px/1 'JetBrains Mono',monospace;color:#6B7280}
+
+/* ============================================================
+   Phase 2B · live data states (skeleton / error / real-svg)
+   ============================================================ */
+
+.plot.plot-loading::before{
+  content:'';position:absolute;inset:0;background:
+    linear-gradient(90deg,transparent 0%,rgba(240,151,8,.08) 50%,transparent 100%);
+  background-size:200% 100%;animation:hw-shimmer 1.4s infinite var(--hw-ease);
+  pointer-events:none;border-radius:inherit;
+}
+@keyframes hw-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.plot-skeleton{display:flex;flex-direction:column;gap:12px;padding:24px;height:240px;justify-content:center}
+.plot-skeleton .ps-bar{
+  height:10px;border-radius:6px;
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(240,151,8,.12) 50%,rgba(255,255,255,.04) 100%);
+  background-size:200% 100%;animation:hw-shimmer 1.4s infinite var(--hw-ease);
+}
+.plot-skeleton .ps-bar:nth-child(1){width:88%}
+.plot-skeleton .ps-bar:nth-child(2){width:72%}
+.plot-skeleton .ps-bar:nth-child(3){width:93%}
+.plot-skeleton .ps-label{font:500 10px/1 'JetBrains Mono',monospace;color:#F09708;letter-spacing:.14em;text-transform:uppercase;margin-top:8px}
+
+.plot-error{display:flex;flex-direction:column;gap:8px;padding:24px;height:240px;justify-content:center;align-items:flex-start;color:#f87171;font:500 12px/1.5 'Pretendard',sans-serif}
+.plot-error b{color:#f87171;font-weight:700}
+.plot-error button{background:transparent;border:1px solid #f87171;color:#f87171;padding:4px 10px;border-radius:4px;cursor:pointer;font:600 11px/1 'Pretendard',sans-serif}
+.plot-error button:hover{background:rgba(248,113,113,.12)}
+
+/* Backend-rendered inline SVG sizing — match the mockup plot-box dims */
+.plot-real{display:block;width:100%;height:240px;background:transparent;overflow:hidden}
+.plot-real svg{display:block!important;width:100%!important;height:100%!important;max-height:240px}
+.plot.preset-pub .plot-real{background:#fff;border-radius:6px;padding:4px}
+.plot.preset-pub .plot-real svg{background:#fff}
+
+.cpt-skeleton{display:flex;flex-direction:column;gap:10px}
+.cpt-skeleton .ps-bar{
+  height:14px;border-radius:4px;
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(127,181,228,.18) 50%,rgba(255,255,255,.04) 100%);
+  background-size:200% 100%;animation:hw-shimmer 1.4s infinite var(--hw-ease);
+}
+.cpt-skeleton .ps-bar:nth-child(1){width:100%}
+.cpt-skeleton .ps-bar:nth-child(2){width:75%}
+.cpt-skeleton .ps-bar:nth-child(3){width:88%}
+.cpt-skeleton .ps-bar:nth-child(4){width:62%}
+
+/* Dataset analysis status badge uses inherited ds-row2 color */
+

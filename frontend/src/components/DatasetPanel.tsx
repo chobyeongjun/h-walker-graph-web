@@ -24,8 +24,10 @@ export default function DatasetPanel() {
       try {
         const ds = await uploadDataset(f);
         addDataset(ds);
-        openMapper(ds.id);
-        showToast(`Uploaded ${f.name}`);
+        setActive(ds.id);
+        showToast(`Uploaded ${f.name} · running default recipes…`);
+        // Auto-apply default recipes — the "one-click" flow
+        applyRecipes(ds.id).catch((e) => showToast(`Auto-run failed: ${(e as Error).message}`));
       } catch (e) {
         showToast(`Upload failed: ${(e as Error).message}`);
       }
@@ -60,6 +62,18 @@ export default function DatasetPanel() {
               <span><b>{d.rows.toLocaleString()}</b> rows</span>
               <span><b>{d.dur}</b></span>
               <span><b>{d.hz}</b></span>
+              {d.analyzing && <span style={{ color: '#F09708' }}>· analyzing…</span>}
+              {d.analysis && 'mode' in d.analysis && d.analysis.mode === 'hwalker' && (
+                <span style={{ color: '#00FFB2' }}>
+                  · {d.analysis.left.n_strides}L / {d.analysis.right.n_strides}R strides
+                </span>
+              )}
+              {d.analysis && 'fallback_mode' in d.analysis && (
+                <span style={{ color: '#7FB5E4' }}>· generic mode</span>
+              )}
+              {d.analyzeError && (
+                <span style={{ color: '#f87171' }}>· err: {d.analyzeError.slice(0, 40)}</span>
+              )}
             </div>
             <div className="ds-cols">
               {d.cols.slice(0, 5).map((c, i) => (
@@ -101,7 +115,13 @@ export default function DatasetPanel() {
             <h4>Canonical recipes · {active?.kind}</h4>
             <span className="sub">auto-generated cells based on the dataset type</span>
             {active && (
-              <button className="apply" onClick={() => applyRecipes(active.id)}>Apply</button>
+              <button
+                className="apply"
+                onClick={() => applyRecipes(active.id)}
+                disabled={active.analyzing}
+              >
+                {active.analyzing ? 'Analyzing…' : 'Apply selected'}
+              </button>
             )}
           </div>
           <div className="recipes-grid">

@@ -635,6 +635,142 @@ def _emit(fig: plt.Figure, fmt: str, dpi: int, preset_name: str = "") -> tuple[b
         plt.close(fig)
 
 
+@dataclass
+class Trace:
+    """Numeric trace for real-data publication rendering.
+
+    `kind`:
+        "line"        — simple line plot (color, width, dash)
+        "band"        — filled mean±SD; needs `y_upper` + `y_lower`
+        "bar"         — categorical bar (x is list of labels, y is heights)
+        "box"         — single boxplot (x is label, y is list of raw values)
+        "scatter"     — points only (color, size)
+    """
+    kind: str
+    name: str
+    x: list[float] | list[str]
+    y: list[float]
+    color: str = "#1f77b4"
+    width: float = 1.0
+    dash: bool = False
+    y_upper: list[float] | None = None
+    y_lower: list[float] | None = None
+    opacity: float = 1.0
+
+
+def render_from_traces(
+    traces: list[Trace],
+    title: str = "",
+    x_label: str = "",
+    y_label: str = "",
+    preset: str = "ieee",
+    variant: str = "col2",
+    format: str = "svg",
+    dpi: int | None = None,
+    colorblind_safe: bool | None = None,
+    x_range: tuple[float, float] | None = None,
+    y_range: tuple[float, float] | None = None,
+    legend: bool = True,
+) -> tuple[bytes, str]:
+    """Render a figure from real numeric traces at exact journal size.
+
+    Uses the same preset machinery (font/stroke/dpi/palette) as `render()`
+    but skips the SVG-mockup sampling — traces are already in data coords.
+    """
+    if preset not in JOURNAL_PRESETS:
+        raise ValueError(f"Unknown preset: {preset}")
+    P = JOURNAL_PRESETS[preset]
+
+    if variant == "col1":
+        w_mm, h_mm = P.col1
+    elif variant == "onehalf" and P.onehalf is not None:
+        w_mm, h_mm = P.onehalf
+    else:
+        w_mm, h_mm = P.col2
+
+    dpi_val = dpi or P.dpi
+    inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+
+    rc = _compose_rc(P)
+    if colorblind_safe and not P.colorblind_safe:
+        palette = ["#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                   "#0072B2", "#D55E00", "#CC79A7"]
+    else:
+        palette = P.palette_color if P.palette_color else P.palette
+
+    with mpl.rc_context(rc):
+        fig, ax = plt.subplots(figsize=(inch_w, inch_h))
+
+        line_idx = 0
+        for tr in traces:
+            color = tr.color if tr.color else palette[line_idx % len(palette)]
+            if tr.kind == "band":
+                if tr.y_upper is None or tr.y_lower is None:
+                    continue
+                ax.fill_between(
+                    tr.x, tr.y_upper, tr.y_lower,
+                    color=color, alpha=tr.opacity or 0.2, linewidth=0,
+                    label=tr.name if legend else None,
+                )
+            elif tr.kind == "line":
+                kwargs = dict(
+                    color=color,
+                    linewidth=P.stroke_pt * (tr.width or 1.0),
+                    label=tr.name,
+                    solid_capstyle="round",
+                )
+                if tr.dash:
+                    kwargs["linestyle"] = "--"
+                    kwargs["dashes"] = (3, 2)
+                ax.plot(tr.x, tr.y, **kwargs)
+                line_idx += 1
+            elif tr.kind == "bar":
+                ax.bar(
+                    tr.x, tr.y, width=0.6, color=color,
+                    edgecolor=P.axis_color, linewidth=P.stroke_pt * 0.5,
+                    label=tr.name if legend else None,
+                )
+            elif tr.kind == "box":
+                vals = [v for v in tr.y if np.isfinite(v)]
+                if vals:
+                    ax.boxplot(
+                        [vals], positions=[line_idx], widths=0.5,
+                        patch_artist=True,
+                        boxprops=dict(facecolor=color, alpha=0.25, edgecolor=color,
+                                      linewidth=P.stroke_pt),
+                        medianprops=dict(color=color, linewidth=P.stroke_pt * 1.4),
+                        whiskerprops=dict(color=color, linewidth=P.stroke_pt),
+                        capprops=dict(color=color, linewidth=P.stroke_pt),
+                        flierprops=dict(marker="o", markersize=2, markerfacecolor=color,
+                                        markeredgecolor=color, alpha=0.6),
+                    )
+                    line_idx += 1
+            elif tr.kind == "scatter":
+                ax.scatter(tr.x, tr.y, color=color,
+                           s=(tr.width or 1.0) * 4, alpha=tr.opacity or 0.8,
+                           label=tr.name, edgecolors="none")
+
+        ax.grid(True, which="major", linestyle="-",
+                linewidth=P.grid_pt, color=P.grid_color, alpha=0.7)
+        ax.set_axisbelow(True)
+        if x_label:
+            ax.set_xlabel(x_label)
+        if y_label:
+            ax.set_ylabel(y_label)
+        if title:
+            ax.set_title(title, fontsize=P.title_pt)
+        if x_range is not None:
+            ax.set_xlim(*x_range)
+        if y_range is not None:
+            ax.set_ylim(*y_range)
+        if legend and any(tr.kind in ("line", "band", "scatter", "bar") and tr.name
+                          for tr in traces):
+            ax.legend(loc="best", frameon=False, fontsize=P.legend_pt)
+
+        fig.set_size_inches(inch_w, inch_h)
+        return _emit(fig, format, dpi_val, preset_name=P.name)
+
+
 def list_templates() -> list[str]:
     return sorted(GRAPH_SPECS.keys())
 

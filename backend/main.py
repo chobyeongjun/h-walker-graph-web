@@ -18,6 +18,9 @@ from backend.routers.feedback import router as feedback_router
 from backend.routers.claude import router as claude_router
 from backend.routers.datasets import router as datasets_router
 from backend.routers.graphs import router as graphs_router
+from backend.routers.analyze import router as analyze_router
+from backend.routers.compute import router as compute_router
+from backend.routers.stats import router as stats_router
 
 app = FastAPI(title="H-Walker Graph API")
 app.add_middleware(
@@ -35,6 +38,9 @@ app.include_router(feedback_router)
 app.include_router(claude_router)
 app.include_router(datasets_router)
 app.include_router(graphs_router)
+app.include_router(analyze_router)
+app.include_router(compute_router)
+app.include_router(stats_router)
 
 
 @app.get("/health")

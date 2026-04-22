@@ -170,6 +170,12 @@ def delete_dataset(ds_id: str) -> Response:
             os.unlink(d['_path'])
         except Exception:
             pass
+        # Also invalidate the analyzer cache
+        try:
+            from backend.routers.analyze import invalidate_cache
+            invalidate_cache(ds_id)
+        except Exception:
+            pass
     return Response(status_code=204)
 
 

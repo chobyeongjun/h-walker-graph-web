@@ -73,6 +73,8 @@ REAL_DATA_TEMPLATES = {
     # Motion / kinematic (Phase 0)
     "imu", "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
+    # Debug · Phase 2I
+    "debug_ts",
 }
 
 # Phase 1: templates that support clean multi-dataset overlay.
@@ -676,6 +678,80 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=False,
         )
+
+    if req.template == "debug_ts":
+        # Full-duration raw time-series, small multiples. Intended for
+        # visual debugging — where did the signal go weird? Heel-strike
+        # events are overlaid as vertical dotted lines so the user can
+        # orient themselves against the gait cycle.
+        if df is None:
+            return None
+        import matplotlib as _mpl
+        import matplotlib.pyplot as _plt
+        from backend.services.publication_engine import (
+            JOURNAL_PRESETS as _JP, _compose_rc, _emit,
+        )
+        P = _JP[req.preset]
+        # Taller figure for stacked panels
+        if req.variant == "col1":
+            w_mm, h_mm = P.col1[0], P.col1[1] * 2.0
+        elif req.variant == "onehalf" and P.onehalf:
+            w_mm, h_mm = P.onehalf[0], P.onehalf[1] * 2.0
+        else:
+            w_mm, h_mm = P.col2[0], P.col2[1] * 1.8
+        dpi_val = req.dpi or P.dpi
+        inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+        fs = res.sample_rate
+        t = _np.arange(len(df)) / fs
+
+        # Pick the signals that exist
+        rows = []
+        for cols, ylabel, colors in [
+            (["L_ActForce_N", "R_ActForce_N"], "Force (N)", ["#1E5F9E", "#9E3838"]),
+            (["L_Pitch", "R_Pitch"],           "Pitch (°)", ["#3B82C4", "#D35454"]),
+            (["L_ActVel_mps", "R_ActVel_mps"], "Vel (m/s)", ["#F09708", "#FFB347"]),
+        ]:
+            present = [c for c in cols if c in df.columns]
+            if present:
+                rows.append((present, ylabel, colors))
+        if not rows:
+            return None
+
+        rc = _compose_rc(P)
+        with _mpl.rc_context(rc):
+            fig, axes = _plt.subplots(
+                len(rows), 1, figsize=(inch_w, inch_h), sharex=True,
+            )
+            if len(rows) == 1:
+                axes = [axes]
+
+            # Heel-strike markers (L + R)
+            hs_L = res.left_stride.hs_indices
+            hs_R = res.right_stride.hs_indices
+
+            for ax, (cols, ylabel, colors) in zip(axes, rows):
+                for col, c in zip(cols, colors):
+                    ax.plot(t, df[col].to_numpy(dtype=float),
+                            color=c, linewidth=P.stroke_pt * 1.2, label=col)
+                # HS markers
+                for idx in hs_L:
+                    if 0 <= idx < len(t):
+                        ax.axvline(t[idx], color="#3B82C4",
+                                   linestyle=":", linewidth=P.grid_pt * 1.5, alpha=0.5)
+                for idx in hs_R:
+                    if 0 <= idx < len(t):
+                        ax.axvline(t[idx], color="#D35454",
+                                   linestyle=":", linewidth=P.grid_pt * 1.5, alpha=0.5)
+                ax.set_ylabel(ylabel)
+                ax.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.5)
+                ax.legend(loc="upper right", frameon=False,
+                          fontsize=P.legend_pt, ncol=len(cols))
+            axes[-1].set_xlabel("Time (s)  ·  dotted lines = heel-strikes (blue L · red R)")
+            if req.title:
+                fig.suptitle(req.title, fontsize=P.title_pt, y=0.998)
+            fig.tight_layout(pad=0.4)
+            fig.set_size_inches(inch_w, inch_h)
+            return _emit(fig, req.format, dpi_val, preset_name=P.name)
 
     if req.template == "symmetry_radar":
         # Multi-axis symmetry polar chart — rendered as polar bars for

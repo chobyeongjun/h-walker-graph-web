@@ -170,38 +170,13 @@ export default function DatasetPanel() {
         />
       </div>
 
-      {recipes.length > 0 && (
-        <div className="recipes" style={{ margin: '0 12px 12px' }}>
-          <div className="recipes-head">
-            <h4>Canonical recipes · {active?.kind}</h4>
-            <span className="sub">auto-generated cells based on the dataset type</span>
-            {active && (
-              <button
-                className="apply"
-                onClick={() => applyRecipes(active.id)}
-                disabled={active.analyzing}
-              >
-                {active.analyzing ? 'Analyzing…' : 'Apply selected'}
-              </button>
-            )}
-          </div>
-          <div className="recipes-grid">
-            {recipes.map((r) => {
-              const checked = active?.recipeState[r.id] ?? r.default;
-              return (
-                <label key={r.id} className={`recipe-row${r.default ? ' defaulted' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => active && toggleRecipe(active.id, r.id)}
-                  />
-                  <span>{r.label}</span>
-                  <span className="rtype">{r.type}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
+      {recipes.length > 0 && active && (
+        <AutoRecipes
+          recipes={recipes}
+          active={active}
+          onToggle={(id) => toggleRecipe(active.id, id)}
+          onApply={() => applyRecipes(active.id)}
+        />
       )}
     </div>
   );
@@ -224,5 +199,84 @@ function DatasetTag({ label, value, placeholder, onChange }: {
         onChange={(e) => onChange(e.target.value)}
       />
     </span>
+  );
+}
+
+/**
+ * AutoRecipes · Phase 2I
+ *
+ * Replaces the old checkbox grid. Compute metrics auto-run (they're just
+ * numbers, no user choice needed). Graphs show only the currently-enabled
+ * set in a compact chip strip; the user can toggle extras from a
+ * "+ more graphs" expandable section. "Apply" button re-runs the active
+ * set (skip duplicates thanks to dedup in workspace.applyRecipes).
+ */
+function AutoRecipes({ recipes, active, onToggle, onApply }: {
+  recipes: Array<{ id: string; label: string; default: boolean; type: 'graph' | 'compute'; hint?: string }>;
+  active: { id: string; kind: string; recipeState: Record<string, boolean>; analyzing?: boolean };
+  onToggle: (id: string) => void;
+  onApply: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const graphs = recipes.filter((r) => r.type === 'graph');
+  const computes = recipes.filter((r) => r.type === 'compute');
+  const enabledGraph = graphs.filter((r) => active.recipeState[r.id] ?? r.default);
+  const disabledGraph = graphs.filter((r) => !(active.recipeState[r.id] ?? r.default));
+
+  return (
+    <div className="recipes" style={{ margin: '0 12px 12px' }}>
+      <div className="recipes-head">
+        <h4>Auto-analysis · {active.kind}</h4>
+        <span className="sub">
+          {computes.length} metrics run automatically · {enabledGraph.length} graphs enabled
+        </span>
+        <button
+          className="apply"
+          onClick={onApply}
+          disabled={active.analyzing}
+        >
+          {active.analyzing ? 'Analyzing…' : 'Run on this dataset'}
+        </button>
+      </div>
+
+      <div className="auto-summary">
+        <span className="auto-lbl">Graphs</span>
+        {enabledGraph.map((r) => (
+          <button
+            key={r.id}
+            className="auto-chip on"
+            title={r.hint || r.label}
+            onClick={() => onToggle(r.id)}
+          >
+            {r.label}
+            <span className="auto-x">×</span>
+          </button>
+        ))}
+        {disabledGraph.length > 0 && (
+          <button
+            className="auto-more"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? '− hide' : `+ ${disabledGraph.length} more`}
+          </button>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="auto-advanced">
+          {disabledGraph.map((r) => (
+            <button
+              key={r.id}
+              className="auto-chip off"
+              title={r.hint || r.label}
+              onClick={() => onToggle(r.id)}
+            >
+              + {r.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

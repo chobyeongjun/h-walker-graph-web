@@ -122,6 +122,20 @@ export const GRAPH_TPLS: Record<string, GraphTemplate> = {
   },
 
   // =====================================================
+  // Phase 2I · Debug raw time-series (full duration + HS markers)
+  // =====================================================
+  'debug_ts': {
+    ey: 'Debug · raw time-series', title: 'Raw signals with heel-strike markers', ds: 'ds1',
+    yUnit: '', xUnit: 'Time (s)',
+    paths: [
+      { c: '#1E5F9E', w: 1.2, label: 'L_ActForce_N', d: 'M48,100 C80,60 120,150 160,80 C200,40 240,140 280,90 C320,50 360,150 408,100' },
+      { c: '#9E3838', w: 1.2, label: 'R_ActForce_N', d: 'M48,110 C80,70 120,160 160,90 C200,50 240,150 280,100 C320,60 360,160 408,110' },
+    ],
+    yTicks: ['', '', '', '', ''], xTicks: ['0', '5', '10', '15', '20'],
+    summary: [['hint', 'dotted = heel-strikes'], ['purpose', 'find anomalies']],
+  },
+
+  // =====================================================
   // Phase 2H · L/R GCP subplot — top-requested kinetic figure
   // (fallback mock; real backend renders true 1×2 matplotlib subplot)
   // =====================================================

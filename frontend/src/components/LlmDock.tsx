@@ -51,6 +51,41 @@ export default function LlmDock() {
       return [userTurn, { role: 'assistant' as const, content: txt }];
     });
 
+    // Phase 2I · include analysis summary of every bound dataset so
+    // Claude can reason about anomalies (e.g. "why is the L peak
+    // dropping after stride 12?") without a separate lookup round-trip.
+    const datasetSummaries = datasets.slice(0, 6).map((d) => {
+      const a = d.analysis;
+      if (!a || !('mode' in a) || a.mode !== 'hwalker') {
+        return { id: d.id, name: d.name, kind: d.kind, group: d.condition };
+      }
+      return {
+        id: d.id,
+        name: d.name,
+        kind: d.kind,
+        group: d.condition,
+        n_samples: a.n_samples,
+        duration_s: a.duration_s,
+        sample_rate: a.sample_rate,
+        L: {
+          n_strides: a.left.n_strides,
+          cadence: a.left.cadence,
+          stride_time_mean: a.left.stride_time_mean,
+          stride_time_cv: a.left.stride_time_cv,
+          force_rmse: a.left.force_tracking.rmse,
+        },
+        R: {
+          n_strides: a.right.n_strides,
+          cadence: a.right.cadence,
+          stride_time_mean: a.right.stride_time_mean,
+          stride_time_cv: a.right.stride_time_cv,
+          force_rmse: a.right.force_tracking.rmse,
+        },
+        symmetry: a.symmetry,
+        fatigue: a.fatigue,
+      };
+    });
+
     try {
       const resp = await claudeComplete({
         prompt,
@@ -58,6 +93,7 @@ export default function LlmDock() {
           cells: cells.map((c) => ({ id: c.id, type: c.type, graph: c.graph, op: c.op, metric: c.metric })),
           active_dataset_id: active?.id ?? null,
           history: priorTurns,
+          datasets: datasetSummaries,
         },
       });
 

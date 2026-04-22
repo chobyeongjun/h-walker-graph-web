@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Trash2, Download, Upload, RefreshCw, RotateCcw } from 'lucide-react';
+import { X, Trash2, Download, Upload, RefreshCw, RotateCcw, Save, FolderOpen } from 'lucide-react';
 import { useWorkspace } from '../store/workspace';
 import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
 import { claudeHealth } from '../api';
@@ -198,6 +198,35 @@ export default function Drawer() {
   );
 }
 
+const PAGES_KEY = 'hw_pages_v1';
+
+interface SavedPage {
+  name: string;
+  saved_at: string;
+  state: {
+    cells: unknown[];
+    datasets: unknown[];
+    history: unknown[];
+    globalPreset: string;
+    pageTitle: string;
+  };
+}
+
+function listSavedPages(): SavedPage[] {
+  try {
+    const raw = localStorage.getItem(PAGES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedPages(pages: SavedPage[]) {
+  localStorage.setItem(PAGES_KEY, JSON.stringify(pages));
+}
+
 function SettingsPanel() {
   const showToast = useWorkspace((s) => s.showToast);
   const clearHistory = useWorkspace((s) => s.clearHistory);
@@ -210,6 +239,67 @@ function SettingsPanel() {
   const [health, setHealth] = useState<{ provider: string; model: string; key_present: boolean } | null>(null);
   const [cacheInfo, setCacheInfo] = useState<{ memory_entries: number; disk_entries: number; disk_mb: number; cache_dir: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pages, setPages] = useState<SavedPage[]>(() => listSavedPages());
+  const [newPageName, setNewPageName] = useState('');
+
+  function saveAsPage() {
+    const name = newPageName.trim() || pageTitle.trim() || 'Untitled page';
+    const state: SavedPage['state'] = {
+      cells: cells.map((c) => {
+        const { loading: _l, error: _e, computeData: _cd, statData: _sd,
+                previewBlobUrl: _p, ...rest } = c as typeof c & { [k: string]: unknown };
+        void _l; void _e; void _cd; void _sd; void _p;
+        return rest;
+      }),
+      datasets: datasets.map((d) => {
+        const { analyzing: _a, analyzeError: _ae, analysis: _an, ...rest } = d as typeof d & { [k: string]: unknown };
+        void _a; void _ae; void _an;
+        return rest;
+      }),
+      history,
+      globalPreset,
+      pageTitle,
+    };
+    const next: SavedPage = { name, saved_at: new Date().toISOString(), state };
+    const list = listSavedPages().filter((p) => p.name !== name);
+    list.unshift(next);
+    writeSavedPages(list);
+    setPages(list);
+    setNewPageName('');
+    showToast(`Saved page: ${name}`);
+  }
+
+  function loadPage(name: string) {
+    const p = listSavedPages().find((x) => x.name === name);
+    if (!p) return;
+    if (!confirm(`Load "${name}"? Current workspace will be replaced.`)) return;
+    localStorage.setItem('hw_workspace_v4', JSON.stringify({
+      state: {
+        cells: p.state.cells,
+        datasets: p.state.datasets,
+        currentPreset: p.state.globalPreset,
+        globalPreset: p.state.globalPreset,
+        pageTitle: p.state.pageTitle,
+        history: p.state.history,
+      },
+      version: 0,
+    }));
+    location.reload();
+  }
+
+  function deletePage(name: string) {
+    if (!confirm(`Delete saved page "${name}"?`)) return;
+    const list = listSavedPages().filter((p) => p.name !== name);
+    writeSavedPages(list);
+    setPages(list);
+    showToast(`Deleted page: ${name}`);
+  }
+
+  function newBlankPage() {
+    if (!confirm('Start a new page? Current workspace will be cleared (save first if needed).')) return;
+    localStorage.removeItem('hw_workspace_v4');
+    location.reload();
+  }
 
   useEffect(() => {
     claudeHealth().then(setHealth).catch(() => setHealth(null));
@@ -291,6 +381,77 @@ function SettingsPanel() {
 
   return (
     <>
+      <div className="set-group">
+        <h4>Pages</h4>
+        <div className="set-info">
+          <div className="set-row-info">
+            <span className="k">Current</span>
+            <b>{pageTitle || '(untitled)'}</b>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+            <input
+              value={newPageName}
+              onChange={(e) => setNewPageName(e.target.value)}
+              placeholder="Save as… (leave blank to use current title)"
+              style={{
+                flex: 1, padding: '6px 10px', borderRadius: 6,
+                background: 'rgba(23,27,94,.5)', color: '#E2E8F0',
+                border: '1px solid rgba(255,255,255,.08)', outline: 0,
+                font: '500 11.5px/1 Pretendard,sans-serif',
+              }}
+            />
+            <button onClick={saveAsPage} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+              background: '#F09708', color: '#0B0E2E', border: 'none',
+              font: '700 11px/1 Pretendard,sans-serif',
+            }}>
+              <Save size={12} /> Save page
+            </button>
+          </div>
+        </div>
+
+        {pages.length > 0 && (
+          <div className="set-info" style={{ marginTop: 10 }}>
+            {pages.map((p) => (
+              <div key={p.name} className="set-row-info" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, minWidth: 0 }}>
+                  <span style={{ color: '#F09708', fontWeight: 700, flexShrink: 0 }}>{p.name}</span>
+                  <span style={{ color: '#6B7280', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {new Date(p.saved_at).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => loadPage(p.name)}
+                    style={{
+                      padding: '3px 8px', borderRadius: 5, cursor: 'pointer',
+                      background: 'rgba(167,139,250,.1)', color: '#A78BFA',
+                      border: '1px solid rgba(167,139,250,.3)',
+                      font: '600 10px/1 Pretendard,sans-serif',
+                    }}
+                  ><FolderOpen size={10} /> Load</button>
+                  <button
+                    onClick={() => deletePage(p.name)}
+                    style={{
+                      padding: '3px 6px', borderRadius: 5, cursor: 'pointer',
+                      background: 'transparent', color: '#6B7280',
+                      border: '1px solid rgba(255,255,255,.08)',
+                    }}
+                  ><Trash2 size={10} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="set-actions">
+          <button onClick={newBlankPage}>
+            <RotateCcw size={12} /> Start a new blank page
+          </button>
+        </div>
+      </div>
+
       <div className="set-group">
         <h4>Claude API</h4>
         <div className="set-info">

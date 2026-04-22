@@ -43,6 +43,9 @@ class ClaudeContext(BaseModel):
     active_dataset_id: Optional[str] = None
     # Phase 2G: multi-turn memory — prior user/assistant exchanges.
     history: list[ClaudeTurn] = []
+    # Phase 2I: analysis summary per dataset — so Claude can diagnose
+    # anomalies and ground its answers in actual numbers.
+    datasets: list[dict[str, Any]] = []
 
 
 class ClaudeCompleteRequest(BaseModel):
@@ -74,6 +77,8 @@ GRAPH_TEMPLATES = [
     # Motion / kinematic (Phase 0)
     "imu", "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
+    # Debug · Phase 2I
+    "debug_ts",
 ]
 COMPUTE_METRICS = [
     "per_stride", "impulse", "loading_rate", "rom", "cadence", "target_dev",
@@ -208,7 +213,8 @@ SYSTEM = (
     "  관절 각도 평균±SD (사이클)                     → imu_avg\n"
     "  ROM 바                                          → rom_bar\n"
     "  stance/swing %                                  → stance_swing_bar\n"
-    "  대칭성 radar                                    → symmetry_radar\n\n"
+    "  대칭성 radar                                    → symmetry_radar\n"
+    "  디버깅 · raw 시계열 · 어디서 이상한가            → debug_ts\n\n"
     "When the user asks a CONCEPTUAL or QUANTITATIVE question about existing "
     "data, reply in ≤3 sentences with specific numbers if you can read them "
     "from context. You MAY both call tools AND reply with a short confirmation "
@@ -223,10 +229,36 @@ def _context_block(ctx: ClaudeContext) -> str:
         + f"/{c.get('graph') or c.get('op') or c.get('metric') or ''}"
         for c in ctx.cells[:20]
     ) or "(no cells yet)"
-    return (
-        f"Active dataset: {ctx.active_dataset_id or '(none)'}\n"
-        f"Cells: {cells_summary}"
-    )
+
+    lines = [
+        f"Active dataset: {ctx.active_dataset_id or '(none)'}",
+        f"Cells on canvas: {cells_summary}",
+    ]
+    if ctx.datasets:
+        lines.append("")
+        lines.append("Dataset analysis summaries:")
+        for d in ctx.datasets[:6]:
+            L = d.get('L') or {}
+            R = d.get('R') or {}
+            sym = d.get('symmetry') or {}
+            fat = d.get('fatigue') or {}
+            tag = f" [{d.get('group')}]" if d.get('group') else ""
+            if 'n_samples' in d:
+                lines.append(
+                    f"  · {d.get('name', d.get('id'))}{tag}: "
+                    f"{d.get('duration_s', '?')}s @ {d.get('sample_rate', '?')}Hz, "
+                    f"L={L.get('n_strides', 0)} strides "
+                    f"(cadence {L.get('cadence', 0):.1f}, stride_T {L.get('stride_time_mean', 0):.3f}s "
+                    f"CV {L.get('stride_time_cv', 0):.1f}%, Force RMSE {L.get('force_rmse', 0):.2f}N), "
+                    f"R={R.get('n_strides', 0)} strides "
+                    f"(cadence {R.get('cadence', 0):.1f}, Force RMSE {R.get('force_rmse', 0):.2f}N), "
+                    f"symmetry stride_T {sym.get('stride_time', 0):.1f}% "
+                    f"force {sym.get('force', 0):.1f}%, "
+                    f"fatigue L {fat.get('left_pct_change', 0):+.1f}% R {fat.get('right_pct_change', 0):+.1f}%"
+                )
+            else:
+                lines.append(f"  · {d.get('name', d.get('id'))}{tag} (generic mode, no gait metrics)")
+    return "\n".join(lines)
 
 
 @router.post("/complete", response_model=ClaudeCompleteResponse)

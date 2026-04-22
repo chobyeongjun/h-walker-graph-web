@@ -304,6 +304,7 @@ export interface ClaudeCompleteRequest {
     cells: unknown[];
     active_dataset_id: string | null;
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    datasets?: unknown[];   // Phase 2I · analysis summary per dataset for LLM diagnosis
   };
 }
 

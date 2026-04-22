@@ -324,6 +324,21 @@ GRAPH_SPECS: dict[str, GraphSpec] = {
         summary=[("trials", "5"), ("CV", "4.1%"), ("target Δ", "+2.3%")],
     ),
     # =====================================================
+    # Phase 2I · Debug raw time-series (full duration + HS markers)
+    # =====================================================
+    "debug_ts": GraphSpec(
+        eyebrow="Debug · raw time-series", title="Raw signals with heel-strike markers", ds="ds1",
+        y_unit="", x_unit="Time (s)",
+        y_ticks=["", "", "", "", ""],
+        x_ticks=["0", "5", "10", "15", "20"],
+        paths=[
+            PathSpec(_LA, 1.2, "L_ActForce_N", "M48,100 C80,60 120,150 160,80 C200,40 240,140 280,90 C320,50 360,150 408,100"),
+            PathSpec(_RA, 1.2, "R_ActForce_N", "M48,110 C80,70 120,160 160,90 C200,50 240,150 280,100 C320,60 360,160 408,110"),
+        ],
+        summary=[("hint", "dotted = heel-strikes"), ("purpose", "find where signal went weird")],
+    ),
+
+    # =====================================================
     # Phase 2H · L/R side-by-side GCP subplot — top-requested kinetic figure
     # =====================================================
     "force_lr_subplot": GraphSpec(

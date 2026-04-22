@@ -120,6 +120,7 @@ interface WorkspaceState {
   runPreview: (cellId: string, variant?: 'col1' | 'col2' | 'onehalf') => Promise<void>;
   runCell: (cellId: string) => Promise<void>;
   runAll: () => Promise<void>;
+  compareDatasets: () => Promise<void>;
 
   setCurrentPreset: (p: string) => void;
   setGlobalPreset: (p: string) => void;
@@ -305,7 +306,14 @@ export const useWorkspace = create<WorkspaceState>()(
         const ds = get().datasets.find((d) => d.id === dsId);
         if (!ds) return;
         const recipes = CANONICAL_RECIPES[ds.kind] || CANONICAL_RECIPES.force;
-        const chosen = recipes.filter((r) => ds.recipeState[r.id] ?? r.default);
+        // Phase 2I · compute metrics ALWAYS run (they're numbers, no choice
+        // to make). For graphs, respect the user's toggle state (default:true
+        // if untouched, user can flip extras in the AutoRecipes chip strip).
+        const chosen = recipes.filter((r) =>
+          r.type === 'compute'
+            ? true
+            : (ds.recipeState[r.id] ?? r.default),
+        );
         if (chosen.length === 0) {
           get().showToast('No recipes selected');
           return;
@@ -466,6 +474,92 @@ export const useWorkspace = create<WorkspaceState>()(
         } catch (e) {
           get().updateCell(cellId, { loading: false, error: (e as Error).message });
         }
+      },
+
+      compareDatasets: async () => {
+        // Phase 2I · one-click multi-file comparison.
+        // Walks every dataset, groups by `condition` (Pre/Post/Control).
+        // Spawns overlay graph cells + cross-file stat cells so the
+        // user doesn't have to wire each one manually.
+        const ds = get().datasets.filter((d) => d.kind !== 'trials');
+        if (ds.length < 2) {
+          get().showToast('Upload at least 2 datasets to compare');
+          return;
+        }
+
+        // Warm analyzer for every dataset
+        await Promise.all(ds.map((d) => get().analyzeIfNeeded(d.id)));
+
+        // Color palette — alternating for two groups, else rotating
+        const palette = ['#3B82C4', '#D35454', '#F09708', '#00FFB2',
+                         '#A78BFA', '#1E5F9E', '#9E3838', '#FFB347'];
+
+        const series = ds.map((d, i) => ({
+          dsId: d.id,
+          label: (d.subject_id ? d.subject_id.toUpperCase() : d.name.replace(/\.csv$/i, ''))
+            + (d.condition ? ` · ${d.condition}` : ''),
+          color: palette[i % palette.length],
+        }));
+
+        const newCells: Cell[] = [];
+        const overlayTemplates: Array<{ graph: string; strideAvg?: boolean }> = [
+          { graph: 'force_avg', strideAvg: true },
+          { graph: 'imu_avg' },
+          { graph: 'stride_time_trend' },
+          { graph: 'asymmetry' },
+        ];
+        for (const tpl of overlayTemplates) {
+          const id = nextCellId();
+          newCells.push({
+            id, type: 'graph', graph: tpl.graph,
+            dsIds: ds.map((d) => d.id),
+            series,
+            strideAvg: !!tpl.strideAvg,
+            title: `Compare ${ds.length} datasets · ${tpl.graph}`,
+            loading: true,
+          });
+        }
+
+        // Cross-file stats: group by `condition` when ≥ 2 conditions present
+        const conds = Array.from(new Set(ds.map((d) => d.condition).filter(Boolean)));
+        if (conds.length >= 2) {
+          const groupA = ds.filter((d) => d.condition === conds[0]);
+          const groupB = ds.filter((d) => d.condition === conds[1]);
+          const metricsToTest = ['peak_force_L', 'peak_force_R', 'cadence_L',
+                                  'stride_time_mean_L', 'stride_length_mean_L'];
+          for (const metric of metricsToTest) {
+            const id = nextCellId();
+            newCells.push({
+              id, type: 'stat', op: 'ttest_welch',
+              statMetric: metric,
+              statDatasetsA: groupA.map((d) => ({ id: d.id, metric })),
+              statDatasetsB: groupB.map((d) => ({ id: d.id, metric })),
+              dsIds: ds.map((d) => d.id),
+              fmt: 'apa',
+              title: `${conds[0]} vs ${conds[1]} · ${metric}`,
+              loading: true,
+            });
+          }
+          get().showToast(
+            `Comparing ${ds.length} files across ${conds.length} conditions ` +
+            `(${conds.join(' vs ')}) · ${newCells.length} cells`,
+          );
+        } else {
+          get().showToast(
+            `Overlaid ${ds.length} datasets · ${newCells.length} graph cells ` +
+            `(tag conditions to also get cross-file stats)`,
+          );
+        }
+
+        set((s) => ({ cells: [...s.cells, ...newCells] }));
+        get().logHistory({
+          kind: 'apply', actor: 'you',
+          label: `Compared ${ds.length} datasets → ${newCells.length} cells`,
+          meta: { n_datasets: ds.length, conditions: conds },
+        });
+
+        // Fire in parallel
+        await Promise.all(newCells.map((c) => get().runCell(c.id)));
       },
 
       runAll: async () => {

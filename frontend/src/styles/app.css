@@ -783,6 +783,49 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   max-width:380px;
 }
 
+/* Phase 2I · compact auto-recipe chip strip (replaces checkbox grid) */
+.auto-summary{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  padding:6px 0;
+}
+.auto-lbl{
+  font:700 9.5px/1 'JetBrains Mono',monospace;color:#6B7280;
+  letter-spacing:.18em;text-transform:uppercase;margin-right:4px;
+}
+.auto-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 9px;border-radius:14px;cursor:pointer;
+  font:600 11px/1 'Pretendard',sans-serif;transition:all .12s;
+}
+.auto-chip.on{
+  background:rgba(240,151,8,.1);color:#F09708;
+  border:1px solid rgba(240,151,8,.35);
+}
+.auto-chip.on:hover{background:rgba(240,151,8,.18);border-color:rgba(240,151,8,.6)}
+.auto-chip.on .auto-x{
+  opacity:.5;font:500 12px/1 'JetBrains Mono',monospace;margin-left:2px;
+}
+.auto-chip.on:hover .auto-x{opacity:1;color:#f87171}
+.auto-chip.off{
+  background:rgba(23,27,94,.4);color:#9CA3AF;
+  border:1px solid rgba(255,255,255,.08);
+}
+.auto-chip.off:hover{
+  background:rgba(127,181,228,.08);color:#7FB5E4;
+  border-color:rgba(127,181,228,.35);
+}
+.auto-more{
+  padding:4px 9px;border-radius:14px;cursor:pointer;
+  background:transparent;border:1px dashed rgba(127,181,228,.35);
+  color:#7FB5E4;font:600 11px/1 'Pretendard',sans-serif;
+  transition:all .12s;
+}
+.auto-more:hover{background:rgba(127,181,228,.08);border-style:solid}
+.auto-advanced{
+  display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 0;
+  border-top:1px dashed rgba(255,255,255,.06);margin-top:4px;
+}
+
 /* Phase 2H · functional Settings drawer */
 .set-info{display:flex;flex-direction:column;gap:6px;padding:4px 0}
 .set-row-info{

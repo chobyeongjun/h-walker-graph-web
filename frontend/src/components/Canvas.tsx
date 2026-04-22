@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useWorkspace } from '../store/workspace';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
-import { PlayCircle, FileText } from 'lucide-react';
+import { PlayCircle, FileText, GitCompare } from 'lucide-react';
 import { paperBundle } from '../api';
 import {
   DndContext,
@@ -33,7 +33,20 @@ export default function Canvas() {
   const pageTitleState = useWorkspace((s) => s.pageTitle);
   const showToast = useWorkspace((s) => s.showToast);
   const logHistory = useWorkspace((s) => s.logHistory);
+  const compareDatasets = useWorkspace((s) => s.compareDatasets);
+  const datasets = useWorkspace((s) => s.datasets);
   const [paperBusy, setPaperBusy] = useState(false);
+  const [compareBusy, setCompareBusy] = useState(false);
+
+  async function runCompare() {
+    if (compareBusy) return;
+    setCompareBusy(true);
+    try {
+      await compareDatasets();
+    } finally {
+      setCompareBusy(false);
+    }
+  }
 
   async function runPaper() {
     if (paperBusy) return;
@@ -123,10 +136,27 @@ export default function Canvas() {
           <span className="accent">{globalPreset.toUpperCase()}</span>
           <button
             className="ds-btn"
+            onClick={runCompare}
+            disabled={compareBusy || datasets.length < 2}
+            title={datasets.length < 2
+              ? 'Upload ≥ 2 datasets to compare them in one figure + cross-file stats'
+              : 'Overlay all datasets in one figure + auto cross-file stats when conditions are tagged'}
+            style={{
+              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(167,139,250,.1)',
+              borderColor: 'rgba(167,139,250,.45)',
+              color: '#A78BFA', fontWeight: 600,
+            }}
+          >
+            <GitCompare size={13} />
+            {compareBusy ? 'Comparing…' : `RUN COMPARE${datasets.length >= 2 ? ` (${datasets.length})` : ''}`}
+          </button>
+          <button
+            className="ds-btn"
             onClick={() => runAll()}
             disabled={runAllBusy || bindableCount === 0}
             title="Re-run analysis, compute, and graph rendering for all bound cells"
-            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             <PlayCircle size={13} />
             {runAllBusy ? 'Running…' : 'RUN ALL'}

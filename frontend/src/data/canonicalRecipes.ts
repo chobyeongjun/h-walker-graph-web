@@ -21,6 +21,9 @@ export interface CanonicalRecipe {
 }
 
 const FORCE_RECIPES: CanonicalRecipe[] = [
+  // ── Debug (see raw signal — find where things go wrong)
+  { id: 'debug_ts',     label: 'Debug · raw time-series',             default: true,  type: 'graph',   graph: 'debug_ts',
+    hint: 'Full-duration L/R force + heel-strike markers. Use this first to confirm the signal looks right.' },
   // ── Core (always on)
   { id: 'grf_lr',       label: 'GRF · L / R subplots (GCP-based)',    default: true,  type: 'graph',   graph: 'force_lr_subplot',
     hint: 'Side-by-side panels, one per leg, both GCP-normalized with desired overlay. The standard paper Figure 1.' },
@@ -48,6 +51,9 @@ const FORCE_RECIPES: CanonicalRecipe[] = [
 ];
 
 const IMU_RECIPES: CanonicalRecipe[] = [
+  // ── Debug first
+  { id: 'debug_ts',   label: 'Debug · raw time-series',                default: true, type: 'graph',   graph: 'debug_ts',
+    hint: 'Raw pitch + heel-strike markers. Always check this first.' },
   // ── Core
   { id: 'pitch_ts',   label: 'Joint angle · time series',              default: true, type: 'graph',   graph: 'imu',
     hint: 'Raw pitch/roll angle over time for the first ~8 s.' },
@@ -78,6 +84,9 @@ const TRIAL_RECIPES: CanonicalRecipe[] = [
 
 // H-Walker 67-col firmware CSV (force + IMU combined)
 const MIXED_RECIPES: CanonicalRecipe[] = [
+  // ── Debug first
+  { id: 'debug_ts',     label: 'Debug · raw time-series',             default: true,  type: 'graph',   graph: 'debug_ts',
+    hint: 'Raw L/R force + pitch + heel-strike markers. Always check this first.' },
   // ── Core force
   { id: 'grf_lr',       label: 'GRF · L / R subplots (GCP-based)', default: true,  type: 'graph',   graph: 'force_lr_subplot' },
   { id: 'grf_avg',      label: 'GRF waveform · mean ± SD',         default: true,  type: 'graph',   graph: 'force_avg' },

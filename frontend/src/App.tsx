@@ -9,6 +9,7 @@ import FocusOverlay from './components/FocusOverlay';
 import ColumnMapperModal from './components/ColumnMapperModal';
 import Drawer from './components/Drawer';
 import Toast from './components/Toast';
+import GlobalDropZone from './components/GlobalDropZone';
 
 export default function App() {
   const closeDrawer = useWorkspace((s) => s.closeDrawer);
@@ -51,6 +52,7 @@ export default function App() {
       <ColumnMapperModal />
       <Drawer />
       <Toast />
+      <GlobalDropZone />
     </div>
   );
 }

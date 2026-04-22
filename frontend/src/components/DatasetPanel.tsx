@@ -20,8 +20,19 @@ export default function DatasetPanel() {
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
+    let accepted = 0;
+    let skipped: string[] = [];
     for (const f of Array.from(files)) {
-      if (!f.name.toLowerCase().endsWith('.csv')) continue;
+      // Accept anything whose name ends with .csv (case-insensitive) OR
+      // has no recognisable extension (e.g. `foo` — try upload, backend
+      // will 422 if it's not a CSV). This catches `.CSV`, `foo.csv (1)`,
+      // and Finder-rename quirks that dropped the extension.
+      const n = f.name.toLowerCase();
+      const looksCsv = /\.csv(\b|$|\s|\.)/.test(n) || !/\.\w+$/.test(n);
+      if (!looksCsv) {
+        skipped.push(f.name);
+        continue;
+      }
       try {
         const ds = await uploadDataset(f);
         addDataset(ds);
@@ -29,9 +40,13 @@ export default function DatasetPanel() {
         showToast(`Uploaded ${f.name} · running default recipes…`);
         // Auto-apply default recipes — the "one-click" flow
         applyRecipes(ds.id).catch((e) => showToast(`Auto-run failed: ${(e as Error).message}`));
+        accepted += 1;
       } catch (e) {
-        showToast(`Upload failed: ${(e as Error).message}`);
+        showToast(`Upload failed (${f.name}): ${(e as Error).message}`);
       }
+    }
+    if (accepted === 0 && skipped.length) {
+      showToast(`Not CSV files: ${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}`);
     }
   }
 

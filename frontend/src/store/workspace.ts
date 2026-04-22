@@ -291,11 +291,34 @@ export const useWorkspace = create<WorkspaceState>()(
           return;
         }
 
+        // Phase 2H · dedup — skip recipes whose cell already exists for this
+        // dataset (prevents the same figure being regenerated every time
+        // the user drops the same CSV or toggles the panel).
+        const existing = get().cells;
+        const isDuplicate = (r: typeof chosen[number]): boolean => {
+          if (r.type === 'graph' && r.graph) {
+            return existing.some((c) =>
+              c.type === 'graph' && c.graph === r.graph && c.dsIds.includes(dsId),
+            );
+          }
+          if (r.type === 'compute' && r.compute) {
+            return existing.some((c) =>
+              c.type === 'compute' && c.metric === r.compute && c.dsIds.includes(dsId),
+            );
+          }
+          return false;
+        };
+        const toCreate = chosen.filter((r) => !isDuplicate(r));
+        if (toCreate.length === 0) {
+          get().showToast(`All recipes already present for ${ds.name}`);
+          return;
+        }
+
         // Kick off analyzer cache warming (non-blocking for graph cells)
         const analyzePromise = get().analyzeIfNeeded(dsId);
 
         const newCells: Cell[] = [];
-        for (const r of chosen) {
+        for (const r of toCreate) {
           const id = nextCellId();
           if (r.type === 'graph' && r.graph) {
             newCells.push({
@@ -323,7 +346,10 @@ export const useWorkspace = create<WorkspaceState>()(
 
         // Fire requests in parallel
         await Promise.all(newCells.map((c) => get().runCell(c.id)));
-        get().showToast(`Applied ${newCells.length} cells for ${ds.name}`);
+        get().showToast(`Applied ${newCells.length} cells for ${ds.name}` +
+          (toCreate.length < chosen.length
+            ? ` (${chosen.length - toCreate.length} already present)`
+            : ''));
       },
 
       runCell: async (cellId) => {

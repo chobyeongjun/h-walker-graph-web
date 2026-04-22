@@ -324,6 +324,21 @@ GRAPH_SPECS: dict[str, GraphSpec] = {
         summary=[("trials", "5"), ("CV", "4.1%"), ("target Δ", "+2.3%")],
     ),
     # =====================================================
+    # Phase 2H · L/R side-by-side GCP subplot — top-requested kinetic figure
+    # =====================================================
+    "force_lr_subplot": GraphSpec(
+        eyebrow="Force · L / R subplots", title="GCP-normalized force per leg", ds="ds1",
+        y_unit="Force (N)", x_unit="Gait cycle (%)",
+        y_ticks=["60", "45", "30", "15", "0"],
+        x_ticks=["0", "25", "50", "75", "100"],
+        paths=[
+            PathSpec(_LA, 2.0, "L actual",  "M48,160 C70,155 92,120 114,72 C138,38 158,28 180,42 C202,58 224,80 246,110 C270,140 290,152 312,150 C332,148 354,134 376,122 C394,114 402,122 408,138"),
+            PathSpec(_LD, 1.3, "L desired", "M48,164 C70,160 92,126 114,78 C138,42 158,34 180,48 C204,62 224,82 246,112 C270,140 292,154 312,152 C332,148 354,134 376,124 C394,116 402,124 408,140", dash="4 3"),
+        ],
+        summary=[("L mean peak", "48.2 N"), ("R mean peak", "46.7 N"), ("asym", "3.2%")],
+    ),
+
+    # =====================================================
     # Phase 0 · Motion / kinematic templates (fallback specs
     # for when no dataset_id — frontend uses these for the
     # empty-state preview).

@@ -122,6 +122,21 @@ export const GRAPH_TPLS: Record<string, GraphTemplate> = {
   },
 
   // =====================================================
+  // Phase 2H · L/R GCP subplot — top-requested kinetic figure
+  // (fallback mock; real backend renders true 1×2 matplotlib subplot)
+  // =====================================================
+  'force_lr_subplot': {
+    ey: 'Force · L / R subplots', title: 'GCP-normalized force per leg', ds: 'ds1',
+    yUnit: 'Force (N)', xUnit: 'Gait cycle (%)',
+    paths: [
+      { c: '#1E5F9E', w: 2.0, label: 'L actual',  d: 'M48,160 C70,155 92,120 114,72 C138,38 158,28 180,42 C202,58 224,80 246,110 C270,140 290,152 312,150 C332,148 354,134 376,122 C394,114 402,122 408,138' },
+      { c: '#7FB5E4', w: 1.3, label: 'L desired', d: 'M48,164 C70,160 92,126 114,78 C138,42 158,34 180,48 C204,62 224,82 246,112 C270,140 292,154 312,152 C332,148 354,134 376,124 C394,116 402,124 408,140', dash: '4 3' },
+    ],
+    yTicks: ['60', '45', '30', '15', '0'], xTicks: ['0', '25', '50', '75', '100'],
+    summary: [['L peak', '48.2 N'], ['R peak', '46.7 N'], ['asym', '3.2%']],
+  },
+
+  // =====================================================
   // Phase 0 · Motion / kinematic templates (fallback mockups;
   // real data replaces these when cell has a dataset bound).
   // =====================================================

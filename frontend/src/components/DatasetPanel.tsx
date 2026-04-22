@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useWorkspace } from '../store/workspace';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
-import { uploadDataset } from '../api';
+import { uploadDataset, deleteDataset as apiDeleteDataset } from '../api';
 
 export default function DatasetPanel() {
   const datasets = useWorkspace((s) => s.datasets);
   const setActive = useWorkspace((s) => s.setActiveDataset);
-  const openMapper = useWorkspace((s) => s.openMapper);
   const applyRecipes = useWorkspace((s) => s.applyRecipes);
   const toggleRecipe = useWorkspace((s) => s.toggleRecipe);
   const addDataset = useWorkspace((s) => s.addDataset);
+  const removeDataset = useWorkspace((s) => s.removeDataset);
   const setDatasetMeta = useWorkspace((s) => s.setDatasetMeta);
   const showToast = useWorkspace((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -57,9 +58,6 @@ export default function DatasetPanel() {
         <span className="label">Datasets</span>
         <div className="rest">
           <button className="ds-btn plain" onClick={() => fileRef.current?.click()}>＋ Add CSV</button>
-          {active && (
-            <button className="ds-btn" onClick={() => openMapper(active.id)}>Map columns</button>
-          )}
         </div>
       </div>
 
@@ -84,6 +82,20 @@ export default function DatasetPanel() {
             <div className="ds-row1">
               <span className={`tag ${d.tag}`}>{d.tag}</span>
               <span className="name" title={d.name}>{d.name}</span>
+              <button
+                className="ds-del"
+                title="Delete dataset"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!confirm(`Delete ${d.name}? This also removes linked cells' bindings.`)) return;
+                  apiDeleteDataset(d.id)
+                    .catch(() => { /* proceed with local removal anyway */ })
+                    .finally(() => {
+                      removeDataset(d.id);
+                      showToast(`Deleted ${d.name}`);
+                    });
+                }}
+              ><Trash2 size={12} /></button>
             </div>
             <div className="ds-row2">
               <span><b>{d.rows.toLocaleString()}</b> rows</span>

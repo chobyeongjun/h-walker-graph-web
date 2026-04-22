@@ -69,7 +69,7 @@ def _suggest_filename(req: RenderRequest, P) -> str:
 
 REAL_DATA_TEMPLATES = {
     # Force / kinetic (Phase 2A)
-    "force", "force_avg", "asymmetry", "peak_box", "trials",
+    "force", "force_avg", "force_lr_subplot", "asymmetry", "peak_box", "trials",
     # Motion / kinematic (Phase 0)
     "imu", "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
@@ -440,20 +440,21 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
     # =====================================================
 
     if req.template == "imu":
-        # Joint angle time series (raw, first 8 seconds)
+        # Joint angle time series (raw, first 8 seconds). Labels follow
+        # the actual column name so we don't mislabel e.g. thigh-mounted
+        # IMUs as "shank".
         if df is None:
             return None
         fs = res.sample_rate
         n_max = int(min(len(df), fs * 8.0))
         t = list(_np.arange(n_max) / fs)
-        for col, label, color in [
-            ("L_Pitch", "L shank pitch", "#3B82C4"),
-            ("R_Pitch", "R shank pitch", "#D35454"),
-        ]:
-            if col in df.columns:
-                traces.append(Trace(kind="line", name=label,
-                                    x=t, y=df[col].iloc[:n_max].tolist(),
-                                    color=color, width=1.6))
+        candidates = [c for c in ("L_Pitch", "R_Pitch", "L_Roll", "R_Roll",
+                                   "L_Yaw", "R_Yaw") if c in df.columns][:4]
+        colors = ["#3B82C4", "#D35454", "#7FB5E4", "#E89B9B"]
+        for i, col in enumerate(candidates):
+            traces.append(Trace(kind="line", name=col,
+                                x=t, y=df[col].iloc[:n_max].tolist(),
+                                color=colors[i % len(colors)], width=1.6))
         if not traces:
             return None
         return render_from_traces(
@@ -464,14 +465,15 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         )
 
     if req.template == "imu_avg":
-        # Joint-angle mean ± SD over 0–100% gait cycle
+        # Joint-angle mean ± SD over 0–100% gait cycle. Labels reflect
+        # the actual column name — no hard-coded "shank" assumption.
         if df is None:
             return None
         from backend.services.compute_engine import resample_column
         ls, rs = res.left_stride, res.right_stride
-        for col, label, color_line, color_band in [
-            ("L_Pitch", "L shank", "#1E5F9E", "#3B82C4"),
-            ("R_Pitch", "R shank", "#9E3838", "#D35454"),
+        for col, color_line, color_band in [
+            ("L_Pitch", "#1E5F9E", "#3B82C4"),
+            ("R_Pitch", "#9E3838", "#D35454"),
         ]:
             if col not in df.columns:
                 continue
@@ -481,12 +483,12 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             if result is None:
                 continue
             mean, std = result
-            traces.append(Trace(kind="band", name=f"{label} ± SD",
+            traces.append(Trace(kind="band", name=f"{col} ± SD",
                                 x=gcp_axis, y=list(mean),
                                 y_upper=list(mean + std),
                                 y_lower=list(mean - std),
                                 color=color_band, opacity=0.2))
-            traces.append(Trace(kind="line", name=f"{label} mean",
+            traces.append(Trace(kind="line", name=f"{col} mean",
                                 x=gcp_axis, y=list(mean),
                                 color=color_line, width=2.0))
         if not traces:
@@ -561,6 +563,67 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
         )
+
+    if req.template == "force_lr_subplot":
+        # Side-by-side L / R panels, both GCP-normalized, both at exact
+        # journal size. This is the "most requested" kinetic figure —
+        # single subplot per leg with the desired (dashed) trace overlaid.
+        import matplotlib as _mpl
+        import matplotlib.pyplot as _plt
+        from backend.services.publication_engine import (
+            JOURNAL_PRESETS as _JP, _compose_rc, _emit,
+        )
+        lfp, rfp = res.left_force_profile, res.right_force_profile
+        if lfp.mean is None or rfp.mean is None:
+            return None
+        P = _JP[req.preset]
+        if req.variant == "col1":
+            w_mm, h_mm = P.col1
+        elif req.variant == "onehalf" and P.onehalf:
+            w_mm, h_mm = P.onehalf
+        else:
+            w_mm, h_mm = P.col2
+        dpi_val = req.dpi or P.dpi
+        inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+        x = _np.linspace(0, 100, 101)
+
+        rc = _compose_rc(P)
+        with _mpl.rc_context(rc):
+            fig, (axL, axR) = _plt.subplots(
+                1, 2, figsize=(inch_w, inch_h), sharey=True,
+            )
+            # Left panel
+            axL.fill_between(x, lfp.mean - lfp.std, lfp.mean + lfp.std,
+                              color="#3B82C4", alpha=0.18, linewidth=0)
+            axL.plot(x, lfp.mean, color="#1E5F9E",
+                     linewidth=P.stroke_pt * 1.8, label="L actual")
+            if lfp.des_mean is not None:
+                axL.plot(x, lfp.des_mean, color="#7FB5E4",
+                         linewidth=P.stroke_pt * 1.2, linestyle="--",
+                         dashes=(3, 2), label="L desired")
+            axL.set_xlabel("Gait cycle (%)")
+            axL.set_ylabel("Force (N)")
+            axL.set_title("Left", fontsize=P.title_pt)
+            axL.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+            axL.legend(loc="best", frameon=False, fontsize=P.legend_pt)
+            # Right panel
+            axR.fill_between(x, rfp.mean - rfp.std, rfp.mean + rfp.std,
+                              color="#D35454", alpha=0.18, linewidth=0)
+            axR.plot(x, rfp.mean, color="#9E3838",
+                     linewidth=P.stroke_pt * 1.8, label="R actual")
+            if rfp.des_mean is not None:
+                axR.plot(x, rfp.des_mean, color="#E89B9B",
+                         linewidth=P.stroke_pt * 1.2, linestyle="--",
+                         dashes=(3, 2), label="R desired")
+            axR.set_xlabel("Gait cycle (%)")
+            axR.set_title("Right", fontsize=P.title_pt)
+            axR.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+            axR.legend(loc="best", frameon=False, fontsize=P.legend_pt)
+            if req.title:
+                fig.suptitle(req.title, fontsize=P.title_pt, y=0.995)
+            fig.tight_layout(pad=0.4)
+            fig.set_size_inches(inch_w, inch_h)
+            return _emit(fig, req.format, dpi_val, preset_name=P.name)
 
     if req.template == "stance_swing_bar":
         ls, rs = res.left_stride, res.right_stride

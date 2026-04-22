@@ -783,6 +783,18 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   max-width:380px;
 }
 
+/* Phase 2H · delete button on dataset cards */
+.ds-del{
+  margin-left:auto;padding:3px 6px;border-radius:5px;
+  background:transparent;border:1px solid transparent;color:#6B7280;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:all .12s;
+}
+.ds-del:hover{
+  color:#f87171;background:rgba(248,113,113,.08);
+  border-color:rgba(248,113,113,.3);
+}
+
 /* Phase 2 · inline study-tag editors on each dataset card */
 .ds-tags{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px 2px}
 .ds-tag-ed{

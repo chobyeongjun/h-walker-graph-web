@@ -4,25 +4,82 @@
 Wraps the existing tmp-file upload with a richer Dataset shape:
     {id, name, kind, rows, dur, hz, cols:[{name, unit, mapped, mappedManual}], active}
 
-Storage is ephemeral (tmp/) until Phase B introduces SQLite metadata.
+Phase 2H · persistent storage + SHA256 dedup:
+  - Uploaded CSVs land in ~/.hw_graph/uploads/<hash>.csv instead of tmp/
+  - On startup the registry is rebuilt from `~/.hw_graph/uploads/registry.json`,
+    so re-opening the app resurrects previously uploaded datasets.
+  - If the same content is dropped twice, we reuse the existing ds_id
+    (return 200 with the old record) instead of creating a duplicate.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
-import tempfile
 import uuid
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import Response
 
 from backend.services.knowledge_loader import register_csv_columns
 
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
-# In-memory registry. Phase B: move to SQLite + signed URLs.
+# ----- Persistent upload storage ---------------------------------------
+
+_UPLOAD_DIR = Path(os.path.expanduser("~/.hw_graph/uploads"))
+_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+_REGISTRY_PATH = _UPLOAD_DIR / "registry.json"
+# In-memory mirror (rebuilt from disk on startup)
 _REGISTRY: dict[str, dict[str, Any]] = {}
+# SHA256 → ds_id for O(1) dedup on upload
+_HASH_INDEX: dict[str, str] = {}
+
+
+def _save_registry() -> None:
+    """Persist the in-memory registry to disk (strip private _ keys only
+    from network responses; keep them on disk for restart recovery)."""
+    try:
+        payload = {
+            dsid: {k: v for k, v in d.items() if k != '_tmp_path_removed'}
+            for dsid, d in _REGISTRY.items()
+        }
+        with open(_REGISTRY_PATH, 'w') as f:
+            json.dump(payload, f, indent=2, default=str)
+    except Exception as exc:
+        print(f"[datasets] registry save failed: {exc}")
+
+
+def _load_registry() -> None:
+    """Rebuild the in-memory registry from disk at startup. Entries whose
+    underlying CSV no longer exists are dropped."""
+    if not _REGISTRY_PATH.exists():
+        return
+    try:
+        with open(_REGISTRY_PATH) as f:
+            disk = json.load(f)
+        for dsid, d in disk.items():
+            p = d.get('_path')
+            if p and os.path.isfile(p):
+                _REGISTRY[dsid] = d
+                h = d.get('_content_hash')
+                if h:
+                    _HASH_INDEX[h] = dsid
+    except Exception as exc:
+        print(f"[datasets] registry load failed: {exc}")
+
+
+# Rebuild at import time (once per process)
+_load_registry()
+
+
+def _content_hash(data: bytes) -> str:
+    """SHA256 of the file content — stable dedup key regardless of name."""
+    return hashlib.sha256(data).hexdigest()[:32]
 
 
 # Phase 2: filename auto-parsing regex list. Tries each pattern in order;
@@ -140,16 +197,27 @@ def _guess_kind(cols: list[str]) -> str:
 async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
     if not file.filename:
         raise HTTPException(status_code=422, detail="filename missing")
-    suffix = '.csv'
-    tmp = tempfile.NamedTemporaryFile(
-        delete=False, suffix=suffix,
-        prefix=(os.path.splitext(file.filename)[0] + '_'),
-    )
+
+    # Read the entire file upfront so we can hash for dedup
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="file is empty")
+
+    chash = _content_hash(content)
+
+    # Dedup — if the same bytes were uploaded before, reuse that dataset
+    if chash in _HASH_INDEX:
+        existing_id = _HASH_INDEX[chash]
+        ds = _REGISTRY.get(existing_id)
+        if ds and os.path.isfile(ds.get('_path', '')):
+            return {k: v for k, v in ds.items() if not k.startswith('_')}
+
+    # Persist to ~/.hw_graph/uploads/<hash>.csv
+    save_path = _UPLOAD_DIR / f"{chash}.csv"
     try:
-        content = await file.read()
-        tmp.write(content)
-        tmp.close()
-        df = pd.read_csv(tmp.name, nrows=500)
+        with open(save_path, 'wb') as f:
+            f.write(content)
+        df = pd.read_csv(save_path, nrows=500)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"CSV parse failed: {exc}") from exc
 
@@ -165,10 +233,9 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         pass
     kind = _guess_kind(col_names)
     rows = len(df) if len(df) < 500 else None
-    # For rows > 500, count via size
     if rows is None:
         try:
-            with open(tmp.name) as fh:
+            with open(save_path) as fh:
                 rows = sum(1 for _ in fh) - 1
         except Exception:
             rows = len(df)
@@ -186,7 +253,7 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         })
 
     try:
-        register_csv_columns(tmp.name, col_names)
+        register_csv_columns(str(save_path), col_names)
     except Exception:
         pass
 
@@ -208,9 +275,12 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         'condition': parsed.get('condition', ''),
         'group': parsed.get('group', ''),
         'date': parsed.get('date', ''),
-        '_path': tmp.name,
+        '_path': str(save_path),
+        '_content_hash': chash,
     }
     _REGISTRY[ds_id] = ds
+    _HASH_INDEX[chash] = ds_id
+    _save_registry()
     return {k: v for k, v in ds.items() if not k.startswith('_')}
 
 
@@ -232,22 +302,26 @@ def get_dataset(ds_id: str) -> dict[str, Any]:
     return {**{k: v for k, v in d.items() if not k.startswith('_')}, 'sample': sample}
 
 
-from fastapi import Response
-
 @router.delete("/{ds_id}")
 def delete_dataset(ds_id: str) -> Response:
     d = _REGISTRY.pop(ds_id, None)
     if d:
+        # Remove hash-index entry
+        h = d.get('_content_hash')
+        if h and _HASH_INDEX.get(h) == ds_id:
+            _HASH_INDEX.pop(h, None)
+        # Remove disk file
         try:
             os.unlink(d['_path'])
         except Exception:
             pass
-        # Also invalidate the analyzer cache
+        # Invalidate analyzer cache
         try:
             from backend.routers.analyze import invalidate_cache
             invalidate_cache(ds_id)
         except Exception:
             pass
+        _save_registry()
     return Response(status_code=204)
 
 
@@ -260,6 +334,7 @@ def update_meta(ds_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     for key in ('subject_id', 'condition', 'group', 'date'):
         if key in payload:
             d[key] = str(payload[key] or '')
+    _save_registry()
     return {k: v for k, v in d.items() if not k.startswith('_')}
 
 

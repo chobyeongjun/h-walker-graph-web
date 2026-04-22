@@ -1,11 +1,15 @@
 // Canonical recipes — the standard set of figures + tables a gait
-// biomechanics paper / meeting deck would typically include. Items with
-// default:true run automatically on CSV upload; the user can toggle the
-// optional ones in the Dataset panel.
+// biomechanics paper / meeting deck would typically include.
 //
-// Phase 0 expansion: kinematic (IMU) + motion-data metrics are now
-// first-class citizens alongside force templates. A dataset flagged
-// `mixed` (has BOTH force and IMU columns) gets the combined recipe set.
+// Philosophy (post Phase 2H):
+//   default:true  → core figures every gait study wants. Auto-run on
+//                   upload. Keep this list SHORT and high-value.
+//   default:false → advanced / specialized. User ticks the box then
+//                   clicks "Apply selected" to add them on demand.
+//
+// Removed from default-on (moved to advanced): cyclogram,
+// stride_time_trend, impulse, imu_avg (per user feedback — too
+// specialized, confusing labels).
 export interface CanonicalRecipe {
   id: string;
   label: string;
@@ -13,62 +17,89 @@ export interface CanonicalRecipe {
   type: 'graph' | 'compute';
   graph?: string;
   compute?: string;
+  hint?: string;   // short tooltip explaining what this figure/table shows
 }
 
 const FORCE_RECIPES: CanonicalRecipe[] = [
-  { id: 'grf_avg',      label: 'GCP-based GRF waveform · mean ± SD',  default: true,  type: 'graph',   graph: 'force_avg' },
-  { id: 'grf_raw',      label: 'GRF raw waveform · L vs R',           default: true,  type: 'graph',   graph: 'force' },
-  { id: 'per_stride',   label: 'Per-stride metrics table',            default: true,  type: 'compute', compute: 'per_stride' },
-  { id: 'asymmetry',    label: 'Asymmetry index · stride series',     default: true,  type: 'graph',   graph: 'asymmetry' },
-  { id: 'peak_box',     label: 'Peak force · L vs R boxplot',         default: true,  type: 'graph',   graph: 'peak_box' },
-  { id: 'impulse',      label: 'Impulse (force · time integral)',     default: true,  type: 'compute', compute: 'impulse' },
-  { id: 'loading_rate', label: 'Loading rate (0–50ms)',               default: true,  type: 'compute', compute: 'loading_rate' },
-  { id: 'stance_swing', label: 'Stance / swing bar',                  default: true,  type: 'graph',   graph: 'stance_swing_bar' },
-  { id: 'symmetry',     label: 'Symmetry radar (6-axis)',             default: true,  type: 'graph',   graph: 'symmetry_radar' },
-  { id: 'cop',          label: 'CoP trajectory',                      default: false, type: 'graph',   graph: 'cop' },
+  // ── Core (always on)
+  { id: 'grf_lr',       label: 'GRF · L / R subplots (GCP-based)',    default: true,  type: 'graph',   graph: 'force_lr_subplot',
+    hint: 'Side-by-side panels, one per leg, both GCP-normalized with desired overlay. The standard paper Figure 1.' },
+  { id: 'grf_avg',      label: 'GRF waveform · mean ± SD (overlay)',  default: true,  type: 'graph',   graph: 'force_avg',
+    hint: 'Vertical ground reaction force averaged across strides, normalized to 0-100% gait cycle.' },
+  { id: 'grf_raw',      label: 'GRF raw · L vs R',                    default: true,  type: 'graph',   graph: 'force',
+    hint: 'Instantaneous force (not averaged) showing both legs overlaid.' },
+  { id: 'asymmetry',    label: 'Asymmetry index · per stride',        default: true,  type: 'graph',   graph: 'asymmetry',
+    hint: 'Peak L vs R force asymmetry for each stride. 0% = perfectly symmetric.' },
+  { id: 'peak_box',     label: 'Peak force · L vs R boxplot',         default: true,  type: 'graph',   graph: 'peak_box',
+    hint: 'Distribution of peak force per stride, side-by-side L vs R.' },
+  { id: 'per_stride',   label: 'Stride-by-stride table',              default: true,  type: 'compute', compute: 'per_stride',
+    hint: 'One row per stride: peak_L, peak_R, stride time, asymmetry.' },
+  { id: 'symmetry',     label: 'Symmetry summary (multi-metric)',     default: true,  type: 'graph',   graph: 'symmetry_radar',
+    hint: 'Radar plot of % asymmetry across stride time / length / force / stance / peak.' },
+  { id: 'stance_swing', label: 'Stance / swing phase bar',            default: true,  type: 'graph',   graph: 'stance_swing_bar',
+    hint: '% of gait cycle spent in stance vs swing, L and R.' },
+  // ── Advanced (off by default)
+  { id: 'loading_rate', label: 'Loading rate (0–50ms)',               default: false, type: 'compute', compute: 'loading_rate',
+    hint: 'Slope of force rise immediately after heel-strike (BW/s).' },
+  { id: 'impulse',      label: 'Impulse (∫F·dt)',                     default: false, type: 'compute', compute: 'impulse',
+    hint: 'Time integral of vertical force per stride. Usually only needed for mechanical work analyses.' },
+  { id: 'cop',          label: 'Center-of-pressure trajectory',       default: false, type: 'graph',   graph: 'cop',
+    hint: 'AP vs ML path of CoP during stance. Requires force-plate grid.' },
 ];
 
 const IMU_RECIPES: CanonicalRecipe[] = [
-  { id: 'pitch_ts',     label: 'Shank/thigh pitch · time series',      default: true,  type: 'graph',   graph: 'imu' },
-  { id: 'imu_avg',      label: 'Joint angle · mean ± SD per cycle',    default: true,  type: 'graph',   graph: 'imu_avg' },
-  { id: 'cyclogram',    label: 'Cyclogram (shank vs thigh pitch)',     default: true,  type: 'graph',   graph: 'cyclogram' },
-  { id: 'stride_trend', label: 'Stride time trend (fatigue)',          default: true,  type: 'graph',   graph: 'stride_time_trend' },
-  { id: 'rom_bar',      label: 'ROM by joint/plane bar',               default: true,  type: 'graph',   graph: 'rom_bar' },
-  { id: 'rom',          label: 'ROM per stride table',                 default: true,  type: 'compute', compute: 'rom' },
-  { id: 'cadence',      label: 'Cadence from heel-strike',             default: true,  type: 'compute', compute: 'cadence' },
-  { id: 'stride_len',   label: 'Stride length (ZUPT)',                 default: true,  type: 'compute', compute: 'stride_length' },
-  { id: 'fatigue',      label: 'Fatigue index (first 10% vs last 10%)', default: true, type: 'compute', compute: 'fatigue_index' },
+  // ── Core
+  { id: 'pitch_ts',   label: 'Joint angle · time series',              default: true, type: 'graph',   graph: 'imu',
+    hint: 'Raw pitch/roll angle over time for the first ~8 s.' },
+  { id: 'rom_bar',    label: 'Range of motion (ROM) bar',              default: true, type: 'graph',   graph: 'rom_bar',
+    hint: 'Peak-to-peak angle by joint / plane, L vs R.' },
+  { id: 'cadence',    label: 'Cadence (steps/min)',                    default: true, type: 'compute', compute: 'cadence',
+    hint: 'Average steps per minute computed from heel-strike intervals.' },
+  { id: 'stride_len', label: 'Stride length (ZUPT integration)',       default: true, type: 'compute', compute: 'stride_length',
+    hint: 'Foot displacement per stride, drift-corrected via zero-velocity update.' },
+  // ── Advanced
+  { id: 'joint_avg',     label: 'Joint angle · mean ± SD per cycle',   default: false, type: 'graph',   graph: 'imu_avg',
+    hint: 'Angle (from pitch column) averaged across strides, normalized to gait cycle.' },
+  { id: 'cyclogram',     label: 'Cyclogram (L vs R pitch phase plot)', default: false, type: 'graph',   graph: 'cyclogram',
+    hint: 'Phase portrait: X = L pitch, Y = R pitch. Loops = cyclic gait.' },
+  { id: 'stride_trend',  label: 'Stride-time trend (fatigue)',         default: false, type: 'graph',   graph: 'stride_time_trend',
+    hint: 'Stride time vs stride #. Slope = fatigue or pacing change.' },
+  { id: 'rom',           label: 'ROM per stride table',                default: false, type: 'compute', compute: 'rom',
+    hint: 'Full per-stride ROM table — use the bar graph if you just need a summary.' },
+  { id: 'fatigue',       label: 'Fatigue index',                       default: false, type: 'compute', compute: 'fatigue_index',
+    hint: 'Stride time first 10 % vs last 10 % — early fatigue detection.' },
 ];
 
 const TRIAL_RECIPES: CanonicalRecipe[] = [
-  { id: 'overlay',    label: 'Trial overlay (N=5)',              default: true,  type: 'graph',   graph: 'trials' },
+  { id: 'overlay',    label: 'Trial overlay (all trials)',       default: true,  type: 'graph',   graph: 'trials' },
   { id: 'target_dev', label: 'Target deviation per trial',       default: true,  type: 'compute', compute: 'target_dev' },
-  { id: 'cv_bar',     label: 'Coefficient of variation · bar',   default: true,  type: 'graph',   graph: 'cv_bar' },
+  { id: 'cv_bar',     label: 'Coefficient of variation',         default: false, type: 'graph',   graph: 'cv_bar' },
 ];
 
-// Mixed dataset (force + IMU columns in one CSV — the H-Walker 67-col
-// firmware format). Union of force and imu defaults + a symmetry
-// summary. This is the typical "full paper figure" set.
+// H-Walker 67-col firmware CSV (force + IMU combined)
 const MIXED_RECIPES: CanonicalRecipe[] = [
-  // Force side
-  { id: 'grf_avg',      label: 'GCP-based GRF waveform · mean ± SD',   default: true,  type: 'graph',   graph: 'force_avg' },
-  { id: 'peak_box',     label: 'Peak force · L vs R boxplot',          default: true,  type: 'graph',   graph: 'peak_box' },
-  { id: 'asymmetry',    label: 'Asymmetry index · stride series',      default: true,  type: 'graph',   graph: 'asymmetry' },
-  { id: 'per_stride',   label: 'Per-stride metrics table',             default: true,  type: 'compute', compute: 'per_stride' },
-  { id: 'impulse',      label: 'Impulse (force · time integral)',      default: true,  type: 'compute', compute: 'impulse' },
-  { id: 'loading_rate', label: 'Loading rate (0–50ms)',                default: false, type: 'compute', compute: 'loading_rate' },
-  // Motion side
-  { id: 'imu_avg',      label: 'Joint angle · mean ± SD per cycle',    default: true,  type: 'graph',   graph: 'imu_avg' },
-  { id: 'cyclogram',    label: 'Cyclogram (shank vs thigh pitch)',     default: true,  type: 'graph',   graph: 'cyclogram' },
-  { id: 'stride_trend', label: 'Stride time trend (fatigue)',          default: true,  type: 'graph',   graph: 'stride_time_trend' },
-  { id: 'rom_bar',      label: 'ROM by joint/plane bar',               default: true,  type: 'graph',   graph: 'rom_bar' },
-  { id: 'stance_swing', label: 'Stance / swing bar',                   default: true,  type: 'graph',   graph: 'stance_swing_bar' },
-  // Summary
-  { id: 'symmetry',     label: 'Symmetry radar (6-axis)',              default: true,  type: 'graph',   graph: 'symmetry_radar' },
-  { id: 'rom',          label: 'ROM per stride table',                 default: false, type: 'compute', compute: 'rom' },
-  { id: 'fatigue',      label: 'Fatigue index',                        default: false, type: 'compute', compute: 'fatigue_index' },
-  { id: 'cadence',      label: 'Cadence',                              default: false, type: 'compute', compute: 'cadence' },
-  { id: 'stride_len',   label: 'Stride length (ZUPT)',                 default: false, type: 'compute', compute: 'stride_length' },
+  // ── Core force
+  { id: 'grf_lr',       label: 'GRF · L / R subplots (GCP-based)', default: true,  type: 'graph',   graph: 'force_lr_subplot' },
+  { id: 'grf_avg',      label: 'GRF waveform · mean ± SD',         default: true,  type: 'graph',   graph: 'force_avg' },
+  { id: 'grf_raw',      label: 'GRF raw · L vs R',                 default: true,  type: 'graph',   graph: 'force' },
+  { id: 'asymmetry',    label: 'Asymmetry index · per stride',    default: true,  type: 'graph',   graph: 'asymmetry' },
+  { id: 'peak_box',     label: 'Peak force · L vs R boxplot',     default: true,  type: 'graph',   graph: 'peak_box' },
+  { id: 'per_stride',   label: 'Stride-by-stride table',          default: true,  type: 'compute', compute: 'per_stride' },
+  // ── Core motion
+  { id: 'pitch_ts',     label: 'Joint angle · time series',       default: true,  type: 'graph',   graph: 'imu' },
+  { id: 'rom_bar',      label: 'Range of motion (ROM) bar',       default: true,  type: 'graph',   graph: 'rom_bar' },
+  { id: 'stance_swing', label: 'Stance / swing phase bar',        default: true,  type: 'graph',   graph: 'stance_swing_bar' },
+  { id: 'stride_len',   label: 'Stride length (ZUPT)',            default: true,  type: 'compute', compute: 'stride_length' },
+  { id: 'cadence',      label: 'Cadence (steps/min)',             default: true,  type: 'compute', compute: 'cadence' },
+  { id: 'symmetry',     label: 'Symmetry summary (multi-metric)', default: true,  type: 'graph',   graph: 'symmetry_radar' },
+  // ── Advanced
+  { id: 'loading_rate', label: 'Loading rate (0–50ms)',           default: false, type: 'compute', compute: 'loading_rate' },
+  { id: 'impulse',      label: 'Impulse (∫F·dt)',                 default: false, type: 'compute', compute: 'impulse' },
+  { id: 'joint_avg',    label: 'Joint angle · mean ± SD per cycle', default: false, type: 'graph', graph: 'imu_avg' },
+  { id: 'cyclogram',    label: 'Cyclogram (L vs R pitch)',        default: false, type: 'graph',   graph: 'cyclogram' },
+  { id: 'stride_trend', label: 'Stride-time trend (fatigue)',     default: false, type: 'graph',   graph: 'stride_time_trend' },
+  { id: 'rom',          label: 'ROM per stride table',            default: false, type: 'compute', compute: 'rom' },
+  { id: 'fatigue',      label: 'Fatigue index',                   default: false, type: 'compute', compute: 'fatigue_index' },
 ];
 
 export const CANONICAL_RECIPES: Record<string, CanonicalRecipe[]> = {
@@ -76,7 +107,7 @@ export const CANONICAL_RECIPES: Record<string, CanonicalRecipe[]> = {
   imu:    IMU_RECIPES,
   trials: TRIAL_RECIPES,
   mixed:  MIXED_RECIPES,
-  // Fallback for legacy kinds (cop, emg) — use force recipes
+  // Fallback for legacy kinds
   cop:    FORCE_RECIPES,
   emg:    FORCE_RECIPES,
 };

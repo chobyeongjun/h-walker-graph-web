@@ -6,7 +6,6 @@ import PublicationBar from './components/PublicationBar';
 import Canvas from './components/Canvas';
 import LlmDock from './components/LlmDock';
 import FocusOverlay from './components/FocusOverlay';
-import ColumnMapperModal from './components/ColumnMapperModal';
 import Drawer from './components/Drawer';
 import Toast from './components/Toast';
 import GlobalDropZone from './components/GlobalDropZone';
@@ -49,7 +48,6 @@ export default function App() {
         <span>PRETENDARD · JETBRAINS MONO</span>
       </div>
       <FocusOverlay />
-      <ColumnMapperModal />
       <Drawer />
       <Toast />
       <GlobalDropZone />

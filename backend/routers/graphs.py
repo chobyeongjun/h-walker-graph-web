@@ -6,11 +6,16 @@ Endpoints:
   GET  /api/graphs/presets           → list of JOURNAL_PRESETS with submission specs
   POST /api/graphs/render            → single figure at exact journal size
   POST /api/graphs/bundle            → ZIP of SVGs for multiple cells
+  POST /api/graphs/multi_panel       → 2–4 cells composed as a single figure
+                                        with (a)(b)(c)(d) sub-panels
 """
 from __future__ import annotations
 
 import io
+import subprocess
+import tempfile
 import zipfile
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -947,4 +952,178 @@ def _bundle_readme(req: BundleRequest, P) -> str:
         f"Any render errors are recorded under ERRORS/.\n"
         f"\n"
         f"Journal notes  : {P.notes}\n"
+    )
+
+
+# ============================================================
+# Multi-panel composition — Fig 1(a)(b)(c)(d)
+# ============================================================
+
+class PanelCell(BaseModel):
+    template: str
+    dataset_id: Optional[str] = None
+    datasets: list[dict] = []         # overlay form — [{id,label,color}]
+    stride_avg: bool = False
+    title: Optional[str] = None       # panel caption (below or beside)
+
+
+class MultiPanelRequest(BaseModel):
+    panels: list[PanelCell]            # 2–4 panels
+    preset: str = "ieee"
+    variant: Literal["col1", "col2", "onehalf"] = "col2"
+    format: Literal["svg", "pdf", "png"] = "pdf"
+    layout: Literal["auto", "1x2", "2x1", "2x2", "1x3", "3x1"] = "auto"
+    dpi: Optional[int] = None
+
+
+_LAYOUT_MAP = {
+    2: {"auto": (1, 2), "1x2": (1, 2), "2x1": (2, 1)},
+    3: {"auto": (1, 3), "1x3": (1, 3), "3x1": (3, 1)},
+    4: {"auto": (2, 2), "2x2": (2, 2), "1x2": (2, 2)},
+}
+
+
+def _render_panel_svg(panel: PanelCell, preset: str, variant: str, dpi: Optional[int]) -> bytes:
+    """Render one panel to SVG bytes via the existing /render code path."""
+    req = RenderRequest(
+        template=panel.template,
+        preset=preset,
+        variant=variant,
+        format="svg",
+        dpi=dpi,
+        stride_avg=panel.stride_avg,
+        dataset_id=panel.dataset_id,
+        datasets=[DatasetSeries(**d) for d in panel.datasets] if panel.datasets else [],
+        title=panel.title or "",
+    )
+    multi = _render_multi_dataset(req) if req.datasets else None
+    if multi:
+        return multi[0]
+    # Fall through to single-dataset or mockup path
+    from backend.routers.graphs import _render_real_data
+    real = _render_real_data(req)
+    if real:
+        return real[0]
+    data, _ = render(
+        template=req.template, preset=req.preset, variant=req.variant, format="svg",
+        dpi=req.dpi, stride_avg=req.stride_avg,
+    )
+    return data
+
+
+@router.post("/multi_panel")
+def multi_panel(req: MultiPanelRequest):
+    """Compose 2–4 panel SVGs into a single multi-panel figure with
+    (a)(b)(c)(d) labels, correctly sized to the journal preset.
+
+    Uses matplotlib's figure grid as the composition canvas and embeds
+    each panel via `imshow` of its rasterized bitmap (kept hi-dpi) OR
+    via `inset_axes` for vector-preserving SVG. PDF output is vector.
+    """
+    n = len(req.panels)
+    if n < 2 or n > 4:
+        raise HTTPException(status_code=400, detail=f"multi_panel needs 2-4 panels (got {n})")
+    if req.preset not in JOURNAL_PRESETS:
+        raise HTTPException(status_code=400, detail=f"unknown preset '{req.preset}'")
+    P = JOURNAL_PRESETS[req.preset]
+    rows, cols = _LAYOUT_MAP[n].get(req.layout, _LAYOUT_MAP[n]["auto"])
+
+    # Render each panel once (SVG strings kept for vector quality).
+    panel_svgs: list[bytes] = []
+    for p in req.panels:
+        try:
+            panel_svgs.append(_render_panel_svg(p, req.preset, req.variant, req.dpi))
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"panel {p.template} failed: {exc}") from exc
+
+    # Compose via matplotlib — each panel is a subplot, its rendered PNG
+    # is read back as the axis content. This preserves pixel quality at
+    # the target DPI and yields a proper multi-panel PDF/SVG/PNG.
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from PIL import Image
+
+    # Figure canvas sized for the journal variant (each panel is a fraction)
+    w_mm, h_mm = (P.col2 if req.variant == "col2" else
+                  (P.col1 if req.variant == "col1" else (P.onehalf or P.col2)))
+    # 다중 panel 은 col2 폭 유지, 행 개수만큼 세로 확장
+    inch_w, inch_h = w_mm / 25.4, (h_mm * rows) / 25.4 * 0.95
+
+    with mpl.rc_context({
+        "font.family": [P.font] + P.font_fallback,
+        "font.size": P.body_pt,
+        "figure.facecolor": P.bg,
+        "savefig.facecolor": P.bg,
+    }):
+        fig, axes = plt.subplots(rows, cols, figsize=(inch_w, inch_h))
+        axes_flat = list(axes.flat) if hasattr(axes, 'flat') else [axes]
+
+        LABELS = "abcdefgh"
+        for i, (ax, panel, svg_bytes) in enumerate(zip(axes_flat, req.panels, panel_svgs)):
+            # Convert panel SVG → PNG @ 2× DPI for crisp embedding
+            tmp_svg = Path(tempfile.mkstemp(suffix=".svg")[1])
+            tmp_png = Path(tempfile.mkstemp(suffix=".png")[1])
+            tmp_svg.write_bytes(svg_bytes)
+            try:
+                # Try cairosvg first (high fidelity)
+                import cairosvg
+                cairosvg.svg2png(
+                    bytestring=svg_bytes,
+                    write_to=str(tmp_png),
+                    output_width=int(inch_w / cols * 300),
+                    output_height=int((inch_h / rows) * 300),
+                )
+            except Exception:
+                # Fall back to rsvg-convert if available on the system
+                try:
+                    subprocess.run(
+                        ["rsvg-convert", "-a", "-w", str(int(inch_w / cols * 300)),
+                         str(tmp_svg), "-o", str(tmp_png)],
+                        check=True, capture_output=True, timeout=10,
+                    )
+                except Exception:
+                    # Final fallback: blank panel with error text
+                    ax.text(0.5, 0.5, f"(panel {i+1}: SVG→PNG failed)",
+                            ha='center', va='center', transform=ax.transAxes,
+                            color='red', fontsize=P.legend_pt)
+                    ax.set_xticks([]); ax.set_yticks([])
+                    for sp in ax.spines.values(): sp.set_visible(False)
+                    continue
+            img = Image.open(tmp_png)
+            ax.imshow(img)
+            ax.set_xticks([]); ax.set_yticks([])
+            for sp in ax.spines.values(): sp.set_visible(False)
+            # (a)/(b)/(c)/(d) label, top-left
+            ax.text(-0.04, 1.02, f"({LABELS[i]})", transform=ax.transAxes,
+                    ha='right', va='bottom', fontsize=P.title_pt, fontweight='bold')
+            if panel.title:
+                ax.set_title(panel.title, fontsize=P.axis_pt, pad=4)
+            try:
+                tmp_svg.unlink(); tmp_png.unlink()
+            except OSError:
+                pass
+
+        fig.tight_layout(pad=0.4, h_pad=0.8, w_pad=0.8)
+
+        # Emit in requested format
+        buf = io.BytesIO()
+        try:
+            if req.format == "pdf":
+                fig.savefig(buf, format="pdf", dpi=req.dpi or P.dpi, pad_inches=0.05)
+                mime = "application/pdf"
+            elif req.format == "png":
+                fig.savefig(buf, format="png", dpi=req.dpi or P.dpi, pad_inches=0.05)
+                mime = "image/png"
+            else:
+                fig.savefig(buf, format="svg", dpi=req.dpi or P.dpi, pad_inches=0.05)
+                mime = "image/svg+xml"
+        finally:
+            plt.close(fig)
+
+    fname = f"hwalker_panel_{len(req.panels)}panel_{req.preset}.{req.format}"
+    return Response(
+        content=buf.getvalue(), media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )

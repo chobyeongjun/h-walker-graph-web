@@ -270,7 +270,17 @@ export interface PaperBundleRequest {
   colorblind_safe?: boolean;
 }
 
-export const paperBundle = async (req: PaperBundleRequest): Promise<Blob> => {
+export interface PaperBundleResult {
+  blob: Blob;
+  /** Number of cells that failed to render (surfaced via X-Bundle-Errors header). */
+  errorCount: number;
+  /** Short description of the first failed cell (X-Bundle-First-Error). */
+  firstError: string | null;
+}
+
+/** Paper bundle returning Blob + error metadata from response headers,
+ *  so the UI can show a warning toast if some cells were dropped. */
+export const paperBundle = async (req: PaperBundleRequest): Promise<PaperBundleResult> => {
   const res = await fetch(BASE + '/api/paper/bundle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -284,7 +294,10 @@ export const paperBundle = async (req: PaperBundleRequest): Promise<Blob> => {
     } catch { /* ignore */ }
     throw new Error(detail);
   }
-  return res.blob();
+  const blob = await res.blob();
+  const errorCount = Number(res.headers.get('x-bundle-errors') || '0') || 0;
+  const firstError = res.headers.get('x-bundle-first-error');
+  return { blob, errorCount, firstError };
 };
 
 // ============================================================

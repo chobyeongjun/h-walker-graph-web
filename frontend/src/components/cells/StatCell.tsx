@@ -178,6 +178,8 @@ export default function StatCell({ cell }: Props) {
           </>
         )}
 
+        {crossFile && <CrossFilePreview cell={cell} />}
+
         <div className="stat-row">
           <label>Run</label>
           <div>
@@ -227,6 +229,52 @@ function prettyOp(k: string): string {
     shapiro: 'Shapiro',
   };
   return map[k] || k;
+}
+
+/** Live preview of "Group A: n subjects / Group B: n subjects" + warnings.
+ *  Lets the user catch n-too-low before clicking Run. */
+function CrossFilePreview({ cell }: { cell: Cell }) {
+  const nA = (cell.statDatasetsA || []).length;
+  const nB = (cell.statDatasetsB || []).length;
+  const op = cell.op || '';
+  // Per stats_engine.py minimum-sample rules
+  const MIN: Record<string, number> = {
+    ttest_paired: 3, ttest_welch: 3, pearson: 3,
+    cohens_d: 3, anova1: 3, shapiro: 3,
+  };
+  const minReq = MIN[op] || 3;
+  const pairedMismatch = (op === 'ttest_paired' || op === 'pearson') && nA !== nB;
+  const tooFewA = nA < minReq;
+  const tooFewB = op !== 'shapiro' && op !== 'anova1' && nB < minReq;
+  const warn = tooFewA || tooFewB || pairedMismatch;
+  return (
+    <div className="stat-row">
+      <label>Match</label>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, flex: 1,
+        font: '500 11px/1.3 Pretendard,sans-serif',
+        color: warn ? '#f87171' : '#00FFB2',
+      }}>
+        <span>
+          Group A: <b>{nA}</b> subj{nA !== 1 ? 's' : ''}
+          {op !== 'shapiro' && op !== 'anova1' && (
+            <> · Group B: <b>{nB}</b> subj{nB !== 1 ? 's' : ''}</>
+          )}
+        </span>
+        {warn && (
+          <span style={{ color: '#f87171', fontSize: 10.5 }}>
+            {tooFewA && `⚠ need ≥${minReq} in A`}
+            {tooFewA && tooFewB && ' · '}
+            {tooFewB && `⚠ need ≥${minReq} in B`}
+            {pairedMismatch && !tooFewA && !tooFewB && '⚠ paired: nA must equal nB'}
+          </span>
+        )}
+        {!warn && (
+          <span style={{ color: '#00FFB2', fontSize: 10.5 }}>✓ ready</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function BackendKV({ r }: { r: StatsResponse }) {

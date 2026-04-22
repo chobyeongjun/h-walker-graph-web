@@ -71,7 +71,7 @@ export default function Canvas() {
           datasets_b: c.statDatasetsB,
           metric: c.metric,
         }));
-      const blob = await paperBundle({
+      const result = await paperBundle({
         preset: globalPreset,
         variant: 'col2',
         format: 'pdf',
@@ -79,13 +79,29 @@ export default function Canvas() {
         cells: paperCells,
       });
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = URL.createObjectURL(result.blob);
       a.download = `hwalker_paper_${globalPreset}_${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      logHistory({ kind: 'tool', actor: 'you',
-        label: `Exported paper bundle · ${paperCells.length} cells · ${globalPreset.toUpperCase()}` });
-      showToast(`Paper bundle exported (${paperCells.length} cells)`);
+
+      if (result.errorCount > 0) {
+        // Loud warning — some cells were dropped. Also log the first one
+        // so the user knows which cell to inspect first.
+        logHistory({
+          kind: 'tool', actor: 'you',
+          label: `⚠ Paper bundle exported with ${result.errorCount} error(s) · ${globalPreset.toUpperCase()}`,
+          meta: { first_error: result.firstError || '' },
+        });
+        showToast(
+          `⚠ ${result.errorCount} cell(s) failed — ${result.firstError || 'see ERRORS.txt in the ZIP'}`,
+        );
+      } else {
+        logHistory({
+          kind: 'tool', actor: 'you',
+          label: `Exported paper bundle · ${paperCells.length} cells · ${globalPreset.toUpperCase()}`,
+        });
+        showToast(`Paper bundle exported (${paperCells.length} cells)`);
+      }
     } catch (e) {
       showToast(`Paper export failed: ${(e as Error).message}`);
     } finally {

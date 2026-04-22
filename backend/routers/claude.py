@@ -337,6 +337,54 @@ def complete(req: ClaudeCompleteRequest) -> ClaudeCompleteResponse:
     return ClaudeCompleteResponse(reply=reply, tool_uses=tool_uses, suggested_cells=[])
 
 
+class ApiKeyRequest(BaseModel):
+    api_key: str
+
+
+@router.post("/set-key")
+def set_key(req: ApiKeyRequest) -> dict[str, Any]:
+    """Write the user's Anthropic API key to ~/.hwalker.env so the launcher
+    (H-Walker CORE.command) picks it up on every restart. Also mutates the
+    current process env so the next /complete call works without restart.
+    """
+    import os, re
+    key = req.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=422, detail="api_key is empty")
+    if not re.match(r'^sk-ant-[A-Za-z0-9_\-]{20,}$', key):
+        raise HTTPException(
+            status_code=422,
+            detail="Key must look like 'sk-ant-api03-…' (Anthropic format).",
+        )
+
+    env_path = os.path.expanduser("~/.hwalker.env")
+    # Merge: preserve other vars in the file, update/insert ANTHROPIC_API_KEY
+    lines: list[str] = []
+    if os.path.isfile(env_path):
+        with open(env_path) as f:
+            lines = [ln.rstrip("\n") for ln in f if not ln.strip().startswith("ANTHROPIC_API_KEY=")]
+    lines.append(f"ANTHROPIC_API_KEY={key}")
+    try:
+        with open(env_path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(env_path, 0o600)  # user-only readable — it's a secret
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"write failed: {exc}") from exc
+
+    # Live-update: mutate process env + rebind the module-level constant so
+    # the next /complete call uses this key immediately.
+    os.environ["ANTHROPIC_API_KEY"] = key
+    import backend.services.config as _cfg
+    _cfg.ANTHROPIC_API_KEY = key
+    globals()["ANTHROPIC_API_KEY"] = key
+
+    return {
+        "ok": True,
+        "path": env_path,
+        "note": "Key persisted to ~/.hwalker.env (chmod 600) and loaded into the running server.",
+    }
+
+
 @router.get("/health")
 def claude_health() -> dict[str, Any]:
     return {

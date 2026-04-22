@@ -260,6 +260,25 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
     # Phase 2: auto-parse filename for subject/condition/group
     parsed = _parse_filename(file.filename)
 
+    # Phase 3 · Sync meta — detect analog trigger column + guess source type
+    try:
+        from backend.services.sync_engine import find_sync_column
+        sync_col = find_sync_column(df)
+    except Exception:
+        sync_col = None
+    # Source type heuristic from filename / columns
+    joined = (file.filename + ' ' + ' '.join(col_names)).lower()
+    if any(k in joined for k in ('mocap', 'vicon', 'qualisys', 'optitrack', 'marker',
+                                  'pelvis_x', 'pelvis_y', 'pelvis_z')):
+        source_type = 'mocap'
+    elif any(k in joined for k in ('forceplate', 'force_plate', 'fp1', 'fp2', 'cop_x', 'cop_y')):
+        source_type = 'forceplate'
+    elif any(k in joined for k in ('hwalker', 'h-walker', 'actforce', 'desforce',
+                                    'l_gcp', 'r_gcp', 'l_event')):
+        source_type = 'robot'
+    else:
+        source_type = 'unknown'
+
     ds = {
         'id': ds_id,
         'name': file.filename,
@@ -275,6 +294,9 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         'condition': parsed.get('condition', ''),
         'group': parsed.get('group', ''),
         'date': parsed.get('date', ''),
+        'sync_col': sync_col,                 # None if not detected
+        'source_type': source_type,           # robot / mocap / forceplate / unknown
+        'synced_from': None,                  # set only on sync outputs
         '_path': str(save_path),
         '_content_hash': chash,
     }

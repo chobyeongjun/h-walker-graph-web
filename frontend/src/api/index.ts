@@ -362,6 +362,7 @@ export interface StudySummary {
   file_summaries: any[];
   comparison: any;
   report_md: string;
+  report_latex?: string;
 }
 
 export const discoverStudy = (directory: string, name?: string) =>
@@ -372,3 +373,68 @@ export const analyzeStudy = (id: string) =>
 
 export const listStudies = () =>
   json<Study[]>('/api/study/list');
+
+// ============================================================
+// Sync (POST /api/sync/align) — cross-source Hz alignment
+// ============================================================
+
+export interface SyncPulse {
+  fall_idx: number;
+  rise_idx: number;
+  fall_t: number;
+  rise_t: number;
+  width_s: number;
+}
+
+export interface SyncPreview {
+  ds_id: string;
+  sync_col: string | null;
+  sample_rate: number;
+  duration_s: number;
+  pulses: SyncPulse[];
+  window: [number, number] | null;
+  window_t: [number, number] | null;
+  signal_thumb: number[];
+  signal_thumb_t: number[];
+}
+
+export const syncPreview = (dsId: string) =>
+  json<SyncPreview>(`/api/sync/preview/${dsId}`);
+
+export interface SyncAlignRequest {
+  dataset_ids: string[];
+  target_hz?: number;
+  crop_to_a7?: boolean;
+  suffix?: string;
+}
+
+export interface AlignedDataset {
+  original_id: string;
+  new_id: string;
+  original_name: string;
+  new_name: string;
+  original_fs: number;
+  target_fs: number;
+  window: [number, number] | null;
+  window_t: [number, number] | null;
+  sync_col_used: string | null;
+  n_in: number;
+  n_out: number;
+  duration_s: number;
+}
+
+export interface SyncAlignResponse {
+  target_hz: number;
+  common_duration_s: number;
+  aligned: AlignedDataset[];
+  notes: string[];
+}
+
+export const syncAlign = (req: SyncAlignRequest) =>
+  json<SyncAlignResponse>('/api/sync/align', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+
+export const syncNeedsCheck = () =>
+  json<{ mixed: boolean; rates: Record<string, string[]>; n_datasets: number }>('/api/sync/needs-sync');

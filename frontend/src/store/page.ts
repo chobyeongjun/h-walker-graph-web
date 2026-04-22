@@ -73,6 +73,12 @@ export interface Dataset {
   analysis?: AnalyzeResponse;
   analyzing?: boolean;
   analyzeError?: string;
+  // Phase 3 · cross-source sync
+  sync_col?: string | null;             // A7 etc. (null if not found)
+  source_type?: 'robot' | 'mocap' | 'forceplate' | 'unknown';
+  synced_from?: string | null;          // ds id of the original before sync
+  sync_target_hz?: number;
+  sync_window?: [number, number] | null;
 }
 
 export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings' | 'study';

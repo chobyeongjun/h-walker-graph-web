@@ -101,8 +101,60 @@ _DEFAULT_SERIES_PALETTE = [
 ]
 
 
+def _auto_sync_if_needed(req: RenderRequest) -> None:
+    """Phase 3 · Auto-align cross-source datasets.
+
+    If any dataset in the overlay has a different sample rate from the
+    others, transparently run /api/sync/align and swap the ids on the
+    request to point at the freshly synced datasets. This is what makes
+    Robot × MoCap × Force-plate comparisons "just work" without the user
+    having to click anything when Hz mismatches are present.
+    """
+    if not req.datasets or len(req.datasets) < 2:
+        return
+    from backend.routers.datasets import _REGISTRY
+
+    rates: set[float] = set()
+    source_types: set[str] = set()
+    has_unsynced = False
+    for s in req.datasets:
+        d = _REGISTRY.get(s.id)
+        if d is None:
+            continue
+        if d.get("synced_from"):
+            continue  # already synced
+        has_unsynced = True
+        try:
+            rates.add(float(str(d.get("hz", "100")).replace("Hz", "").strip()))
+        except ValueError:
+            pass
+        source_types.add(d.get("source_type", "unknown"))
+
+    # Only auto-sync when fs differs OR the sources are mixed (e.g.
+    # robot + mocap at the same nominal fs but temporally offset).
+    cross_source = len({s for s in source_types if s != "unknown"}) >= 2
+    fs_mismatch = len(rates) >= 2
+    if not has_unsynced or not (cross_source or fs_mismatch):
+        return
+
+    from backend.routers.sync import AlignRequest, align as _do_align
+    try:
+        out = _do_align(AlignRequest(
+            dataset_ids=[s.id for s in req.datasets],
+            crop_to_a7=True,
+        ))
+    except Exception:
+        return  # fall back to raw rendering silently
+
+    # Swap IDs on the request to the synced outputs
+    id_map = {a.original_id: a.new_id for a in out.aligned}
+    for s in req.datasets:
+        if s.id in id_map:
+            s.id = id_map[s.id]
+
+
 def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
-    """Phase 1 · Multi-dataset overlay.
+    """Phase 1 · Multi-dataset overlay (with Phase 3 auto-sync).
 
     Returns None if this path isn't applicable (template doesn't support
     overlay, no datasets list, etc.) — caller falls through to single-
@@ -112,6 +164,9 @@ def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
         return None
     if req.template not in MULTI_DATASET_TEMPLATES:
         return None
+
+    # If Hz mismatches or sources are mixed, sync transparently first.
+    _auto_sync_if_needed(req)
 
     from backend.routers.analyze import analyze_cached
     from backend.routers.datasets import get_path, _REGISTRY

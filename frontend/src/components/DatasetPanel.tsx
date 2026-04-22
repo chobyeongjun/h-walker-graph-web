@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Link2, Trash2 } from 'lucide-react';
 import { usePage } from '../store/page';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
-import { uploadDataset, deleteDataset as apiDeleteDataset } from '../api';
+import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign } from '../api';
 
 export default function DatasetPanel() {
   const datasets = usePage((s) => s.datasets);
@@ -51,6 +51,49 @@ export default function DatasetPanel() {
     }
   }
 
+  // Phase 3 · cross-source sync detection
+  const syncStatus = useMemo(() => {
+    const unsynced = datasets.filter((d) => !('synced_from' in d) || !d.synced_from);
+    const rates = new Set(unsynced.map((d) => d.hz));
+    const sourceTypes = new Set(unsynced.map((d) => (d as { source_type?: string }).source_type || 'unknown').filter((s) => s !== 'unknown'));
+    const cross = sourceTypes.size >= 2;
+    const hzMismatch = rates.size >= 2;
+    const withA7 = unsynced.filter((d) => (d as { sync_col?: string | null }).sync_col).length;
+    return {
+      needed: unsynced.length >= 2 && (cross || hzMismatch),
+      unsynced,
+      rates: Array.from(rates),
+      cross,
+      hzMismatch,
+      withA7,
+    };
+  }, [datasets]);
+
+  const [syncBusy, setSyncBusy] = useState(false);
+
+  async function runSync() {
+    if (!syncStatus.needed || syncBusy) return;
+    setSyncBusy(true);
+    try {
+      const resp = await syncAlign({
+        dataset_ids: syncStatus.unsynced.map((d) => d.id),
+        crop_to_a7: syncStatus.withA7 > 0,
+      });
+      // Reload datasets so the new _synced entries appear
+      showToast(`✓ Synced ${resp.aligned.length} dataset(s) @ ${Math.round(resp.target_hz)} Hz · ${resp.common_duration_s.toFixed(2)}s window`);
+      // Fetch the new _synced datasets and add them to the store
+      const list = await fetch('/api/datasets').then((r) => r.json());
+      resp.aligned.forEach((a) => {
+        const d = list.find((x: { id: string }) => x.id === a.new_id);
+        if (d) addDataset(d);
+      });
+    } catch (e) {
+      showToast(`Sync failed: ${(e as Error).message}`);
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
   return (
     <div className="ds-panel">
       <div className="ds-head">
@@ -60,6 +103,39 @@ export default function DatasetPanel() {
           <button className="ds-btn plain" onClick={() => fileRef.current?.click()}>＋ Add CSV</button>
         </div>
       </div>
+
+      {syncStatus.needed && (
+        <div className="ds-sync-banner" style={{
+          margin: '8px 12px 0', padding: '10px 12px',
+          background: 'rgba(167,139,250,.08)', border: '1px solid rgba(167,139,250,.4)',
+          borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <Link2 size={16} style={{ color: '#A78BFA', flexShrink: 0 }} />
+          <div style={{ flex: 1, font: '500 11.5px/1.5 Pretendard,sans-serif', color: '#E2E8F0' }}>
+            <b style={{ color: '#A78BFA' }}>
+              {syncStatus.cross ? 'Cross-source datasets detected' : 'Sample-rate mismatch'}
+            </b>
+            {' — '}
+            {syncStatus.hzMismatch && <>Hz differs: {syncStatus.rates.join(' vs ')}. </>}
+            {syncStatus.withA7 > 0
+              ? <>A7 trigger found in <b>{syncStatus.withA7}</b> file(s) → will crop + upsample linearly.</>
+              : <>No A7 column — will resample without cropping (assumes time-aligned already).</>}
+          </div>
+          <button
+            onClick={runSync}
+            disabled={syncBusy}
+            style={{
+              background: '#A78BFA', color: '#0B0E2E', border: 'none', borderRadius: 7,
+              padding: '6px 14px', font: '700 10.5px/1 Pretendard,sans-serif',
+              letterSpacing: '.08em', textTransform: 'uppercase', cursor: 'pointer',
+              opacity: syncBusy ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            <Link2 size={11} />
+            {syncBusy ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
+      )}
 
       {datasets.length === 0 && (
         <div className="ds-empty">
@@ -81,6 +157,35 @@ export default function DatasetPanel() {
           >
             <div className="ds-row1">
               <span className={`tag ${d.tag}`}>{d.tag}</span>
+              {(d as { source_type?: string }).source_type && (d as { source_type?: string }).source_type !== 'unknown' && (
+                <span style={{
+                  font: '600 8.5px/1 JetBrains Mono, monospace',
+                  padding: '2px 5px', borderRadius: 3, letterSpacing: '.08em',
+                  background: 'rgba(167,139,250,.12)', color: '#A78BFA',
+                  textTransform: 'uppercase',
+                }} title="Source type auto-detected from filename/columns">
+                  {(d as { source_type: string }).source_type}
+                </span>
+              )}
+              {(d as { synced_from?: string | null }).synced_from && (
+                <span style={{
+                  font: '600 8.5px/1 JetBrains Mono, monospace',
+                  padding: '2px 5px', borderRadius: 3, letterSpacing: '.08em',
+                  background: 'rgba(0,255,178,.14)', color: '#00FFB2',
+                  textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 3,
+                }} title={`Synced from ${(d as { synced_from: string }).synced_from}`}>
+                  <Link2 size={8} /> synced
+                </span>
+              )}
+              {(d as { sync_col?: string | null }).sync_col && !(d as { synced_from?: string | null }).synced_from && (
+                <span style={{
+                  font: '600 8.5px/1 JetBrains Mono, monospace',
+                  padding: '2px 5px', borderRadius: 3, letterSpacing: '.08em',
+                  background: 'rgba(240,151,8,.12)', color: '#F09708',
+                }} title={`Analog sync column: ${(d as { sync_col: string }).sync_col}`}>
+                  A7
+                </span>
+              )}
               <span className="name" title={d.name}>{d.name}</span>
               <button
                 className="ds-del"

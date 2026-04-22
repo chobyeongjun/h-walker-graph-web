@@ -147,9 +147,9 @@ def sync_window(
 ) -> Optional[tuple[int, int]]:
     """Return (start_sample, end_sample) from the first and last pulse.
 
-    Uses the FALLING edge as the boundary marker — that's the moment the
-    trigger box says "go" / "stop". A user can override with explicit
-    indices via `crop_to_sync(..., manual_window=(s,e))`.
+    Uses the RISING edge (Low→High) as the boundary marker — that's the
+    moment the signal returns HIGH after the dip, which is when MoCap
+    recording starts/stops.
     """
     pulses = detect_sync_pulses(
         signal, sample_rate,
@@ -158,12 +158,10 @@ def sync_window(
     )
     if len(pulses) < 2:
         if len(pulses) == 1 and use_first_and_last:
-            # Single pulse — treat as "start" and use the recording end.
-            # This is intentionally permissive for trigger-box hardware
-            # that only fires once at the start.
-            return pulses[0].fall_idx, int(signal.size - 1)
+            # Single pulse — treat rising edge as "start", use recording end.
+            return pulses[0].rise_idx, int(signal.size - 1)
         return None
-    return pulses[0].fall_idx, pulses[-1].fall_idx
+    return pulses[0].rise_idx, pulses[-1].rise_idx
 
 
 # ─── cropping + resampling ─────────────────────────────────────────────

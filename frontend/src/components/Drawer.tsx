@@ -1,6 +1,8 @@
-import { X, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Trash2, Download, Upload, RefreshCw, RotateCcw } from 'lucide-react';
 import { useWorkspace } from '../store/workspace';
 import { STATS_LIB, EXPORT_FORMATS } from '../data/catalogs';
+import { claudeHealth } from '../api';
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
@@ -185,37 +187,7 @@ export default function Drawer() {
             </>
           )}
 
-          {kind === 'settings' && (
-            <>
-              <div className="set-group">
-                <h4>General</h4>
-                <div className="set-row">
-                  <label>Auto-save</label>
-                  <div className="val">
-                    <span className="set-chip on">Every 10s</span>
-                    <span className="set-chip">Manual</span>
-                  </div>
-                </div>
-                <div className="set-row">
-                  <label>LLM</label>
-                  <div className="val">
-                    <span className="set-chip on">claude-haiku-4-5</span>
-                  </div>
-                </div>
-              </div>
-              <div className="set-group">
-                <h4>Appearance</h4>
-                <div className="set-row">
-                  <label>Accent</label>
-                  <div className="val set-swatch">
-                    <span className="sw on" style={{ background: '#F09708' }} />
-                    <span className="sw" style={{ background: '#00FFB2' }} />
-                    <span className="sw" style={{ background: '#A78BFA' }} />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          {kind === 'settings' && <SettingsPanel />}
         </div>
 
         <footer className="drawer-foot">
@@ -223,5 +195,183 @@ export default function Drawer() {
         </footer>
       </aside>
     </div>
+  );
+}
+
+function SettingsPanel() {
+  const showToast = useWorkspace((s) => s.showToast);
+  const clearHistory = useWorkspace((s) => s.clearHistory);
+  const cells = useWorkspace((s) => s.cells);
+  const datasets = useWorkspace((s) => s.datasets);
+  const history = useWorkspace((s) => s.history);
+  const globalPreset = useWorkspace((s) => s.globalPreset);
+  const pageTitle = useWorkspace((s) => s.pageTitle);
+
+  const [health, setHealth] = useState<{ provider: string; model: string; key_present: boolean } | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<{ memory_entries: number; disk_entries: number; disk_mb: number; cache_dir: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    claudeHealth().then(setHealth).catch(() => setHealth(null));
+    refreshCache();
+  }, []);
+
+  function refreshCache() {
+    fetch('/api/analyze/cache/stats').then((r) => r.json()).then(setCacheInfo).catch(() => {});
+  }
+
+  async function clearAnalyzerCache() {
+    if (!confirm('Clear analyzer disk cache? Next analysis will re-run from scratch.')) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/analyze/cache', { method: 'DELETE' });
+      const j = await r.json();
+      showToast(`Cleared ${j.removed} cached analyses`);
+      refreshCache();
+    } catch (e) {
+      showToast(`Cache clear failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function exportWorkspace() {
+    const blob = new Blob([JSON.stringify({
+      schema: 'hw_workspace_v4',
+      exported_at: new Date().toISOString(),
+      pageTitle,
+      globalPreset,
+      datasets,
+      cells,
+      history,
+    }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hwalker_workspace_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast('Workspace exported');
+  }
+
+  function importWorkspace() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files?.[0];
+      if (!f) return;
+      try {
+        const text = await f.text();
+        const data = JSON.parse(text);
+        if (!data.schema || !data.schema.startsWith('hw_workspace_')) {
+          throw new Error('Not a H-Walker workspace file');
+        }
+        if (!confirm('Replace current workspace with imported file?')) return;
+        localStorage.setItem('hw_workspace_v4', JSON.stringify({ state: {
+          cells: data.cells || [],
+          datasets: data.datasets || [],
+          currentPreset: data.globalPreset || 'ieee',
+          globalPreset: data.globalPreset || 'ieee',
+          pageTitle: data.pageTitle || 'Imported workspace',
+          history: data.history || [],
+        }, version: 0 }));
+        location.reload();
+      } catch (e) {
+        showToast(`Import failed: ${(e as Error).message}`);
+      }
+    };
+    inp.click();
+  }
+
+  function resetWorkspace() {
+    if (!confirm('Reset EVERYTHING? Clears all cells, datasets (on this client), and history. Backend upload files on disk are preserved.')) return;
+    localStorage.clear();
+    location.reload();
+  }
+
+  return (
+    <>
+      <div className="set-group">
+        <h4>Claude API</h4>
+        <div className="set-info">
+          <div className="set-row-info">
+            <span className="k">Model</span>
+            <code>{health?.model || '—'}</code>
+          </div>
+          <div className="set-row-info">
+            <span className="k">API key</span>
+            <span className={`set-dot ${health?.key_present ? 'ok' : 'bad'}`}>
+              {health?.key_present ? '● ready' : '● missing — set ANTHROPIC_API_KEY and restart'}
+            </span>
+          </div>
+          <div className="set-row-info">
+            <span className="k">Provider</span>
+            <code>{health?.provider || '—'}</code>
+          </div>
+        </div>
+      </div>
+
+      <div className="set-group">
+        <h4>Analyzer cache</h4>
+        <div className="set-info">
+          <div className="set-row-info">
+            <span className="k">Disk entries</span>
+            <b>{cacheInfo?.disk_entries ?? '—'}</b>
+          </div>
+          <div className="set-row-info">
+            <span className="k">Disk size</span>
+            <b>{cacheInfo?.disk_mb ?? '—'} MB</b>
+          </div>
+          <div className="set-row-info">
+            <span className="k">Location</span>
+            <code style={{ fontSize: 9, wordBreak: 'break-all' }}>{cacheInfo?.cache_dir || '—'}</code>
+          </div>
+        </div>
+        <div className="set-actions">
+          <button onClick={refreshCache} disabled={busy}>
+            <RefreshCw size={12} /> Refresh
+          </button>
+          <button onClick={clearAnalyzerCache} disabled={busy} className="danger">
+            <Trash2 size={12} /> Clear analyzer cache
+          </button>
+        </div>
+      </div>
+
+      <div className="set-group">
+        <h4>Workspace</h4>
+        <div className="set-info">
+          <div className="set-row-info">
+            <span className="k">Datasets</span>
+            <b>{datasets.length}</b>
+          </div>
+          <div className="set-row-info">
+            <span className="k">Cells</span>
+            <b>{cells.length}</b>
+          </div>
+          <div className="set-row-info">
+            <span className="k">History entries</span>
+            <b>{history.length}</b>
+          </div>
+          <div className="set-row-info">
+            <span className="k">Journal preset</span>
+            <b>{globalPreset.toUpperCase()}</b>
+          </div>
+        </div>
+        <div className="set-actions">
+          <button onClick={exportWorkspace}>
+            <Download size={12} /> Export workspace JSON
+          </button>
+          <button onClick={importWorkspace}>
+            <Upload size={12} /> Import workspace JSON
+          </button>
+          <button onClick={() => { if (confirm('Clear history timeline?')) clearHistory(); }}>
+            <Trash2 size={12} /> Clear history
+          </button>
+          <button onClick={resetWorkspace} className="danger">
+            <RotateCcw size={12} /> Reset workspace (all cells + datasets)
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

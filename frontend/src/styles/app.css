@@ -783,6 +783,38 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   max-width:380px;
 }
 
+/* Phase 2H · functional Settings drawer */
+.set-info{display:flex;flex-direction:column;gap:6px;padding:4px 0}
+.set-row-info{
+  display:flex;align-items:center;gap:8px;padding:4px 10px;
+  background:rgba(23,27,94,.3);border-radius:6px;
+  font:500 11.5px/1.4 'Pretendard',sans-serif;color:#E2E8F0;
+}
+.set-row-info .k{font:700 10px/1 'JetBrains Mono',monospace;color:#6B7280;
+  letter-spacing:.12em;text-transform:uppercase;min-width:88px}
+.set-row-info code{font:500 10.5px/1.3 'JetBrains Mono',monospace;color:#FFB347;background:rgba(240,151,8,.08);padding:2px 6px;border-radius:4px}
+.set-row-info b{color:#F09708;font-weight:700}
+.set-dot.ok{color:#00FFB2}
+.set-dot.bad{color:#f87171}
+
+.set-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.set-actions button{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 10px;border-radius:6px;cursor:pointer;
+  background:rgba(23,27,94,.5);color:#E2E8F0;
+  border:1px solid rgba(255,255,255,.08);
+  font:600 10.5px/1 'Pretendard',sans-serif;
+  transition:all .12s;
+}
+.set-actions button:hover:not(:disabled){
+  border-color:rgba(240,151,8,.35);background:rgba(240,151,8,.05);color:#fff;
+}
+.set-actions button:disabled{opacity:.5;cursor:not-allowed}
+.set-actions button.danger{color:#f87171;border-color:rgba(248,113,113,.3)}
+.set-actions button.danger:hover:not(:disabled){
+  background:rgba(248,113,113,.08);color:#f87171;
+}
+
 /* Phase 2H · delete button on dataset cards */
 .ds-del{
   margin-left:auto;padding:3px 6px;border-radius:5px;

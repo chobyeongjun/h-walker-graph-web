@@ -79,6 +79,9 @@ export interface Dataset {
   synced_from?: string | null;          // ds id of the original before sync
   sync_target_hz?: number;
   sync_window?: [number, number] | null;
+  // Phase 4 · treadmill stride-length fix
+  is_treadmill?: boolean;
+  belt_speed_ms?: number | null;
 }
 
 export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings' | 'study';
@@ -122,7 +125,10 @@ interface PageState {
   toggleRecipe: (dsId: string, recipeId: string) => void;
   applyRecipes: (dsId: string) => Promise<void>;
   analyzeIfNeeded: (dsId: string) => Promise<AnalyzeResponse | undefined>;
-  setDatasetMeta: (dsId: string, meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date'>>) => Promise<void>;
+  setDatasetMeta: (
+    dsId: string,
+    meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date' | 'is_treadmill' | 'belt_speed_ms'>>,
+  ) => Promise<void>;
 
   runCompute: (cellId: string) => Promise<void>;
   runStat: (cellId: string) => Promise<void>;

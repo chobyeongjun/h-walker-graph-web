@@ -378,13 +378,35 @@ def delete_dataset(ds_id: str) -> Response:
 
 @router.patch("/{ds_id}/meta")
 def update_meta(ds_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Phase 2 · Update dataset's group/subject/condition tags."""
+    """Update dataset's group/subject/condition tags + Phase 3 sync/treadmill
+    meta. Invalidates the analyzer cache when treadmill mode changes so the
+    next compute picks up the new belt speed."""
     if ds_id not in _REGISTRY:
         raise HTTPException(status_code=404, detail="dataset not found")
     d = _REGISTRY[ds_id]
+    cache_invalidate = False
     for key in ('subject_id', 'condition', 'group', 'date'):
         if key in payload:
             d[key] = str(payload[key] or '')
+    # Treadmill meta — affects stride-length computation path
+    if 'belt_speed_ms' in payload:
+        try:
+            v = float(payload['belt_speed_ms']) if payload['belt_speed_ms'] not in (None, '') else None
+            if v is not None and (v < 0 or v > 5.0):
+                raise HTTPException(status_code=422, detail=f"belt_speed_ms must be 0–5 m/s (got {v})")
+            d['belt_speed_ms'] = v
+            cache_invalidate = True
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"belt_speed_ms invalid: {exc}") from exc
+    if 'is_treadmill' in payload:
+        d['is_treadmill'] = bool(payload['is_treadmill'])
+        cache_invalidate = True
+    if cache_invalidate:
+        try:
+            from backend.routers.analyze import invalidate_cache
+            invalidate_cache(ds_id)
+        except Exception:
+            pass
     _save_registry()
     return {k: v for k, v in d.items() if not k.startswith('_')}
 

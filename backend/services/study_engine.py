@@ -1,37 +1,52 @@
 import os
 import re
 from typing import List, Dict, Any
+from fastapi import HTTPException
 from backend.models.schema import Study, StudyFile, StudySummary
 from backend.routers.analyze import analyze_cached
 from backend.routers.datasets import register_local_file
 from tools.auto_analyzer.analyzer import compare_results
 
 def discover_study(directory: str, study_name: str = "Auto Study") -> Study:
-    """Scan directory for H-Walker CSVs and group into a Study."""
+    """Scan directory (recursively) for H-Walker CSVs and group into a Study."""
     files = []
-    for f in os.listdir(directory):
-        if f.endswith(".csv"):
-            path = os.path.join(directory, f)
-            # Register with datasets router to get a ds_id
+    # Walk recursively to find all CSVs in sub-directories too
+    csv_paths = []
+    for root, _, fnames in os.walk(directory):
+        for f in sorted(fnames):
+            if f.lower().endswith(".csv"):
+                csv_paths.append((f, os.path.join(root, f)))
+
+    if not csv_paths:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No CSV files found in '{directory}'. Check the path and make sure it contains .csv files."
+        )
+
+    for f, path in csv_paths:
+        # Register with datasets router to get a ds_id
+        try:
             ds_id = register_local_file(path)
-            
-            # Simple metadata extraction from filename (Subject_Condition_Trial)
-            # Example: S01_Pre_T1.csv
-            subject_id = "unknown"
-            condition = "baseline"
-            parts = f.split("_")
-            if len(parts) >= 2:
-                subject_id = parts[0]
-                condition = parts[1]
-            
-            files.append(StudyFile(
-                id=ds_id,
-                name=f,
-                path=path,
-                subject_id=subject_id,
-                condition=condition
-            ))
-    
+        except Exception:
+            continue  # Skip unreadable files
+
+        # Simple metadata extraction from filename (Subject_Condition_Trial)
+        # Example: S01_Pre_T1.csv
+        subject_id = "unknown"
+        condition = "baseline"
+        parts = os.path.splitext(f)[0].split("_")
+        if len(parts) >= 2:
+            subject_id = parts[0]
+            condition = parts[1]
+
+        files.append(StudyFile(
+            id=ds_id,
+            name=f,
+            path=path,
+            subject_id=subject_id,
+            condition=condition
+        ))
+
     return Study(id=study_name.lower().replace(" ", "_"), name=study_name, files=files)
 
 def run_study_analysis(study: Study) -> StudySummary:

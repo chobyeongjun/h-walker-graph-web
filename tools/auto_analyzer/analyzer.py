@@ -151,17 +151,74 @@ def _fatigue_index(values: np.ndarray, pct: float = 0.1) -> float:
     return (last - first) / abs(first) * 100
 
 
-def _detect_heel_strikes(df: pd.DataFrame, side: str, sample_rate: float) -> np.ndarray:
-    """Detect heel strike indices from Event column (rising edge) or GCP fallback."""
+def _apply_refractory(hs_idx: np.ndarray, min_gap_samples: int) -> np.ndarray:
+    """Drop any heel-strike that comes within `min_gap_samples` of the
+    previous one. Physiological gait stride is ≥0.4 s (cadence ≤ 150 spm),
+    so anything tighter is noise from chattering Event columns."""
+    if len(hs_idx) <= 1 or min_gap_samples < 1:
+        return hs_idx
+    kept = [int(hs_idx[0])]
+    for x in hs_idx[1:]:
+        if int(x) - kept[-1] >= min_gap_samples:
+            kept.append(int(x))
+    return np.asarray(kept, dtype=int)
+
+
+def _adaptive_refractory(hs_idx: np.ndarray, sample_rate: float,
+                          min_stride_s: float = 0.3) -> np.ndarray:
+    """Two-pass heel-strike cleanup.
+
+    Pass 1 · Fixed refractory (0.3 s default) removes obvious chatter
+    (physiological floor — healthy gait rarely < 0.4 s, slow gait ≥ 0.8 s,
+    but we stay permissive so we don't merge real strides).
+
+    Pass 2 · Adaptive: compute median stride interval after pass 1, then
+    reject any interval < 50% of that median. This catches mid-band
+    chatter that slips past the fixed floor (e.g. Event column debouncing
+    at ~0.5 s when real cadence is ~1.0 s).
+
+    Preserves the first HS unconditionally so downstream slicing stays
+    aligned.
+    """
+    # Pass 1
+    hs = _apply_refractory(hs_idx, int(round(min_stride_s * sample_rate)))
+    if len(hs) < 4:
+        return hs
+    # Pass 2
+    gaps = np.diff(hs)
+    median_gap = float(np.median(gaps))
+    if median_gap <= 0:
+        return hs
+    cutoff = max(1, int(round(0.5 * median_gap)))
+    # Keep first HS always, then greedy filter by >= cutoff
+    kept = [int(hs[0])]
+    for x in hs[1:]:
+        if int(x) - kept[-1] >= cutoff:
+            kept.append(int(x))
+    return np.asarray(kept, dtype=int)
+
+
+def _detect_heel_strikes(df: pd.DataFrame, side: str, sample_rate: float,
+                          min_stride_s: float = 0.3) -> np.ndarray:
+    """Detect heel strike indices from Event column (rising edge) or GCP fallback.
+
+    Both code paths now apply a refractory window (`min_stride_s`, default
+    0.4 s = 150 spm max cadence) to reject chatter on the Event column and
+    spurious GCP wrap-around events.
+    """
     event_col = f'{side}_Event'
     gcp_col = f'{side}_GCP'
+    min_gap = max(1, int(round(min_stride_s * sample_rate)))
 
     hs_idx = np.array([], dtype=int)
 
-    # Primary: Event rising edge
+    # Primary: Event rising edge (0→1)
     if event_col in df.columns:
         events = df[event_col].values.astype(np.float64)
-        hs_idx = np.where(np.diff(events) > 0.5)[0] + 1
+        raw = np.where(np.diff(events) > 0.5)[0] + 1
+        # Always apply refractory period — noisy Event columns generate
+        # hundreds of false strides otherwise.
+        hs_idx = _apply_refractory(raw, min_gap)
 
     if len(hs_idx) >= 2:
         return hs_idx
@@ -184,12 +241,7 @@ def _detect_heel_strikes(df: pd.DataFrame, side: str, sample_rate: float) -> np.
     hs_threshold = -max(0.1, np.ptp(gcp[np.isfinite(gcp)]) * 0.15)
     diffs = np.diff(gcp)
     raw_hs = np.where(diffs < hs_threshold)[0] + 1
-
-    if len(raw_hs) > 1:
-        gaps = np.diff(raw_hs)
-        keep = np.concatenate([[True], gaps > max(20, sample_rate * 0.3)])
-        return raw_hs[keep]
-    return raw_hs
+    return _apply_refractory(raw_hs, min_gap)
 
 
 def _filter_strides_iqr(stride_times: np.ndarray, multiplier: float = 2.0
@@ -312,13 +364,34 @@ def _compute_stride_length_zupt(df: pd.DataFrame, side: str,
 
     result = np.array(stride_lengths)
 
-    # Sanity check: flag unreasonable values
+    # Sanity filter 1: physiologically impossible strides → NaN out.
+    # Human gait = 0.3~2.0 m; we tolerate 0.1~3.0 for short-step rehab.
+    result = np.where((result < 0.1) | (result > 3.0), np.nan, result)
+
+    # Sanity filter 2: anything > 3× median after step 1 is drift artifact.
     valid = result[np.isfinite(result)]
-    if len(valid) > 0:
-        median_len = np.median(valid)
-        if median_len < 0.05 or median_len > 3.0:
-            print(f"  WARNING: {side} median stride length = {median_len:.3f} m "
-                  f"(expected 0.3-2.0 m). Check IMU data frame/units.")
+    if len(valid) >= 3:
+        median_len = float(np.median(valid))
+        result = np.where(
+            np.isfinite(result) & (np.abs(result - median_len) > 3 * median_len),
+            np.nan,
+            result,
+        )
+        # Also CV-guard: if remaining values still have CV > 30%, something
+        # systematic is wrong (likely treadmill data + ZUPT drift).
+        valid2 = result[np.isfinite(result)]
+        if len(valid2) > 0:
+            cv = float(np.std(valid2) / np.mean(valid2)) if np.mean(valid2) > 0 else 1.0
+            if median_len < 0.15:
+                print(f"  ⚠ {side} median stride = {median_len:.3f} m — treadmill "
+                      f"data? ZUPT assumes over-ground. Set dataset.belt_speed_ms "
+                      f"to use stride_time × belt_speed instead.")
+            elif median_len > 2.5:
+                print(f"  ⚠ {side} median stride = {median_len:.3f} m — check "
+                      f"IMU frame/units. Expected 0.3-2.0 m.")
+            elif cv > 0.30:
+                print(f"  ⚠ {side} stride length CV = {cv*100:.0f}% (normal ≤ 5%). "
+                      f"Likely ZUPT drift — inspect gyro threshold or flag as treadmill.")
 
     return result
 

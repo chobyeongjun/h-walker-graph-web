@@ -20,7 +20,7 @@ ellipsis row "…" is inserted and the last stride appended.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -404,12 +404,76 @@ def target_dev(df: pd.DataFrame, res: AnalysisResult,
 
 
 def stride_length(df: pd.DataFrame, res: AnalysisResult,
-                  n_max_rows: int = 30) -> dict[str, Any]:
-    """Per-stride length (m) from ZUPT integration — analyzer output."""
+                  n_max_rows: int = 30,
+                  belt_speed_ms: Optional[float] = None,
+                  is_treadmill: bool = False) -> dict[str, Any]:
+    """Per-stride length (m).
+
+    Two integration paths, chosen automatically:
+
+      (1) ZUPT over-ground — integrates IMU global velocity between heel
+          strikes. Valid when the robot physically travels through space.
+
+      (2) Treadmill belt-speed × stride-time — valid for stationary walker
+          on a moving belt. Triggered when (a) user flags the dataset as
+          treadmill via PATCH /api/datasets/{id}/meta {is_treadmill:true,
+          belt_speed_ms:X}, OR (b) the ZUPT median is implausibly small
+          (< 0.15 m) and belt_speed_ms is provided as a fallback.
+
+    The output `meta` carries diagnostic fields the UI surfaces as warnings.
+    """
     ls, rs = res.left_stride, res.right_stride
-    L = ls.stride_lengths[np.isfinite(ls.stride_lengths)]
-    R = rs.stride_lengths[np.isfinite(rs.stride_lengths)]
+    L_zupt = ls.stride_lengths[np.isfinite(ls.stride_lengths)]
+    R_zupt = rs.stride_lengths[np.isfinite(rs.stride_lengths)]
+    L_times = ls.stride_times
+    R_times = rs.stride_times
+
+    warnings: list[str] = []
+    mode = "zupt"
+    label = "Stride length (m, ZUPT)"
+
+    median_zupt = None
+    if len(L_zupt) + len(R_zupt) >= 3:
+        median_zupt = float(np.median(np.concatenate([L_zupt, R_zupt])))
+
+    # Decide mode
+    if is_treadmill or (belt_speed_ms and median_zupt is not None and median_zupt < 0.15):
+        if not belt_speed_ms:
+            warnings.append("Dataset flagged treadmill but no belt_speed_ms set — "
+                            "falling back to ZUPT (will likely be wrong).")
+        else:
+            mode = "treadmill"
+            label = f"Stride length (m, belt {belt_speed_ms:.2f} m/s × stride_time)"
+            # stride_length = stride_time × belt_speed (simplest + robust)
+            L = np.asarray(L_times, dtype=float) * float(belt_speed_ms)
+            R = np.asarray(R_times, dtype=float) * float(belt_speed_ms)
+            L_zupt = L  # overwrite for output
+            R_zupt = R
+
+    L, R = L_zupt, R_zupt
     n = min(len(L), len(R)) if len(L) and len(R) else max(len(L), len(R))
+
+    # Physiological warnings
+    if mode == "zupt" and median_zupt is not None:
+        if median_zupt < 0.15:
+            warnings.append(
+                f"Median ZUPT stride = {median_zupt:.3f} m — likely treadmill "
+                f"data (ZUPT assumes over-ground travel). Open Settings · "
+                f"Dataset and set belt_speed_ms."
+            )
+        elif median_zupt > 2.5:
+            warnings.append(
+                f"Median stride = {median_zupt:.3f} m — verify IMU frame (L_Ax/L_Ay "
+                f"must carry global velocity, m/s)."
+            )
+        # CV check
+        if len(L) >= 3:
+            cv_l = float(np.std(L) / np.mean(L)) if np.mean(L) > 0 else 1.0
+            if cv_l > 0.20:
+                warnings.append(
+                    f"L stride-length CV = {cv_l*100:.0f}% (normal ≤ 5%). "
+                    f"Check Event column for chatter or consider treadmill mode."
+                )
 
     rows = []
     for i in range(n):
@@ -422,7 +486,7 @@ def stride_length(df: pd.DataFrame, res: AnalysisResult,
         rows.append([str(i + 1), l_val, r_val, asym])
 
     return {
-        "label": "Stride length (m, ZUPT)",
+        "label": label,
         "cols": ["stride_#", "L (m)", "R (m)", "asym (%)"],
         "rows": _truncate_rows(rows, n_max_rows),
         "summary": {"mean": [
@@ -430,7 +494,12 @@ def stride_length(df: pd.DataFrame, res: AnalysisResult,
             _fmt_mean_std(R, digits=3),
             "—",
         ]},
-        "meta": {"n_strides": int(n)},
+        "meta": {
+            "n_strides": int(n),
+            "mode": mode,
+            "belt_speed_ms": belt_speed_ms,
+            "warnings": warnings,
+        },
     }
 
 

@@ -112,7 +112,28 @@ export default function ComputeCell({ cell }: Props) {
                 <span>strides</span><b>{String(live.meta.n_strides)}</b>
               </div>
             )}
+            {live?.meta?.mode && live?.meta?.mode !== 'zupt' && (
+              <div className="row" style={{ color: '#A78BFA', fontSize: 10, marginTop: 4 }}>
+                <span>mode</span><b>{String(live.meta.mode)}</b>
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Diagnostic warnings from the compute engine (stride_length treadmill
+          detection, CV guards, unit-sanity checks). Loudly flagged so the
+          user doesn't silently use broken numbers. */}
+      {Array.isArray(live?.meta?.warnings) && live!.meta.warnings.length > 0 && (
+        <div style={{
+          marginTop: 10, padding: '8px 11px',
+          background: 'rgba(248,113,113,.06)', border: '1px solid rgba(248,113,113,.3)',
+          borderRadius: 8, font: '500 11px/1.5 Pretendard, sans-serif', color: '#fca5a5',
+        }}>
+          <b style={{ color: '#f87171' }}>⚠ Data quality warnings</b>
+          {(live!.meta.warnings as string[]).map((w, i) => (
+            <div key={i} style={{ marginTop: 4 }}>· {w}</div>
+          ))}
         </div>
       )}
     </>

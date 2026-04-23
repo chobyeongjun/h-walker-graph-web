@@ -43,10 +43,11 @@ export const saveMapping = (id: string, columns: Record<string, string>) =>
     body: JSON.stringify({ columns }),
   });
 
-// Phase 2 · study-level tags
+// Phase 2 · study-level tags; Phase 4 · treadmill meta
 export const updateDatasetMeta = (
   id: string,
-  meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date'>>,
+  meta: Partial<Pick<Dataset,
+    'subject_id' | 'condition' | 'group' | 'date' | 'is_treadmill' | 'belt_speed_ms'>>,
 ) => json<Dataset>(`/api/datasets/${id}/meta`, {
   method: 'PATCH',
   body: JSON.stringify(meta),
@@ -122,7 +123,13 @@ export interface ComputeResponse {
   cols: string[];
   rows: string[][];
   summary: { mean: string[] };
-  meta?: Record<string, unknown>;
+  meta?: {
+    n_strides?: number;
+    mode?: 'zupt' | 'treadmill' | string;
+    belt_speed_ms?: number | null;
+    warnings?: string[];
+    [k: string]: unknown;
+  };
 }
 
 export const computeMetric = (req: ComputeRequest) =>

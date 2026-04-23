@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Trash2 } from 'lucide-react';
-import { usePage } from '../store/page';
+import { usePage, type Dataset } from '../store/page';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign } from '../api';
 
@@ -241,6 +241,7 @@ export default function DatasetPanel() {
                 />
               )}
             </div>
+            <TreadmillEditor dataset={d} />
             <div className="ds-cols">
               {d.cols.slice(0, 5).map((c, i) => (
                 <span key={i} className={`ds-col${c.mapped && c.mapped !== '—' ? ' mapped' : ''}`}>
@@ -381,6 +382,59 @@ function AutoRecipes({ recipes, active, onToggle, onApply }: {
             </button>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Inline treadmill toggle + belt-speed input. Stops event propagation so
+ *  clicking fields inside this block doesn't bubble to the card's
+ *  setActive handler. */
+function TreadmillEditor({ dataset }: { dataset: Dataset }) {
+  const setMeta = usePage((s) => s.setDatasetMeta);
+  const isTM = !!(dataset as { is_treadmill?: boolean }).is_treadmill;
+  const belt = (dataset as { belt_speed_ms?: number | null }).belt_speed_ms;
+  const [local, setLocal] = useState<string>(belt == null ? '' : String(belt));
+
+  useEffect(() => {
+    setLocal(belt == null ? '' : String(belt));
+  }, [belt]);
+
+  return (
+    <div className="ds-tags" onClick={(e) => e.stopPropagation()}
+         style={{ paddingTop: 4 }}>
+      <label className="ds-tag-ed" style={{
+        cursor: 'pointer', background: isTM ? 'rgba(167,139,250,.14)' : 'transparent',
+      }} title="Flag as treadmill data — stride_length then uses belt_speed × stride_time instead of ZUPT">
+        <span className="ds-tag-lbl">treadmill</span>
+        <input
+          type="checkbox"
+          checked={isTM}
+          onChange={(e) => setMeta(dataset.id, { is_treadmill: e.target.checked })}
+          style={{ margin: '0 4px', accentColor: '#A78BFA' }}
+        />
+      </label>
+      {isTM && (
+        <label className="ds-tag-ed set"
+               title="Belt speed in m/s. Normal walking = 0.8~1.4 m/s. Clinical slow walking = 0.3~0.6 m/s.">
+          <span className="ds-tag-lbl">belt m/s</span>
+          <input
+            className="ds-tag-inp"
+            type="number"
+            step="0.05"
+            min="0"
+            max="5"
+            value={local}
+            placeholder="1.0"
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={() => {
+              const v = local.trim() === '' ? null : parseFloat(local);
+              if (v === belt) return;
+              setMeta(dataset.id, { belt_speed_ms: v } as Partial<Dataset>);
+            }}
+            style={{ width: 56 }}
+          />
+        </label>
       )}
     </div>
   );

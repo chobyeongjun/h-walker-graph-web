@@ -764,6 +764,8 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
   animation:gd-fade .12s var(--hw-ease);
 }
 @keyframes gd-fade{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .global-drop-inner{
   padding:48px 64px;border-radius:18px;
   background:rgba(23,27,94,.72);

@@ -24,6 +24,7 @@ from backend.routers.stats import router as stats_router
 from backend.routers.paper import router as paper_router
 from backend.routers.study import router as study_router
 from backend.routers.sync import router as sync_router
+from backend.routers.split import router_split
 
 app = FastAPI(title="H-Walker Graph API")
 app.add_middleware(
@@ -47,6 +48,7 @@ app.include_router(stats_router)
 app.include_router(paper_router)
 app.include_router(study_router)
 app.include_router(sync_router)
+app.include_router(router_split)
 
 
 @app.get("/health")

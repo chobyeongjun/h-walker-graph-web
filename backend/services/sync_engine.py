@@ -145,23 +145,69 @@ def sync_window(
     min_pulse_width_s: float = 0.005,
     max_pulse_width_s: float = 2.0,
 ) -> Optional[tuple[int, int]]:
-    """Return (start_sample, end_sample) from the first and last pulse.
+    """Return (start_sample, end_sample) using the asymmetric trigger protocol.
 
-    Uses the RISING edge (Low→High) as the boundary marker — that's the
-    moment the signal returns HIGH after the dip, which is when MoCap
-    recording starts/stops.
+    Asymmetric trigger protocol:
+      START  = first pulse RISING edge  (Low→High) — MoCap recording begins
+                HIGH ─┐     ┌─ HIGH
+                       └─LOW┘
+                            ↑ rise_idx  (signal goes back HIGH = experiment start)
+
+      END    = last FALLING edge        (High→Low) — MoCap recording ends
+                HIGH ─────────┐
+                               └─ LOW ─── (stays low forever)
+                               ↑ fall_idx (signal drops LOW = experiment end)
+
+    The end trigger does NOT need a matching rise — the signal just goes LOW
+    and stays there, so we detect it directly from the raw edge array rather
+    than requiring a complete pulse pair.
     """
-    pulses = detect_sync_pulses(
-        signal, sample_rate,
-        min_pulse_width_s=min_pulse_width_s,
-        max_pulse_width_s=max_pulse_width_s,
-    )
-    if len(pulses) < 2:
-        if len(pulses) == 1 and use_first_and_last:
-            # Single pulse — treat rising edge as "start", use recording end.
-            return pulses[0].rise_idx, int(signal.size - 1)
+    sig = np.asarray(signal, dtype=float).ravel()
+    if sig.size < 3:
         return None
-    return pulses[0].rise_idx, pulses[-1].rise_idx
+
+    lo, hi = float(np.nanmin(sig)), float(np.nanmax(sig))
+    if hi - lo < 1e-9:
+        return None  # flat signal
+    thr = lo + 0.5 * (hi - lo)
+
+    is_low = sig < thr
+    edges  = np.diff(is_low.astype(np.int8))
+
+    # All falling edges (HIGH→LOW) and rising edges (LOW→HIGH)
+    all_falls = np.flatnonzero(edges == 1) + 1
+    all_rises = np.flatnonzero(edges == -1) + 1
+
+    if all_falls.size == 0:
+        return None  # no trigger at all
+
+    # ── START: first complete pulse rising edge ──────────────────────────
+    # Find the first fall that has a matching rise after it (within max_pulse_width)
+    min_w = max(1, int(round(min_pulse_width_s * sample_rate)))
+    max_w = max(min_w, int(round(max_pulse_width_s * sample_rate)))
+
+    start_rise: Optional[int] = None
+    for f in all_falls:
+        rs = all_rises[all_rises > f]
+        if rs.size == 0:
+            continue
+        r = int(rs[0])
+        if min_w <= (r - int(f)) <= max_w:
+            start_rise = r
+            break
+
+    if start_rise is None:
+        return None  # no valid start pulse found
+
+    # ── END: last falling edge that comes AFTER the start ────────────────
+    end_falls = all_falls[all_falls > start_rise]
+    if end_falls.size == 0:
+        # Only one pulse total — use recording end as fallback
+        return start_rise, int(sig.size - 1)
+
+    end_fall = int(end_falls[-1])
+    return start_rise, end_fall
+
 
 
 # ─── cropping + resampling ─────────────────────────────────────────────

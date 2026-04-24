@@ -750,20 +750,22 @@ def render_endpoint(req: RenderRequest):
     elif real is not None:
         data, mime = real
     else:
-        try:
-            data, mime = render(
-                template=req.template,
-                preset=req.preset,
-                variant=req.variant,
-                format=req.format,
-                dpi=req.dpi,
-                stride_avg=req.stride_avg,
-                colorblind_safe=req.colorblind_safe,
-                keep_palette=req.keep_palette,
-                title_override=req.title,
-            )
-        except Exception as exc:  # noqa: BLE001 — surface full error to client
-            raise HTTPException(status_code=500, detail=f"render failed: {exc}") from exc
+        # The mock-bezier fallback used to fire here. It has been removed
+        # per user directive — produce a clear 422 instead so the user
+        # knows their dataset is incompatible with this template, rather
+        # than getting a publication-looking figure full of fake data.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Template '{req.template}' could not be rendered from "
+                "this dataset's analysis. Either the CSV isn't in the "
+                "H-Walker format the analyzer expects, or the template "
+                "needs columns this dataset doesn't have. The mock-data "
+                "fallback was deliberately removed — pick a different "
+                "template (e.g. force_avg / asymmetry / imu_avg) or use "
+                "the raw-signal Inspector card to look at the data."
+            ),
+        )
 
     P = JOURNAL_PRESETS[req.preset]
     fname = _suggest_filename(req, P)

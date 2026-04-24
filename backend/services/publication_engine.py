@@ -562,6 +562,19 @@ def render(
         raise ValueError(f"Unknown template: {template}")
     spec = GRAPH_SPECS[key]
 
+    # Per a strong user directive ("실제 그래프만 남기라고 내가 몇번을
+    # 말해"), this fallback path is no longer allowed to render mock
+    # SVG bezier curves into the publication figure. The real-data
+    # path lives in routers/graphs.py::_render_real_data; if that
+    # didn't fire, raise instead of producing a fake. Caller
+    # (graphs.py) now reports 422 with a clear message.
+    raise ValueError(
+        f"Template '{template}' has no real-data renderer for this "
+        "dataset. The mock-bezier fallback was removed — bind a "
+        "valid H-Walker CSV or pick a template that supports the "
+        "data type you uploaded."
+    )
+
     if variant == "col1":
         w_mm, h_mm = P.col1
     elif variant == "col2":

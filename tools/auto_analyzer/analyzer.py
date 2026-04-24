@@ -507,7 +507,14 @@ def analyze_file(filepath: str, analyses: list[str] = None) -> AnalysisResult:
         )
         if sr.stride_time_mean > 0:
             sr.stride_time_cv = sr.stride_time_std / sr.stride_time_mean * 100
-            sr.cadence = 60.0 / sr.stride_time_mean * 2  # steps/min
+            # Whole-body cadence (steps/min) estimated from one side's
+            # heel-strike series. `stride_time_mean` is the time between
+            # two consecutive heel strikes on the SAME leg → one full
+            # gait cycle → two steps (one L step + one R step). So:
+            #   cadence [steps/min] = (60 / stride_time_s) * 2 = 120 / T
+            # Do NOT "simplify" the * 2 away — removing it halves the
+            # reported cadence. test_cadence_formula pins this.
+            sr.cadence = 60.0 / sr.stride_time_mean * 2
 
         # Stance/Swing
         if run_gait:

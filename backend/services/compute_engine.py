@@ -360,9 +360,14 @@ def cadence(df: pd.DataFrame, res: AnalysisResult,
         f"{combined:.1f}" if combined else "—",
     ]]
 
+    # NB: both ls.cadence and rs.cadence are *whole-body* cadence
+    # estimates (steps/min) derived from each side's own HS series. They
+    # should be ≈equal for symmetric gait — a large L/R disagreement
+    # hints at dropped heel strikes on one side. Combined = average of
+    # the two estimates (not a sum).
     return {
         "label": "Cadence (steps/min · whole-trial avg)",
-        "cols": ["L (spm)", "R (spm)", "Mean (spm)"],
+        "cols": ["from L HS (spm)", "from R HS (spm)", "Combined (spm)"],
         "rows": rows,
         "summary": {"mean": [f"{combined:.1f} spm"]},
         "meta": {

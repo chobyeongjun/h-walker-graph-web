@@ -46,7 +46,7 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
   },
   cadence: {
     label: 'Cadence (steps/min · whole-trial avg)',
-    cols: ['L (spm)', 'R (spm)', 'Mean (spm)'],
+    cols: ['from L HS (spm)', 'from R HS (spm)', 'Combined (spm)'],
     rows: [['112.0', '111.5', '111.8']],
     summary: { mean: ['111.8 spm'] },
   },

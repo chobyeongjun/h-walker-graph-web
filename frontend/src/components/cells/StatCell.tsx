@@ -51,31 +51,54 @@ export default function StatCell({ cell }: Props) {
             ))}
           </div>
         </div>
-        <div className="stat-row">
-          <label>{hasDataset ? 'A column' : 'Input A'}</label>
-          <input
-            type="text"
-            value={cell.inputs?.a || ''}
-            onChange={(e) => update(cell.id, {
-              inputs: { a: e.target.value, b: cell.inputs?.b || '' },
-              statData: undefined,
-            })}
-            placeholder={hasDataset ? 'L_ActForce_N' : 'c2.L_peak'}
-          />
-        </div>
-        {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
-          <div className="stat-row">
-            <label>{hasDataset ? 'B column' : 'Input B'}</label>
-            <input
-              type="text"
-              value={cell.inputs?.b || ''}
-              onChange={(e) => update(cell.id, {
-                inputs: { a: cell.inputs?.a || '', b: e.target.value },
-                statData: undefined,
-              })}
-              placeholder={hasDataset ? 'R_ActForce_N' : 'c2.R_peak'}
-            />
-          </div>
+        {/* Column inputs — datalist autocomplete when dataset is bound */}
+        {hasDataset && (() => {
+          const ds = allDatasets.find((d) => d.id === cell.dsIds[0]);
+          const colList = (ds?.cols || []).filter((c) => !['Event','Phase','Segment'].includes(c.name));
+          const listId = `stat-cols-${cell.id}`;
+          return (
+            <>
+              <datalist id={listId}>
+                {colList.map((c) => (
+                  <option key={c.name} value={c.name}>{c.unit ? `[${c.unit}]` : ''}</option>
+                ))}
+              </datalist>
+              <div className="stat-row">
+                <label>A column</label>
+                <input type="text" list={listId}
+                  value={cell.inputs?.a || ''}
+                  onChange={(e) => update(cell.id, { inputs: { a: e.target.value, b: cell.inputs?.b || '' }, statData: undefined })}
+                  placeholder="L_ActForce_N" />
+              </div>
+              {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
+                <div className="stat-row">
+                  <label>B column</label>
+                  <input type="text" list={listId}
+                    value={cell.inputs?.b || ''}
+                    onChange={(e) => update(cell.id, { inputs: { a: cell.inputs?.a || '', b: e.target.value }, statData: undefined })}
+                    placeholder="R_ActForce_N" />
+                </div>
+              )}
+            </>
+          );
+        })()}
+        {!hasDataset && (
+          <>
+            <div className="stat-row">
+              <label>Input A</label>
+              <input type="text" value={cell.inputs?.a || ''}
+                onChange={(e) => update(cell.id, { inputs: { a: e.target.value, b: cell.inputs?.b || '' }, statData: undefined })}
+                placeholder="c2.L_peak" />
+            </div>
+            {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
+              <div className="stat-row">
+                <label>Input B</label>
+                <input type="text" value={cell.inputs?.b || ''}
+                  onChange={(e) => update(cell.id, { inputs: { a: cell.inputs?.a || '', b: e.target.value }, statData: undefined })}
+                  placeholder="c2.R_peak" />
+              </div>
+            )}
+          </>
         )}
         <div className="stat-row">
           <label>Format</label>
@@ -277,13 +300,22 @@ function CrossFilePreview({ cell }: { cell: Cell }) {
   );
 }
 
+function sigStars(p: number | null): string {
+  if (p === null) return '';
+  if (p < 0.001) return ' ***';
+  if (p < 0.01)  return ' **';
+  if (p < 0.05)  return ' *';
+  return ' ns';
+}
+
 function BackendKV({ r }: { r: StatsResponse }) {
+  const pLabel = r.p == null ? '' : (r.p < 0.001 ? '<0.001' : r.p.toFixed(3)) + sigStars(r.p);
   const entries: Array<[string, string, boolean?]> = [
     ['Test', r.name, false],
     ['n', Array.isArray(r.n) ? r.n.join(' / ') : String(r.n), false],
     [r.stat_name, r.stat.toFixed(r.stat_name === 'r' || r.stat_name === 'ρ' || r.stat_name === 'd' ? 3 : 2), false],
     ['df', Array.isArray(r.df) ? `${r.df[0]}, ${r.df[1]}` : r.df != null ? Number(r.df).toFixed(1) : '', false],
-    ['p', r.p == null ? '' : (r.p < 0.001 ? '<0.001' : r.p.toFixed(3)), !!(r.p != null && r.p < 0.05)],
+    ['p', pLabel, !!(r.p != null && r.p < 0.05)],
     ['effect', r.effect_size ? `${r.effect_size.name} = ${r.effect_size.value.toFixed(3)}${r.effect_size.label ? ` (${r.effect_size.label})` : ''}` : '', false],
     ['95% CI', r.ci95 ? `[${r.ci95[0].toFixed(2)}, ${r.ci95[1].toFixed(2)}]` : '', false],
     ['assumption', r.assumption ? `${r.assumption.name}: p=${r.assumption.p.toFixed(3)} ${r.assumption.passed ? '✓' : '✗'}` : '', false],

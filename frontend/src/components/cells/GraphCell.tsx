@@ -37,6 +37,10 @@ export default function GraphCell({ cell }: Props) {
   const canToggleAvg = cell.graph === 'force' || cell.graph === 'force_avg';
   const palette = P?.paletteColor?.length ? P.paletteColor : P?.palette || [];
   const hasDataset = !!cell.dsIds[0];
+  const side = cell.side || 'both';
+  // Templates without meaningful L/R distinction skip the toggle
+  const NO_LR_TEMPLATES = new Set(['asymmetry', 'cyclogram', 'symmetry_radar', 'debug_ts']);
+  const canToggleSide = !NO_LR_TEMPLATES.has(cell.graph || '');
 
   // Auto-trigger backend preview when dataset is bound and no preview exists yet.
   useEffect(() => {
@@ -45,14 +49,14 @@ export default function GraphCell({ cell }: Props) {
     }
   }, [hasDataset, cell.previewBlobUrl, cell.loading, cell.error, cell.id, runPreview]);
 
-  // Re-run when the graph template, global preset, strideAvg, title, or
-  // the multi-dataset overlay series list changes.
+  // Re-run when the graph template, global preset, strideAvg, title,
+  // side filter, or the multi-dataset overlay series list changes.
   useEffect(() => {
     if (!hasDataset) return;
     const h = setTimeout(() => { runPreview(cell.id); }, 180);
     return () => clearTimeout(h);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cell.graph, cell.strideAvg, cell.title, globalPreset,
+  }, [cell.graph, cell.strideAvg, cell.title, globalPreset, cell.side,
       JSON.stringify(cell.series)]);
 
   useEffect(() => {
@@ -78,6 +82,7 @@ export default function GraphCell({ cell }: Props) {
           ? { datasets: cell.series.map((s) => ({ id: s.dsId, label: s.label, color: s.color })) }
           : { dataset_id: cell.dsIds[0] }),
         title: cell.title || '',
+        side,
       });
       const w = variant === 'col1' ? P?.col1.w : (variant === 'onehalf' ? P?.onehalf?.w ?? P?.col2.w : P?.col2.w);
       downloadBlob(blob, `${cell.id}_${activeKey}_${preset}_${Math.round(w || 0)}mm.${fmt}`);
@@ -165,6 +170,20 @@ export default function GraphCell({ cell }: Props) {
             />
             Stride avg (mean±SD)
           </label>
+        )}
+        {canToggleSide && (
+          <div className="gt-side-toggle">
+            {(['L', 'both', 'R'] as const).map((s) => (
+              <button
+                key={s}
+                className={`gt-side-btn${side === s ? ' active' : ''}`}
+                onClick={() => updateCell(cell.id, { side: s })}
+                title={s === 'both' ? 'Both limbs' : `${s === 'L' ? 'Left' : 'Right'} only`}
+              >
+                {s === 'both' ? 'L+R' : s}
+              </button>
+            ))}
+          </div>
         )}
         <div className="gt-spacer" />
         {hasDataset && (

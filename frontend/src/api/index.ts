@@ -205,6 +205,7 @@ export interface RenderGraphRequest {
   dataset_id?: string;   // single-dataset path (legacy)
   datasets?: Array<{ id: string; label?: string; color?: string }>;  // Phase 1 overlay
   title?: string;
+  side?: 'L' | 'R' | 'both';  // limb filter — 'both' = default (show L and R)
 }
 
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {

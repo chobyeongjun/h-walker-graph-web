@@ -408,6 +408,10 @@ body.focused .canvas,body.focused .llm-dock{filter:blur(1px)}
 .gt-sel:hover{border-color:rgba(240,151,8,.35)}
 .gt-toggle{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#CBD5E1;cursor:pointer;user-select:none}
 .gt-toggle input{accent-color:#F09708;cursor:pointer}
+.gt-side-toggle{display:inline-flex;border:1px solid rgba(255,255,255,.12);border-radius:5px;overflow:hidden;flex-shrink:0}
+.gt-side-btn{padding:3px 9px;font:700 10.5px/1.4 var(--mono,ui-monospace,monospace);color:#94A3B8;background:transparent;border:none;cursor:pointer;letter-spacing:.04em;transition:background .15s,color .15s}
+.gt-side-btn:hover{background:rgba(255,255,255,.06);color:#E2E8F0}
+.gt-side-btn.active{background:rgba(59,130,196,.22);color:#7FB5E4}
 .gt-spacer{flex:1}
 .gt-meta{font:500 10.5px/1 var(--mono,ui-monospace,monospace);color:#64748B;letter-spacing:.04em}
 .gt-export{position:relative}

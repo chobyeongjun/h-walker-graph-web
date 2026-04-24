@@ -40,6 +40,8 @@ export interface Cell {
   // graph renders as a multi-subject overlay with one colored trace per
   // entry. dsIds mirrors `series[].dsId` for backwards compat + filtering.
   series?: Array<{ dsId: string; label?: string; color?: string }>;
+  // L/R/both side filter — passed to backend render to show only one limb.
+  side?: 'L' | 'R' | 'both';
   // Phase 3: cross-file stat cell — if set, overrides a_col/b_col mode.
   statDatasetsA?: Array<{ id: string; metric: string }>;
   statDatasetsB?: Array<{ id: string; metric: string }>;
@@ -482,6 +484,7 @@ export const usePage = create<PageState>()(
             datasets,
             stride_avg: !!cell.strideAvg,
             title: cell.title || '',
+            side: cell.side || 'both',
           });
           // Revoke old preview URL
           if (cell.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);

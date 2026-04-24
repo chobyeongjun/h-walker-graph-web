@@ -65,6 +65,8 @@ class RenderRequest(BaseModel):
     datasets: list[DatasetSeries] = []
     # Phase 2E: optional user-provided title.
     title: Optional[str] = None
+    # L/R/both side filter — 'both' keeps current behavior (show both limbs).
+    side: Literal["L", "R", "both"] = "both"
 
 
 def _suggest_filename(req: RenderRequest, P) -> str:
@@ -385,12 +387,14 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
 
     gcp_axis = list(_np.linspace(0, 100, 101))
     traces: list[Trace] = []
+    inc_L = req.side in ("L", "both")
+    inc_R = req.side in ("R", "both")
 
     if req.template in ("force", "force_avg"):
         lfp = res.left_force_profile
         rfp = res.right_force_profile
         if req.template == "force_avg" or req.stride_avg:
-            if lfp.mean is not None and lfp.std is not None:
+            if inc_L and lfp.mean is not None and lfp.std is not None:
                 traces.append(Trace(kind="band", name="L ± SD",
                                     x=gcp_axis,
                                     y=list(lfp.mean), y_upper=list(lfp.mean + lfp.std),
@@ -399,7 +403,7 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                 traces.append(Trace(kind="line", name="L mean",
                                     x=gcp_axis, y=list(lfp.mean),
                                     color="#1E5F9E", width=2.0))
-            if rfp.mean is not None and rfp.std is not None:
+            if inc_R and rfp.mean is not None and rfp.std is not None:
                 traces.append(Trace(kind="band", name="R ± SD",
                                     x=gcp_axis,
                                     y=list(rfp.mean), y_upper=list(rfp.mean + rfp.std),
@@ -410,19 +414,19 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                                     color="#9E3838", width=2.0))
         else:
             # Instantaneous L/R mean + desired overlay
-            if lfp.mean is not None:
+            if inc_L and lfp.mean is not None:
                 traces.append(Trace(kind="line", name="L Actual",
                                     x=gcp_axis, y=list(lfp.mean),
                                     color="#3B82C4", width=2.0))
-            if lfp.des_mean is not None:
+            if inc_L and lfp.des_mean is not None:
                 traces.append(Trace(kind="line", name="L Desired",
                                     x=gcp_axis, y=list(lfp.des_mean),
                                     color="#7FB5E4", width=1.3, dash=True))
-            if rfp.mean is not None:
+            if inc_R and rfp.mean is not None:
                 traces.append(Trace(kind="line", name="R Actual",
                                     x=gcp_axis, y=list(rfp.mean),
                                     color="#D35454", width=2.0))
-            if rfp.des_mean is not None:
+            if inc_R and rfp.des_mean is not None:
                 traces.append(Trace(kind="line", name="R Desired",
                                     x=gcp_axis, y=list(rfp.des_mean),
                                     color="#E89B9B", width=1.3, dash=True))
@@ -464,11 +468,11 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         if lfp.individual is None and rfp.individual is None:
             return None
         box_traces: list[Trace] = []
-        if lfp.individual is not None:
+        if inc_L and lfp.individual is not None:
             peaks_l = lfp.individual.max(axis=1).tolist()
             box_traces.append(Trace(kind="box", name="L", x=["L"], y=peaks_l,
                                     color="#3B82C4"))
-        if rfp.individual is not None:
+        if inc_R and rfp.individual is not None:
             peaks_r = rfp.individual.max(axis=1).tolist()
             box_traces.append(Trace(kind="box", name="R", x=["R"], y=peaks_r,
                                     color="#D35454"))
@@ -481,14 +485,21 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
 
     if req.template == "trials":
         # Overlay individual stride profiles (up to 5 for readability)
-        lfp = res.left_force_profile
-        if lfp.individual is None:
+        # side selects which limb's strides to show (default: L)
+        if inc_L and not inc_R:
+            fp_side = res.left_force_profile
+        elif inc_R and not inc_L:
+            fp_side = res.right_force_profile
+        else:
+            fp_side = res.left_force_profile  # 'both' → show L (cleaner for trials)
+        if fp_side.individual is None:
             return None
-        n = min(5, lfp.individual.shape[0])
+        n = min(5, fp_side.individual.shape[0])
         colors = ["#7FB5E4", "#3B82C4", "#E89B9B", "#D35454", "#F09708"]
+        side_label = "R" if (inc_R and not inc_L) else "L"
         for i in range(n):
-            traces.append(Trace(kind="line", name=f"Stride {i + 1}",
-                                x=gcp_axis, y=lfp.individual[i].tolist(),
+            traces.append(Trace(kind="line", name=f"{side_label} Stride {i + 1}",
+                                x=gcp_axis, y=fp_side.individual[i].tolist(),
                                 color=colors[i % len(colors)], width=1.4))
         return render_from_traces(
             traces, title=req.title or "",
@@ -510,8 +521,10 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         fs = res.sample_rate
         n_max = int(min(len(df), fs * 8.0))
         t = list(_np.arange(n_max) / fs)
-        candidates = [c for c in ("L_Pitch", "R_Pitch", "L_Roll", "R_Roll",
-                                   "L_Yaw", "R_Yaw") if c in df.columns][:4]
+        all_imu = [c for c in ("L_Pitch", "R_Pitch", "L_Roll", "R_Roll",
+                                "L_Yaw", "R_Yaw") if c in df.columns]
+        candidates = [c for c in all_imu
+                      if (inc_L and c.startswith("L_")) or (inc_R and c.startswith("R_"))][:4]
         colors = ["#3B82C4", "#D35454", "#7FB5E4", "#E89B9B"]
         for i, col in enumerate(candidates):
             traces.append(Trace(kind="line", name=col,
@@ -533,10 +546,12 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             return None
         from backend.services.compute_engine import resample_column
         ls, rs = res.left_stride, res.right_stride
-        for col, color_line, color_band in [
-            ("L_Pitch", "#1E5F9E", "#3B82C4"),
-            ("R_Pitch", "#9E3838", "#D35454"),
-        ]:
+        imu_avg_cols = []
+        if inc_L:
+            imu_avg_cols.append(("L_Pitch", "#1E5F9E", "#3B82C4"))
+        if inc_R:
+            imu_avg_cols.append(("R_Pitch", "#9E3838", "#D35454"))
+        for col, color_line, color_band in imu_avg_cols:
             if col not in df.columns:
                 continue
             side_stride = ls if col.startswith("L_") else rs
@@ -599,10 +614,12 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
     if req.template == "stride_time_trend":
         # Stride time across stride # + linear-regression fit
         ls, rs = res.left_stride, res.right_stride
-        for times, label, color in [
-            (ls.stride_times, "L", "#3B82C4"),
-            (rs.stride_times, "R", "#D35454"),
-        ]:
+        stride_sides = []
+        if inc_L:
+            stride_sides.append((ls.stride_times, "L", "#3B82C4"))
+        if inc_R:
+            stride_sides.append((rs.stride_times, "R", "#D35454"))
+        for times, label, color in stride_sides:
             if len(times) < 2:
                 continue
             xs = list(range(1, len(times) + 1))
@@ -627,17 +644,14 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         )
 
     if req.template == "force_lr_subplot":
-        # Side-by-side L / R panels, both GCP-normalized, both at exact
-        # journal size. This is the "most requested" kinetic figure —
-        # single subplot per leg with the desired (dashed) trace overlaid.
+        # Side-by-side L / R panels (both = default). If only one side is
+        # selected, render a single panel at the same journal size.
         import matplotlib as _mpl
         import matplotlib.pyplot as _plt
         from backend.services.publication_engine import (
             JOURNAL_PRESETS as _JP, _compose_rc, _emit,
         )
         lfp, rfp = res.left_force_profile, res.right_force_profile
-        if lfp.mean is None or rfp.mean is None:
-            return None
         P = _JP[req.preset]
         if req.variant == "col1":
             w_mm, h_mm = P.col1
@@ -648,8 +662,44 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         dpi_val = req.dpi or P.dpi
         inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
         x = _np.linspace(0, 100, 101)
-
         rc = _compose_rc(P)
+
+        # Single-side: render as a compact single panel
+        if not (inc_L and inc_R):
+            fp = lfp if inc_L else rfp
+            side_label = "Left" if inc_L else "Right"
+            color_line = "#1E5F9E" if inc_L else "#9E3838"
+            color_band = "#3B82C4" if inc_L else "#D35454"
+            color_des = "#7FB5E4" if inc_L else "#E89B9B"
+            act_label = "L actual" if inc_L else "R actual"
+            des_label = "L desired" if inc_L else "R desired"
+            if fp.mean is None:
+                return None
+            with _mpl.rc_context(rc):
+                fig, ax = _plt.subplots(figsize=(inch_w, inch_h))
+                if fp.std is not None:
+                    ax.fill_between(x, fp.mean - fp.std, fp.mean + fp.std,
+                                    color=color_band, alpha=0.18, linewidth=0)
+                ax.plot(x, fp.mean, color=color_line,
+                        linewidth=P.stroke_pt * 1.8, label=act_label)
+                if fp.des_mean is not None:
+                    ax.plot(x, fp.des_mean, color=color_des,
+                            linewidth=P.stroke_pt * 1.2, linestyle="--",
+                            dashes=(3, 2), label=des_label)
+                ax.set_xlabel("Gait cycle (%)")
+                ax.set_ylabel("Force (N)")
+                ax.set_title(side_label, fontsize=P.title_pt)
+                ax.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+                ax.legend(loc="best", frameon=False, fontsize=P.legend_pt)
+                if req.title:
+                    fig.suptitle(req.title, fontsize=P.title_pt, y=0.998)
+                fig.tight_layout(pad=0.4)
+                fig.set_size_inches(inch_w, inch_h)
+                return _emit(fig, req.format, dpi_val, preset_name=P.name)
+
+        # Both sides: classic side-by-side subplot
+        if lfp.mean is None or rfp.mean is None:
+            return None
         with _mpl.rc_context(rc):
             fig, (axL, axR) = _plt.subplots(
                 1, 2, figsize=(inch_w, inch_h), sharey=True,
@@ -691,11 +741,14 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
 
     if req.template == "stance_swing_bar":
         ls, rs = res.left_stride, res.right_stride
-        labels = ["L stance", "L swing", "R stance", "R swing"]
-        heights = [ls.stance_pct_mean, ls.swing_pct_mean,
-                   rs.stance_pct_mean, rs.swing_pct_mean]
-        colors = ["#3B82C4", "#7FB5E4", "#D35454", "#E89B9B"]
-        for lab, h, c in zip(labels, heights, colors):
+        bar_items = []
+        if inc_L:
+            bar_items += [("L stance", ls.stance_pct_mean, "#3B82C4"),
+                          ("L swing",  ls.swing_pct_mean,  "#7FB5E4")]
+        if inc_R:
+            bar_items += [("R stance", rs.stance_pct_mean, "#D35454"),
+                          ("R swing",  rs.swing_pct_mean,  "#E89B9B")]
+        for lab, h, c in bar_items:
             traces.append(Trace(kind="bar", name=lab,
                                 x=[lab], y=[float(h)], color=c))
         return render_from_traces(
@@ -712,10 +765,12 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             return None
         ls = res.left_stride
         joints = [("Pitch", "sagittal"), ("Roll", "frontal"), ("Yaw", "transverse")]
-        for side, hs, valid, color in [
-            ("L", ls.hs_indices, ls.valid_mask, "#3B82C4"),
-            ("R", res.right_stride.hs_indices, res.right_stride.valid_mask, "#D35454"),
-        ]:
+        rom_sides = []
+        if inc_L:
+            rom_sides.append(("L", ls.hs_indices, ls.valid_mask, "#3B82C4"))
+        if inc_R:
+            rom_sides.append(("R", res.right_stride.hs_indices, res.right_stride.valid_mask, "#D35454"))
+        for side, hs, valid, color in rom_sides:
             for joint, plane in joints:
                 col = f"{side}_{joint}"
                 if col not in df.columns:

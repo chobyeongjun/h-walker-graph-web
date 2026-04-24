@@ -162,6 +162,10 @@ def main():
     def health():
         return {"status": "ok"}
 
+    @app.get("/chord-sheet.html")
+    def chord_sheet():
+        return FileResponse(os.path.join(APP_DIR, "chord-sheet.html"), media_type="text/html")
+
     # Serve frontend
     if os.path.isdir(FRONTEND_DIST):
         app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")

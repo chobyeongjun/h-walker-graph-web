@@ -500,3 +500,55 @@ export const syncAlign = (req: SyncAlignRequest) =>
 
 export const syncNeedsCheck = () =>
   json<{ mixed: boolean; rates: Record<string, string[]>; n_datasets: number }>('/api/sync/needs-sync');
+
+// ============================================================
+// Sync gate-split (POST /api/sync/split/gates/*)
+// MoCap trial segmentation: HIGH gate = recording window
+// ============================================================
+
+export interface GateSplitRequest {
+  ds_id: string;
+  signal_col?: string;
+  min_gate_width_s?: number;
+  max_gate_width_s?: number;
+  merge_gap_s?: number;
+  threshold_rel?: number;
+}
+
+export interface GateInfo {
+  trial_index: number;
+  start_idx: number;
+  end_idx: number;
+  start_t: number;
+  end_t: number;
+  duration_s: number;
+  new_ds_id?: string | null;
+  new_name?: string | null;
+}
+
+export interface GatePreviewResponse {
+  source_ds_id: string;
+  signal_col: string;
+  n_trials: number;
+  sample_rate: number;
+  gates: GateInfo[];
+}
+
+export interface GateSplitResponse {
+  source_ds_id: string;
+  signal_col: string;
+  n_trials: number;
+  gates: GateInfo[];
+}
+
+export const syncGatesPreview = (req: GateSplitRequest) =>
+  json<GatePreviewResponse>('/api/sync/split/gates/preview', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+
+export const syncGatesExecute = (req: GateSplitRequest) =>
+  json<GateSplitResponse>('/api/sync/split/gates/execute', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });

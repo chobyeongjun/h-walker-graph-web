@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Trash2 } from 'lucide-react';
 import { usePage, type Dataset } from '../store/page';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
-import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign } from '../api';
+import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, type GateInfo } from '../api';
 
 export default function DatasetPanel() {
   const datasets = usePage((s) => s.datasets);
@@ -242,6 +242,9 @@ export default function DatasetPanel() {
               )}
             </div>
             <TreadmillEditor dataset={d} />
+            {(d as { sync_col?: string | null }).sync_col && !(d as { split_from?: string | null }).split_from && (
+              <GateSplitPanel dataset={d} />
+            )}
             <div className="ds-cols">
               {d.cols.slice(0, 5).map((c, i) => (
                 <span key={i} className={`ds-col${c.mapped && c.mapped !== '—' ? ' mapped' : ''}`}>
@@ -382,6 +385,127 @@ function AutoRecipes({ recipes, active, onToggle, onApply }: {
             </button>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * GateSplitPanel — shown when a dataset has an analog sync column but
+ * hasn't been split yet. Lets the user preview detected HIGH gate regions
+ * (one per MoCap recording) then split them into separate sub-datasets.
+ */
+function GateSplitPanel({ dataset }: { dataset: Dataset }) {
+  const addDataset = usePage((s) => s.addDataset);
+  const showToast = usePage((s) => s.showToast);
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'preview' | 'splitting'>('idle');
+  const [gates, setGates] = useState<GateInfo[]>([]);
+  const [sigCol, setSigCol] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function preview(e: React.MouseEvent) {
+    e.stopPropagation();
+    setPhase('loading');
+    setError(null);
+    try {
+      const resp = await syncGatesPreview({ ds_id: dataset.id });
+      setGates(resp.gates);
+      setSigCol(resp.signal_col);
+      setPhase('preview');
+    } catch (err) {
+      setError((err as Error).message);
+      setPhase('idle');
+    }
+  }
+
+  async function execute(e: React.MouseEvent) {
+    e.stopPropagation();
+    setPhase('splitting');
+    try {
+      const resp = await syncGatesExecute({ ds_id: dataset.id });
+      const list: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+      resp.gates.forEach((g) => {
+        const d = list.find((x) => x.id === g.new_ds_id);
+        if (d) addDataset(d);
+      });
+      showToast(`✓ Split into ${resp.n_trials} trials via sync gate`);
+      setPhase('idle');
+    } catch (err) {
+      showToast(`Split failed: ${(err as Error).message}`);
+      setPhase('preview');
+    }
+  }
+
+  const btnBase: React.CSSProperties = {
+    border: 'none', borderRadius: 6, cursor: 'pointer',
+    font: '700 10px/1 Pretendard,sans-serif',
+    letterSpacing: '.08em', textTransform: 'uppercase', padding: '5px 10px',
+  };
+
+  if (phase === 'loading') {
+    return (
+      <div style={{ margin: '6px 0 2px', fontSize: 11, color: '#F09708' }}
+           onClick={(e) => e.stopPropagation()}>
+        Detecting gates…
+      </div>
+    );
+  }
+
+  if (phase === 'splitting') {
+    return (
+      <div style={{ margin: '6px 0 2px', fontSize: 11, color: '#A78BFA' }}
+           onClick={(e) => e.stopPropagation()}>
+        Splitting…
+      </div>
+    );
+  }
+
+  if (phase === 'preview') {
+    return (
+      <div style={{ margin: '6px 0 2px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 11, color: '#E2E8F0', marginBottom: 5 }}>
+          <b style={{ color: '#F09708' }}>{gates.length}</b> trials · col:{' '}
+          <span style={{ fontFamily: 'JetBrains Mono,monospace', color: '#7FB5E4' }}>{sigCol}</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 7 }}>
+          {gates.map((g) => (
+            <span key={g.trial_index} style={{
+              font: '600 9.5px/1 JetBrains Mono,monospace',
+              padding: '2px 6px', borderRadius: 4,
+              background: 'rgba(240,151,8,.12)', color: '#F09708',
+            }}>
+              trial_{String(g.trial_index).padStart(2, '0')} {g.duration_s.toFixed(1)}s
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={execute}
+                  style={{ ...btnBase, background: '#F09708', color: '#0B0E2E' }}>
+            Split
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); setPhase('idle'); }}
+                  style={{ ...btnBase, background: 'rgba(255,255,255,.07)', color: '#94A3B8' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // idle
+  return (
+    <div style={{ margin: '6px 0 2px' }} onClick={(e) => e.stopPropagation()}>
+      <button onClick={preview} style={{
+        ...btnBase,
+        background: 'rgba(240,151,8,.12)', color: '#F09708',
+        border: '1px solid rgba(240,151,8,.3)',
+      }}>
+        ⧉ Split trials
+      </button>
+      {error && (
+        <span style={{ marginLeft: 8, fontSize: 10, color: '#f87171' }}>
+          {error.slice(0, 60)}
+        </span>
       )}
     </div>
   );

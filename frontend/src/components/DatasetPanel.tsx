@@ -111,7 +111,14 @@ export default function DatasetPanel() {
                 <span style={{ color: '#7FB5E4' }}>· generic mode</span>
               )}
               {d.analyzeError && (
-                <span style={{ color: '#f87171' }}>· err: {d.analyzeError.slice(0, 40)}</span>
+                <span
+                  style={{ color: '#f87171', cursor: 'help' }}
+                  title={d.analyzeError}
+                >
+                  · err: {d.analyzeError.length > 60
+                    ? d.analyzeError.slice(0, 60) + '…'
+                    : d.analyzeError}
+                </span>
               )}
             </div>
             <div className="ds-tags" onClick={(e) => e.stopPropagation()}>

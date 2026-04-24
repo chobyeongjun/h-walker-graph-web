@@ -156,6 +156,13 @@ export default function LlmDock() {
         ] },
       });
       showToast(`Claude: ${msg}`);
+      // Toasts auto-dismiss after 5s; the history drawer is where users
+      // scroll back to "what went wrong earlier", so leave a breadcrumb.
+      logHistory({
+        kind: 'chat', actor: 'Claude',
+        label: `Endpoint error: ${msg.slice(0, 140)}`,
+        meta: { error: msg, prompt },
+      });
     }
   }
 

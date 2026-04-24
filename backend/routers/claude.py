@@ -207,6 +207,81 @@ TOOLS = [
             "required": ["directory", "name"],
         },
     },
+    {
+        "name": "gate_split",
+        "description": (
+            "Split a dataset into per-trial sub-CSVs based on analog sync "
+            "HIGH gate regions (A7/Sync/TrigIn column). Use when the user "
+            "says '각 trial 나눠줘', 'sync 기준으로 잘라', '각 시행별로 "
+            "분리해', 'split by trigger'. Each HIGH region becomes a new "
+            "independent dataset."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dataset_id": {"type": "string", "description": "Source dataset id. Omit to use active dataset."},
+                "min_gate_width_s": {"type": "number", "description": "Reject HIGH regions shorter than this (default 2.0s)."},
+                "threshold_rel": {"type": "number", "description": "HIGH/LOW boundary as fraction of signal range (default 0.5)."},
+            },
+        },
+    },
+    {
+        "name": "edge_trim",
+        "description": (
+            "Trim the first N and last N footfalls from a dataset to remove "
+            "start-up / stop transients. Use when there is NO analog sync "
+            "column and the user wants clean steady-state data. Typical "
+            "requests: '앞뒤 걸음 잘라줘', '과도기 제거', 'drop warm-up steps'. "
+            "Creates a new <name>_trimmed.csv."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dataset_id": {"type": "string", "description": "Source dataset id. Omit to use active dataset."},
+                "n_edge": {"type": "integer", "description": "Number of footfalls to remove from each end (default 3)."},
+            },
+        },
+    },
+    {
+        "name": "sync_align",
+        "description": (
+            "Cross-source alignment: crop every loaded dataset to its own "
+            "sync window and resample to a common rate. Use when the user "
+            "has Loadcell + Robot (or multiple acquisition systems) loaded "
+            "and says 'Loadcell과 Robot sync 맞춰서', '여러 센서 동기화', "
+            "'크로스 소스 정렬', 'align all sources'. The output is new "
+            "_synced datasets, ready for overlay / comparison."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target_hz": {"type": "number", "description": "Target sample rate (Hz). Omit to use max input rate."},
+            },
+        },
+    },
+    {
+        "name": "create_comparison_room",
+        "description": (
+            "Create a new workspace room containing specific datasets for "
+            "side-by-side comparison. Use when the user wants to group "
+            "several datasets for a comparison plot: '이 데이터들 같이 "
+            "비교할 방 만들어줘', '이 trial들 묶어줘', 'compare these in "
+            "one room'. Provide dataset name substrings to match — the "
+            "tool will find matching datasets and create the room."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Display name for the new room."},
+                "dataset_patterns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Substrings to match dataset names. E.g. ['trial_01', 'trial_02'] or ['Pre_imu', 'Post_imu']. Case-insensitive.",
+                },
+            },
+            "required": ["name", "dataset_patterns"],
+        },
+    },
 ]
 
 
@@ -232,6 +307,14 @@ SYSTEM = (
     "  대칭성 radar                                    → symmetry_radar\n"
     "  디버깅 · raw 시계열 · 어디서 이상한가            → debug_ts\n"
     "  연구 자동화 · 배치 분석 · 폴더 내 모든 파일 분석    → analyze_study\n\n"
+    "DATA preparation workflows (call these tools AUTOMATICALLY, don't ask):\n"
+    "  sync 기준으로 trial 분할 · 각 녹화 잘라줘             → gate_split\n"
+    "  앞뒤 걸음 제거 · warm-up/cool-down 자른 데이터        → edge_trim\n"
+    "  Loadcell과 Robot sync 맞춰 · 다중 센서 정렬           → sync_align\n"
+    "  이 데이터들 비교할 방 만들어 · 특정 trial 묶어        → create_comparison_room\n"
+    "When the user asks to 'cut', 'split', 'sync', 'align', 'compare these',\n"
+    "you MUST call the appropriate tool rather than asking for clarification.\n"
+    "You have the dataset list in context — match names by substring.\n\n"
     "You now have access to advanced biomechanical metrics (using foot-mounted IMU):\n"
     "  - Foot Pitch ROM: Range of motion of the foot instep during gait.\n"
     "  - Force Bias: Mean tracking error (Act - Des). Positive means robot provides more force than target.\n\n"

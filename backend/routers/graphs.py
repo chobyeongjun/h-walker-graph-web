@@ -398,6 +398,124 @@ def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
     return None
 
 
+def _render_generic_csv(req: "RenderRequest", df) -> tuple[bytes, str] | None:
+    """Fallback renderer for CSVs that don't match H-Walker schema.
+
+    The analyzer couldn't produce stride-aware profiles, but the user still
+    has real data they want to inspect. We pick a reasonable signal from the
+    DataFrame and render a simple time-series or (if we can find footfall
+    events) a per-stride overlay — so plots aren't silently replaced by
+    mock bezier curves.
+
+    Covers the most common "just show me my data" templates:
+      - force / force_avg  → any force-like column vs time (or gait cycle)
+      - debug_ts           → every numeric column, small multiples
+      - trials             → same as debug_ts
+    Returns None for templates that genuinely need per-stride analysis.
+    """
+    if df is None or df.empty:
+        return None
+
+    import numpy as _np
+    from backend.services.sync_engine import find_force_column
+    from backend.services.publication_engine import (
+        JOURNAL_PRESETS as _JP, _compose_rc, _emit,
+    )
+    import matplotlib as _mpl
+    import matplotlib.pyplot as _plt
+
+    # Guess sample rate from registry
+    from backend.routers.datasets import _REGISTRY as _REG
+    hz_str = _REG.get(req.dataset_id, {}).get("hz", "100Hz") if req.dataset_id else "100Hz"
+    try:
+        fs = float(str(hz_str).replace("Hz", "").strip()) or 100.0
+    except Exception:
+        fs = 100.0
+
+    numeric_cols = df.select_dtypes(include=[_np.number]).columns.tolist()
+    # Drop obvious time columns from the pickable set
+    time_like = {c for c in numeric_cols
+                  if c.lower() in ("time", "time_s", "t", "timestamp", "sample")}
+    plottable = [c for c in numeric_cols if c not in time_like]
+
+    if not plottable:
+        return None
+
+    t = _np.arange(len(df)) / fs
+    P = _JP[req.preset]
+
+    # Figure size per journal preset
+    if req.variant == "col1":
+        w_mm, h_mm = P.col1
+    elif req.variant == "onehalf" and P.onehalf:
+        w_mm, h_mm = P.onehalf
+    else:
+        w_mm, h_mm = P.col2
+    dpi_val = req.dpi or P.dpi
+    inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+
+    def _emit_fig(fig):
+        return _emit(fig, req.format, dpi_val)
+
+    with _mpl.rc_context(_compose_rc(P)):
+        if req.template in ("force", "force_avg"):
+            # Find force-like columns; fallback to the first 1-2 plottable columns.
+            force_col = find_force_column(df)
+            picks: list[str]
+            if force_col:
+                # Try to also find opposite side
+                lower = force_col.lower()
+                pair = None
+                if "l_" in lower or lower.startswith("l"):
+                    for c in plottable:
+                        cl = c.lower()
+                        if c != force_col and ("r_" in cl or cl.startswith("r")) and "force" in cl:
+                            pair = c
+                            break
+                elif "r_" in lower or lower.startswith("r"):
+                    for c in plottable:
+                        cl = c.lower()
+                        if c != force_col and ("l_" in cl or cl.startswith("l")) and "force" in cl:
+                            pair = c
+                            break
+                picks = [force_col] + ([pair] if pair else [])
+            else:
+                picks = plottable[:2]
+
+            fig, ax = _plt.subplots(figsize=(inch_w, inch_h), dpi=dpi_val)
+            colors = ["#1E5F9E", "#9E3838", "#F09708"]
+            for c, color in zip(picks, colors):
+                ax.plot(t, df[c].to_numpy(dtype=float), color=color, linewidth=1.2, label=c)
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel(picks[0] if len(picks) == 1 else "Value")
+            if req.title:
+                ax.set_title(req.title)
+            if len(picks) >= 2:
+                ax.legend(loc="best", frameon=False)
+            fig.tight_layout()
+            return _emit_fig(fig)
+
+        if req.template in ("debug_ts", "trials"):
+            # Small multiples: up to 4 rows
+            rows = plottable[:4]
+            n = len(rows)
+            fig, axes = _plt.subplots(n, 1, figsize=(inch_w, inch_h * max(1, n / 2)),
+                                        dpi=dpi_val, sharex=True)
+            if n == 1:
+                axes = [axes]
+            for ax, c in zip(axes, rows):
+                ax.plot(t, df[c].to_numpy(dtype=float), linewidth=1.0, color="#1E5F9E")
+                ax.set_ylabel(c, fontsize=max(6, P.body_pt - 2))
+                ax.tick_params(labelsize=max(6, P.axis_pt - 1))
+            axes[-1].set_xlabel("Time (s)")
+            if req.title:
+                fig.suptitle(req.title, fontsize=P.body_pt)
+            fig.tight_layout()
+            return _emit_fig(fig)
+
+    return None
+
+
 def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
     """If dataset_id is set and the template supports real-data binding, build
     traces from the analyzer result and render. Returns None if not applicable.
@@ -416,16 +534,18 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         raise
     except Exception:
         return None
-    if res is None:
-        return None  # generic fallback; let caller fall back to mock or error
 
     import numpy as _np
-
     # Load the raw df for columns the analyzer doesn't pre-resample (joint angles, etc.)
     from backend.routers.datasets import get_path
     df_path = get_path(req.dataset_id)
     import pandas as _pd
     df = _pd.read_csv(df_path) if df_path else None
+
+    if res is None:
+        # Generic-CSV fallback: the CSV doesn't match H-Walker schema, but we
+        # still want the user to see their real data instead of a mock bezier.
+        return _render_generic_csv(req, df)
 
     gcp_axis = list(_np.linspace(0, 100, 101))
     traces: list[Trace] = []

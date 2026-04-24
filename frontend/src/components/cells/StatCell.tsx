@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Cell } from '../../store/page';
 import { usePage } from '../../store/page';
-import { STAT_OPS, type StatResult } from '../../data/statOps';
+import { STAT_OPS } from '../../data/statOps';
 import { listStatMetrics, type StatsResponse, type MetricDescriptor } from '../../api';
 
 interface Props { cell: Cell; }
 
-const BACKEND_OPS = ['ttest_paired', 'ttest_welch', 'anova1', 'pearson', 'cohens_d', 'shapiro'];
+const OP_KEYS = Object.keys(STAT_OPS);
 
 export default function StatCell({ cell }: Props) {
   const update = usePage((s) => s.updateCell);
@@ -16,25 +16,16 @@ export default function StatCell({ cell }: Props) {
   const hasDataset = !!cell.dsIds[0];
   const crossFile = (cell.statDatasetsA?.length || 0) > 0 || (cell.statDatasetsB?.length || 0) > 0;
   const canRunBackend = crossFile
-    ? BACKEND_OPS.includes(cell.op || '')
-    : hasDataset && BACKEND_OPS.includes(cell.op || '') && !!cell.inputs?.a;
+    ? OP_KEYS.includes(cell.op || '')
+    : hasDataset && OP_KEYS.includes(cell.op || '') && !!cell.inputs?.a;
 
   const [metrics, setMetrics] = useState<MetricDescriptor[]>([]);
   useEffect(() => {
     listStatMetrics().then(setMetrics).catch(() => {});
   }, []);
 
-  // Mock fallback (when no dataset, keeps demo working)
-  const mockOp = STAT_OPS[cell.op || 'ttest_paired'];
-  const mockResult = useMemo(
-    () => (mockOp ? mockOp.run(cell.inputs || { a: '', b: '' }) : null),
-    [mockOp, cell.inputs],
-  );
-
   const live = cell.statData;
-  const apaText = live ? formatBackendReport(live, cell.fmt || 'apa')
-                  : mockResult ? formatMockReport(mockResult, cell.fmt || 'apa')
-                  : '';
+  const apaText = live ? formatBackendReport(live, cell.fmt || 'apa') : '';
 
   return (
     <div className="stat-body">
@@ -42,7 +33,7 @@ export default function StatCell({ cell }: Props) {
         <div className="stat-row">
           <label>OP</label>
           <div className="op">
-            {BACKEND_OPS.map((k) => (
+            {OP_KEYS.map((k) => (
               <button
                 key={k}
                 className={cell.op === k ? 'on' : ''}
@@ -189,7 +180,7 @@ export default function StatCell({ cell }: Props) {
             >
               {cell.loading ? '…running' :
                 crossFile ? '▸ Run cross-file stats' :
-                hasDataset ? '▸ Run on dataset' : '▸ Run (mock only)'}
+                hasDataset ? '▸ Run on dataset' : 'Bind a dataset to run'}
             </button>
             {(hasDataset || crossFile) && live && <span style={{ marginLeft: 8, color: '#00FFB2', fontSize: 10 }}>● live</span>}
           </div>
@@ -202,7 +193,16 @@ export default function StatCell({ cell }: Props) {
             <span>Error</span><b>{cell.error}</b>
           </div>
         )}
-        {live ? <BackendKV r={live} /> : mockResult ? <MockKV r={mockResult} /> : null}
+        {live ? <BackendKV r={live} /> : !cell.error && (
+          <div className="stat-val" style={{ color: '#9CA3AF' }}>
+            <span>—</span>
+            <b>
+              {hasDataset || crossFile
+                ? 'Press ▸ Run to compute this test'
+                : 'Bind a dataset (drop a CSV) to run this test'}
+            </b>
+          </div>
+        )}
         {apaText && (
           <div className="stat-apa">
             <button className="copy" onClick={() => {
@@ -272,37 +272,6 @@ function formatBackendReport(r: StatsResponse, fmt: string): string {
   return `test,stat,df,p\n${r.name},${r.stat},${r.df},${r.p}`;
 }
 
-function MockKV({ r }: { r: StatResult }) {
-  const raw: Array<[string, string, boolean?]> = [
-    ['Test', r.test, false],
-    ['n', r.n !== undefined ? String(r.n) : '', false],
-    ['stat',
-      r.t !== undefined ? String(r.t)
-      : r.F !== undefined ? String(r.F)
-      : r.r !== undefined ? String(r.r)
-      : '', false],
-    ['df', r.df !== undefined ? String(r.df) : '', false],
-    ['p', r.p, r.psig],
-    ['mean Δ', r.mean_diff || '', false],
-    ['95% CI', r.ci95 || '', false],
-    ['effect size',
-      r.cohen_d !== undefined ? r.cohen_d
-      : r.eta2 !== undefined ? r.eta2
-      : '', false],
-    ['Effect', r.effect || '', false],
-  ];
-  const entries = raw.filter((e) => e[1]);
-  return (
-    <>
-      {entries.map(([k, v, sig], i) => (
-        <div key={i} className={`stat-val${sig ? ' sig' : ''}`}>
-          <span>{k}</span><b>{v}</b>
-        </div>
-      ))}
-    </>
-  );
-}
-
 function DatasetGroupEditor({ refs, metric, onChange, datasets }: {
   refs: Array<{ id: string; metric: string }>;
   metric: string;
@@ -357,13 +326,3 @@ function DatasetGroupEditor({ refs, metric, onChange, datasets }: {
   );
 }
 
-function formatMockReport(r: StatResult, fmt: string): string {
-  if (fmt === 'apa') {
-    if (r.t) return `<b>${r.test}</b>: <b>t</b>(${r.df}) = ${r.t}, <b>p</b> = ${r.p}, <b>d</b> = ${r.cohen_d || '–'}.`;
-    if (r.F) return `<b>${r.test}</b>: <b>F</b>(${r.df1},${r.df2}) = ${r.F}, <b>p</b> = ${r.p}, <b>η²</b> = ${r.eta2 || '–'}.`;
-    if (r.r) return `<b>${r.test}</b>: <b>r</b> = ${r.r}, <b>p</b> = ${r.p}, 95% CI ${r.ci95}.`;
-    return r.test;
-  }
-  if (fmt === 'ieee') return `${r.test}; t=${r.t ?? r.F ?? r.r}, p=${r.p}`;
-  return `test,stat,p\n${r.test},${r.t ?? r.F ?? r.r},${r.p}`;
-}

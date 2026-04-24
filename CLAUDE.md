@@ -261,6 +261,9 @@ curl http://localhost:8000/api/claude/health
 
 ## 📌 기억해야 할 선언적 규칙
 
+- **🚫 절대 mock / placeholder 데이터를 UI 에 띄우지 마라.** 사용자 1순위 분노 트리거. 데이터셋 미바인드 상태에서는 빈 상태 (axes only + "Bind a CSV" 메시지) — fake bezier curve / "n strides=14" / "112 spm" 같은 placeholder 절대 금지. 컴포넌트는 항상 실제 백엔드 응답만 렌더해야 한다. 정책 위반 회귀 막는 테스트: `tests/backend/test_llm_tool_schema.py::test_add_graph_cell_enum_excludes_removed`.
+- **🔁 sync 의 정의 (사용자 명시)**: "디지털/아날로그 sync 신호의 한 사이클" — falling edge 후 rising edge 부터 다시 falling edge 까지가 1 sync. heel-strike 와 다른 개념. 사용자가 "한 싱크 한 싱크 잘라달라" 하면 sync signal 의 매 cycle 마다 데이터 구간을 잘라서 보여주라는 의미. (per-sync crop / inspector 는 진행 중 feature.)
+- **삭제된 그래프 (다시 추가 금지 without 명시 동의)**: `peak_box` (asymmetry + per_stride table 로 충분), `debug_ts` (clutter + 줌 안 됨). 사용자가 직접 "다시 넣어줘" 하기 전엔 부활 금지.
 - **절대 디자인 팔레트 바꾸지 마라.** `#F09708` / `#00FFB2` / `#0B0E2E` 는 브랜드 정체성.
 - **절대 Tailwind 다시 도입하지 마라.** 수동 CSS 로 정리된 상태.
 - **절대 이 레포에 Claude/AI 흔적 남기지 마라.** Co-Authored-By 금지.

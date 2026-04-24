@@ -73,12 +73,10 @@ class ClaudeCompleteResponse(BaseModel):
 GRAPH_TEMPLATES = [
     # Force / kinetic
     "force", "force_avg", "force_lr_subplot",
-    "asymmetry", "peak_box", "cop", "trials", "cv_bar",
-    # Motion / kinematic (Phase 0)
-    "imu", "imu_avg", "cyclogram", "stride_time_trend",
+    "asymmetry", "cop", "trials", "cv_bar",
+    # Motion / kinematic
+    "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
-    # Debug · Phase 2I
-    "debug_ts",
 ]
 COMPUTE_METRICS = [
     "per_stride", "impulse", "loading_rate", "rom", "cadence", "target_dev",
@@ -206,27 +204,22 @@ SYSTEM = (
     "  L/R 서브플롯 · L vs R subplot · GCP 기반 좌우 비교 → force_lr_subplot\n"
     "  힘 평균곡선 · GRF waveform · mean ± SD         → force_avg\n"
     "  L vs R overlay (같은 축) · raw force           → force\n"
-    "  피크 박스플롯 · peak boxplot                   → peak_box\n"
     "  비대칭 · asymmetry per stride                  → asymmetry\n"
     "  논문 전체 · 모든 figure 한번에                 → apply_recipe\n"
-    "  관절 각도 시계열 · raw pitch trace              → imu\n"
-    "  관절 각도 평균±SD (사이클)                     → imu_avg\n"
-    "  ROM 바                                          → rom_bar\n"
+    "  관절 각도 평균±SD (사이클, 채널별)              → imu_avg\n"
+    "  ROM 바 (joint × plane × side)                  → rom_bar\n"
     "  stance/swing %                                  → stance_swing_bar\n"
     "  대칭성 radar                                    → symmetry_radar\n"
-    "  stride time 시계열 · 피로도 시계열 · cadence 시계열 → stride_time_trend\n"
-    "  디버깅 · raw 시계열 · 어디서 이상한가 · MATLAB 처럼 → debug_ts\n\n"
+    "  stride time 시계열 · 피로도 시계열              → stride_time_trend\n\n"
     "Scalar-first policy: 'cadence', 'stride length', 'ROM', 'fatigue', "
     "'average force' type questions without an explicit '시계열/trend/over "
     "time' qualifier must call add_compute_cell (a scalar summary), not "
     "add_graph_cell. Only emit a time-series graph when the user asks for "
-    "'그래프', '시계열', 'trend', 'over time', 'MATLAB 처럼', or 'per "
-    "stride visualization'.\n\n"
-    "Bookshelf rule: when the user asks for a raw/time-series view (e.g. "
-    "'MATLAB 처럼 보고 싶다', 'raw 신호', '원시 데이터 시계열'), emit the "
-    "graph immediately — default to debug_ts for any-signal, imu for joint "
-    "angle only, force for raw GRF overlay. Do NOT ask clarifying questions; "
-    "pick the best match and let the user re-ask if wrong.\n\n"
+    "'그래프', '시계열', 'trend', 'over time', or 'per stride visualization'.\n\n"
+    "Removed templates: peak_box (use asymmetry + per_stride table) and "
+    "debug_ts (raw time-series will be replaced by a per-sync zoom inspector). "
+    "If the user asks for either by name, call the closest replacement and "
+    "mention briefly why.\n\n"
     "When the user asks a CONCEPTUAL or QUANTITATIVE question about existing "
     "data, reply in ≤3 sentences with specific numbers if you can read them "
     "from context. You MAY both call tools AND reply with a short confirmation "

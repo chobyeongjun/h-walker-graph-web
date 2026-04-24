@@ -9,7 +9,7 @@ export default function ComputeCell({ cell }: Props) {
   const update = usePage((s) => s.updateCell);
   const runCompute = usePage((s) => s.runCompute);
   const showToast = usePage((s) => s.showToast);
-  const fallback = COMPUTE_METRICS[cell.metric || 'per_stride'];
+  const meta = COMPUTE_METRICS[cell.metric || 'per_stride'];
   const hasDataset = !!cell.dsIds[0];
   const live = cell.computeData;
 
@@ -28,10 +28,10 @@ export default function ComputeCell({ cell }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cell.metric]);
 
-  const cols = live?.cols ?? fallback?.cols ?? [];
-  const rows = live?.rows ?? fallback?.rows ?? [];
-  const summary = live?.summary?.mean ?? fallback?.summary.mean ?? [];
-  const label = live?.label ?? fallback?.label ?? cell.metric;
+  const cols = live?.cols ?? [];
+  const rows = live?.rows ?? [];
+  const summary = live?.summary?.mean ?? [];
+  const label = live?.label ?? meta?.label ?? cell.metric;
 
   function exportCsv() {
     if (!live) { showToast('No data yet'); return; }
@@ -60,7 +60,6 @@ export default function ComputeCell({ cell }: Props) {
         </select>
         <span style={{ color: '#9CA3AF' }}>{label}</span>
         {hasDataset && live && <span style={{ color: '#00FFB2', fontSize: 10 }}>● live</span>}
-        {!hasDataset && <span style={{ color: '#6B7280', fontSize: 10 }}>mock</span>}
         <span className="rest">
           <button onClick={exportCsv} disabled={!live}>CSV</button>
           <button
@@ -85,6 +84,17 @@ export default function ComputeCell({ cell }: Props) {
             <div className="ps-bar" /><div className="ps-bar" /><div className="ps-bar" /><div className="ps-bar" />
           </div>
           <div style={{ color: '#6B7280', fontSize: 10, marginTop: 8 }}>Computing…</div>
+        </div>
+      ) : !live ? (
+        <div className="cpt-wrap" style={{ padding: 24, textAlign: 'center' }}>
+          <div style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 6 }}>
+            {hasDataset
+              ? 'Press Recompute to populate this metric'
+              : 'Bind a dataset (drop a CSV) to compute this metric'}
+          </div>
+          <div style={{ color: '#6B7280', fontSize: 10 }}>
+            Columns when populated: {(meta?.cols || []).join(' · ') || '(unknown metric)'}
+          </div>
         </div>
       ) : (
         <div className="cpt-wrap">

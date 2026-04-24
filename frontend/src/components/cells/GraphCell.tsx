@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Cell } from '../../store/page';
 import { usePage } from '../../store/page';
 import { GRAPH_TPLS, type GraphTemplate } from '../../data/graphTemplates';
@@ -23,7 +23,6 @@ export default function GraphCell({ cell }: Props) {
   const preset = globalPreset;
   const P = JOURNAL_PRESETS[preset];
   const canToggleAvg = cell.graph === 'force' || cell.graph === 'force_avg';
-  const palette = P?.paletteColor?.length ? P.paletteColor : P?.palette || [];
   const hasDataset = !!cell.dsIds[0];
 
   // Auto-trigger backend preview when dataset is bound and no preview exists yet.
@@ -229,46 +228,36 @@ export default function GraphCell({ cell }: Props) {
             <div className="ps-label">Rendering…</div>
           </div>
         ) : (
-          <PlotSvg id={`plot-${cell.id}`} tpl={tpl} palette={palette} />
+          <EmptyPlot tpl={tpl} hasDataset={hasDataset} />
         )}
         <div className="pub-rule-ruler">
           {P?.name} · {P?.col2.w}mm · {P?.font} {P?.sizes.body}pt · {P?.dpi}dpi
         </div>
       </div>
 
-      <div className="cell-legend">
-        {tpl.paths?.map((p, i) => {
-          const c = palette.length ? palette[i % palette.length] : p.c;
-          return (
-            <span key={i} className="lg-item">
-              <span className={`lg-sw${p.dash ? ' dash' : ''}`} style={{ background: c, color: c }} />
-              {p.label}
-            </span>
-          );
-        })}
-      </div>
-
+      {/* Legend + meta come from the rendered figure (SVG <g class="legend">
+          inside the backend response) — we no longer fabricate fake series
+          labels or "n=14" summaries from the template object. */}
       <div className="cell-meta">
         {hasDataset && cell.previewBlobUrl && (
           <span style={{ color: '#00FFB2' }}>● live</span>
         )}
-        {tpl.summary.map(([k, v], i) => (
-          <span key={i}>{k} <b>{v}</b></span>
-        ))}
+        <span style={{ color: '#6B7280' }}>
+          {tpl.ey} · {tpl.xUnit}
+        </span>
       </div>
     </>
   );
 }
 
-function PlotSvg({ id, tpl, palette }: { id: string; tpl: GraphTemplate; palette: string[] | null }) {
+function EmptyPlot({ tpl, hasDataset }: { tpl: GraphTemplate; hasDataset: boolean }) {
+  // Pure empty state. NO mock SVG paths — the cell shows axes + units +
+  // a clear "bind a CSV" message until the backend returns a real figure.
+  // Past versions rendered fake bezier curves and fake "n strides=14"
+  // summaries here, which leaked into screenshots and demos.
   const vb = '0 0 456 210';
-  const pick = (original: string, idx: number): string => {
-    if (!palette || palette.length === 0) return original;
-    return palette[idx % palette.length];
-  };
-
-  return useMemo(() => (
-    <svg id={id} viewBox={vb} preserveAspectRatio="none">
+  return (
+    <svg id={`empty-${tpl.title}`} viewBox={vb} preserveAspectRatio="none">
       {tpl.yTicks.map((_, i) => (
         <line key={'gy' + i} className="grid-line" x1={44} x2={448} y1={23 + i * 40} y2={23 + i * 40} />
       ))}
@@ -277,38 +266,6 @@ function PlotSvg({ id, tpl, palette }: { id: string; tpl: GraphTemplate; palette
       ))}
       <line className="axis-line" x1={44} x2={448} y1={182} y2={182} />
       <line className="axis-line" x1={44} x2={44} y1={20} y2={182} />
-      {tpl.bands?.map((b, i) => {
-        const c = pick(b.c, i);
-        return <path key={'b' + i} d={`${b.upper} L ${b.lower.replace(/M/g, 'L')} Z`} fill={c} opacity={b.opacity} />;
-      })}
-      {tpl.boxes?.map((b, i) => {
-        const c = pick(b.c, i);
-        return (
-          <g key={'bx' + i}>
-            <line x1={b.x} x2={b.x} y1={b.min} y2={b.max} stroke={c} strokeWidth={1.2} />
-            <rect x={b.x - 18} y={b.q3} width={36} height={b.q1 - b.q3} fill={c} fillOpacity={0.25} stroke={c} strokeWidth={1} />
-            <line x1={b.x - 18} x2={b.x + 18} y1={b.med} y2={b.med} stroke={c} strokeWidth={1.5} />
-            <text className="tick-label" x={b.x} y={200} textAnchor="middle">{b.label}</text>
-          </g>
-        );
-      })}
-      {tpl.bars?.map((b, i) => (
-        <rect key={'br' + i} x={b.x} y={180 - b.h} width={b.w} height={b.h} fill={pick(b.c, i)} />
-      ))}
-      {tpl.hlines?.map((h, i) => (
-        <line key={'hl' + i} x1={44} x2={448} y1={h.y} y2={h.y} stroke={h.c} strokeDasharray={h.dash} strokeWidth={1} />
-      ))}
-      {tpl.paths?.map((p, i) => (
-        <path
-          key={'p' + i}
-          d={p.d}
-          stroke={pick(p.c, i)}
-          strokeWidth={p.w}
-          strokeDasharray={p.dash}
-          fill="none"
-          strokeLinecap="round"
-        />
-      ))}
       {tpl.yTicks.map((v, i) => (
         <text key={'ty' + i} className="tick-label" x={40} y={25 + i * 40} textAnchor="end">{v}</text>
       ))}
@@ -317,8 +274,16 @@ function PlotSvg({ id, tpl, palette }: { id: string; tpl: GraphTemplate; palette
       ))}
       <text className="axis-title" x={246} y={208} textAnchor="middle">{tpl.xUnit}</text>
       <text className="axis-title" x={14} y={100} textAnchor="middle" transform="rotate(-90 14,100)">{tpl.yUnit}</text>
+      <text x={246} y={96} textAnchor="middle"
+            style={{ fill: '#6B7280', fontSize: 11, fontWeight: 500 }}>
+        {hasDataset ? '· press Render ·' : '· bind a CSV to plot ·'}
+      </text>
+      <text x={246} y={114} textAnchor="middle"
+            style={{ fill: '#4B5563', fontSize: 9 }}>
+        no mock data
+      </text>
     </svg>
-  ), [id, tpl, palette]);
+  );
 }
 
 function downloadBlob(blob: Blob, name: string) {

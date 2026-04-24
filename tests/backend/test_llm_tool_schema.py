@@ -60,10 +60,22 @@ def test_add_graph_cell_enum_covers_core_templates():
     else:
         raise AssertionError("add_graph_cell tool missing")
 
-    for essential in ("imu", "stride_time_trend", "debug_ts", "force", "imu_avg"):
+    # Time-series + ensemble templates the LLM must always be able to
+    # reach. peak_box + debug_ts were removed (see commit notes), and
+    # raw-IMU `imu` was demoted in favor of the per-channel `imu_avg`.
+    for essential in ("stride_time_trend", "force", "force_avg", "imu_avg"):
         assert essential in enum, (
-            f"LLM cannot create '{essential}' — user requests like "
-            "'MATLAB 처럼 raw 신호 봐' will fail to route."
+            f"LLM cannot create '{essential}' — user requests for this "
+            "template will fail to route."
+        )
+
+    # Templates that were intentionally removed must NOT come back without
+    # a deliberate decision (silent reintroduction = mock data risk).
+    for removed in ("peak_box", "debug_ts"):
+        assert removed not in enum, (
+            f"'{removed}' was removed per a user directive but reappeared "
+            "in the LLM tool enum. If you re-add it, also delete this "
+            "guard and explain why in the commit message."
         )
 
 

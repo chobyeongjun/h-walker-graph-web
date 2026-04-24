@@ -42,32 +42,24 @@ export default function FocusOverlay() {
               ))}
               <line className="axis-line" x1={44} x2={448} y1={182} y2={182} />
               <line className="axis-line" x1={44} x2={44} y1={20} y2={182} />
-              {tpl.paths?.map((p, i) => (
-                <path key={i} d={p.d} stroke={p.c} strokeWidth={p.w} strokeDasharray={p.dash} fill="none" strokeLinecap="round" />
-              ))}
+              <text x={228} y={108} textAnchor="middle"
+                    style={{ fill: '#6B7280', fontSize: 11 }}>
+                · open the cell to view the rendered figure ·
+              </text>
             </svg>
           </div>
           <aside className="focus-side">
             <div className="fs-block">
-              <h5>Summary</h5>
-              {tpl.summary.map(([k, v], i) => (
-                <div key={i} className="fs-stat"><span>{k}</span><b>{v}</b></div>
-              ))}
-            </div>
-            <div className="fs-block">
-              <h5>Series</h5>
-              {tpl.paths?.map((p, i) => (
-                <div key={i} className="fs-series">
-                  <span className="tog" style={{ background: p.c }} />
-                  <span>{p.label}</span>
-                  <span className="val">{p.dash ? 'dashed' : 'solid'}</span>
-                </div>
-              ))}
+              <h5>Axes</h5>
+              <div className="fs-stat"><span>x</span><b>{tpl.xUnit || '—'}</b></div>
+              <div className="fs-stat"><span>y</span><b>{tpl.yUnit || '—'}</b></div>
             </div>
           </aside>
         </div>
         <footer className="focus-foot">
-          <span style={{ color: '#6B7280', fontSize: 11 }}>Brush-zoom + crosshair arrive in Phase B</span>
+          <span style={{ color: '#6B7280', fontSize: 11 }}>
+            Per-sync zoom inspector arrives next.
+          </span>
         </footer>
       </div>
     </div>

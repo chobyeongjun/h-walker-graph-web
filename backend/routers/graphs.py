@@ -1360,6 +1360,17 @@ def render_endpoint(req: RenderRequest):
         data, mime = multi
     elif real is not None:
         data, mime = real
+    elif req.dataset_id or req.datasets:
+        # Dataset was supplied but rendering produced nothing — surface the error
+        # instead of silently falling back to mock bezier curves.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Could not render '{req.template}' from the supplied dataset. "
+                "The template may require columns not present in this CSV, "
+                "or the analysis step failed. Check the backend logs for details."
+            ),
+        )
     else:
         try:
             data, mime = render(

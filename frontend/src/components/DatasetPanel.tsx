@@ -26,6 +26,7 @@ export default function DatasetPanel() {
   const addDataset = usePage((s) => s.addDataset);
   const removeDataset = usePage((s) => s.removeDataset);
   const setDatasetMeta = usePage((s) => s.setDatasetMeta);
+  const applyRecipes = usePage((s) => s.applyRecipes);
   const showToast = usePage((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -125,6 +126,7 @@ export default function DatasetPanel() {
         }
 
         showToast(`Uploaded ${f.name}`);
+        applyRecipes(ds.id).catch((e) => showToast(`Auto-run failed: ${(e as Error).message}`));
         accepted += 1;
       } catch (e) {
         showToast(`Upload failed (${f.name}): ${(e as Error).message}`);

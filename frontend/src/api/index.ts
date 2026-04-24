@@ -317,6 +317,51 @@ export const paperBundle = async (req: PaperBundleRequest): Promise<PaperBundleR
 };
 
 // ============================================================
+// LLM Codegen (POST /api/graphs/codegen) — AI-generated custom plot
+// ============================================================
+
+export interface CodegenRequest {
+  dataset_id: string;
+  prompt: string;
+  preset?: string;
+  variant?: 'col1' | 'col2' | 'onehalf';
+  format?: 'svg' | 'png' | 'pdf';
+  dpi?: number;
+}
+
+export const codegenGraph = async (req: CodegenRequest): Promise<Blob> => {
+  const res = await fetch(BASE + '/api/graphs/codegen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try { const b = await res.json(); if (b?.detail) detail = b.detail; } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  return res.blob();
+};
+
+// ============================================================
+// Feedback (POST /api/feedback/positive | /correction)
+// ============================================================
+
+export const feedbackPositive = (query: string, response: object, note?: string) =>
+  fetch(BASE + '/api/feedback/positive', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, response, note }),
+  });
+
+export const feedbackCorrection = (query: string, wrongResponse: object, reason: string) =>
+  fetch(BASE + '/api/feedback/correction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, wrong_response: wrongResponse, reason }),
+  });
+
+// ============================================================
 // Claude (POST /api/claude/complete)
 // ============================================================
 

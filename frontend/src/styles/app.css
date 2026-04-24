@@ -212,6 +212,20 @@ input,textarea,select{font-family:inherit}
   font:500 10px 'JetBrains Mono',monospace;color:#6B7280;letter-spacing:.04em;flex-wrap:wrap}
 .cell-meta b{color:#E2E8F0;font-weight:600}
 
+/* AI ask + feedback row */
+.cell-ai-row{display:flex;align-items:center;gap:6px;padding:6px 0 2px;min-height:28px}
+.ai-ask-btn{background:rgba(0,255,178,.08)!important;border-color:rgba(0,255,178,.25)!important;
+  color:#00FFB2!important;font-weight:600}
+.ai-ask-btn:hover{background:rgba(0,255,178,.16)!important}
+.fb-btn{padding:2px 7px!important;font-size:13px!important;min-width:28px}
+.cell-ai-input{display:flex;gap:6px;padding:4px 0 6px}
+.ai-prompt-input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  border-radius:6px;padding:5px 10px;font:13px 'Pretendard',sans-serif;color:#E2E8F0;
+  outline:none}
+.ai-prompt-input:focus{border-color:rgba(0,255,178,.4);background:rgba(0,255,178,.04)}
+.ai-prompt-input::placeholder{color:#4B5563}
+.ai-prompt-input:disabled{opacity:.5}
+
 /* Publication mode cues */
 body.pub .plot{background:#fff;border-color:rgba(0,0,0,.15)}
 body.pub .plot .axis-line{stroke:#111}

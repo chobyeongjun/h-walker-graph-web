@@ -1201,3 +1201,133 @@ def multi_panel(req: MultiPanelRequest):
         content=buf.getvalue(), media_type=mime,
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ============================================================
+# LLM Codegen — Haiku가 실데이터 보고 matplotlib 코드 생성
+# ============================================================
+
+_CODEGEN_SYSTEM = """\
+You are a biomechanics matplotlib expert for the H-Walker rehabilitation robot.
+
+You receive a pandas DataFrame (`df`) and a user request. Generate ONLY a matplotlib drawing block.
+
+Rules:
+- `df`, `np`, `mpl`, `plt`, `fig`, `ax` are already available in scope
+- Do NOT call plt.subplots(), plt.figure(), plt.show(), plt.savefig(), plt.close()
+- Draw directly on `ax` (or create subplots with fig.subplots() if multi-panel is needed)
+- Use: L side = #3B82C4, R side = #D35454, accent = #F09708
+- Des (desired) columns → dashed; Act (actual) → solid
+- If L/R not specified, plot both
+- Add legend, axis labels. No title (journal convention).
+- Output ONLY Python code, no explanation, no markdown fences."""
+
+
+class CodegenRequest(BaseModel):
+    dataset_id: str
+    prompt: str
+    preset: str = "ieee"
+    variant: Literal["col1", "col2", "onehalf"] = "col2"
+    format: Literal["svg", "png", "pdf"] = "svg"
+    dpi: Optional[int] = None
+
+
+@router.post("/codegen")
+async def codegen_endpoint(req: CodegenRequest):
+    """LLM-generated custom matplotlib figure from real CSV data.
+
+    Haiku sees the DataFrame schema + user prompt, generates matplotlib code,
+    which runs on the backend against real data and returns the figure.
+    """
+    from backend.routers.datasets import get_path
+    import pandas as _pd
+    import numpy as _np
+    import matplotlib as _mpl
+    import matplotlib.pyplot as _plt
+    from backend.services.publication_engine import JOURNAL_PRESETS, _compose_rc, _emit
+    from backend.services.config import ANTHROPIC_API_KEY
+
+    csv_path = get_path(req.dataset_id)
+    if not csv_path:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    try:
+        df = _pd.read_csv(csv_path)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"CSV load failed: {exc}")
+
+    # Build compact schema for Haiku
+    col_lines = []
+    for col in df.columns[:50]:
+        s = df[col].dropna().head(3).tolist()
+        col_lines.append(f"  {col}: {df[col].dtype} sample={s}")
+    schema = "\n".join(col_lines)
+
+    user_msg = (
+        f"DataFrame ({len(df)} rows, {len(df.columns)} cols):\n{schema}\n\n"
+        f"Request: {req.prompt}"
+    )
+
+    # Call Haiku
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1500,
+            system=_CODEGEN_SYSTEM,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        code_text: str = resp.content[0].text.strip()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {exc}")
+
+    # Strip markdown fences if present
+    if code_text.startswith("```"):
+        lines = code_text.split("\n")
+        start = 1
+        end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
+        code_text = "\n".join(lines[start:end])
+
+    # Journal sizing
+    P = JOURNAL_PRESETS.get(req.preset, JOURNAL_PRESETS["ieee"])
+    if req.variant == "col1":
+        w_mm, h_mm = P.col1
+    elif req.variant == "onehalf" and P.onehalf:
+        w_mm, h_mm = P.onehalf
+    else:
+        w_mm, h_mm = P.col2
+    dpi_val = req.dpi or P.dpi
+    inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+
+    rc = _compose_rc(P)
+    safe_builtins = {k: getattr(__builtins__, k, None) for k in (
+        "range", "len", "list", "dict", "str", "int", "float", "bool",
+        "enumerate", "zip", "min", "max", "sum", "abs", "round",
+        "isinstance", "hasattr", "getattr", "print", "type",
+        "ValueError", "TypeError", "KeyError", "IndexError",
+    ) if getattr(__builtins__, k, None) is not None}
+
+    with _mpl.rc_context(rc):
+        _fig, _ax = _plt.subplots(figsize=(inch_w, inch_h))
+        ns = {
+            "df": df, "np": _np, "mpl": _mpl, "plt": _plt,
+            "fig": _fig, "ax": _ax,
+            "__builtins__": safe_builtins,
+        }
+        try:
+            exec(compile(code_text, "<llm_codegen>", "exec"), ns)
+        except Exception as exec_err:
+            _plt.close(_fig)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Generated code failed: {exec_err}\n\nCode:\n{code_text[:800]}",
+            )
+        _fig.set_size_inches(inch_w, inch_h)
+        try:
+            data, mime = _emit(_fig, req.format, dpi_val)
+        finally:
+            _plt.close(_fig)
+
+    fname = f"hwalker_codegen.{req.format}"
+    return Response(content=data, media_type=mime,
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})

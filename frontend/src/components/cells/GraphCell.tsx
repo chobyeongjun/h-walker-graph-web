@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Cell } from '../../store/page';
 import { usePage } from '../../store/page';
 import { GRAPH_TPLS, type GraphTemplate } from '../../data/graphTemplates';
 import { JOURNAL_PRESETS } from '../../data/journalPresets';
-import { renderGraph } from '../../api';
+import { renderGraph, codegenGraph, feedbackPositive, feedbackCorrection } from '../../api';
 
 const GRAPH_GROUPS = [
-  { label: 'Force / Kinetic', keys: ['debug_ts', 'force', 'force_avg', 'force_lr_subplot', 'asymmetry', 'peak_box', 'cop', 'cv_bar', 'trials'] },
+  { label: 'Force / Kinetic', keys: ['debug_ts', 'force', 'force_avg', 'force_lr_subplot', 'asymmetry', 'peak_box', 'trials'] },
   { label: 'IMU / Kinematic', keys: ['imu', 'imu_avg', 'cyclogram', 'stride_time_trend'] },
   { label: 'Summary', keys: ['stance_swing_bar', 'rom_bar', 'symmetry_radar'] },
 ];
@@ -22,6 +22,12 @@ export default function GraphCell({ cell }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [svgInline, setSvgInline] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackReason, setFeedbackReason] = useState('');
+  const aiInputRef = useRef<HTMLInputElement>(null);
 
   const activeKey =
     cell.strideAvg && cell.graph === 'force' && GRAPH_TPLS.force_avg ? 'force_avg' : cell.graph;
@@ -86,6 +92,49 @@ export default function GraphCell({ cell }: Props) {
     if (!svgEl) return;
     const xml = new XMLSerializer().serializeToString(svgEl);
     downloadBlob(new Blob([xml], { type: 'image/svg+xml' }), `${cell.id}_preview.svg`);
+  }
+
+  async function runCodegen() {
+    if (!cell.dsIds[0] || !aiPrompt.trim() || aiBusy) return;
+    setAiBusy(true);
+    try {
+      const blob = await codegenGraph({
+        dataset_id: cell.dsIds[0],
+        prompt: aiPrompt.trim(),
+        preset,
+        variant: 'col2',
+        format: 'svg',
+      });
+      const url = URL.createObjectURL(blob);
+      updateCell(cell.id, { previewBlobUrl: url, error: undefined });
+      setAiOpen(false);
+      setAiPrompt('');
+      showToast('AI 그래프 생성 완료');
+    } catch (e) {
+      showToast(`AI 그래프 실패: ${(e as Error).message}`);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function sendFeedbackGood() {
+    feedbackPositive(
+      `graph:${activeKey} dataset:${cell.dsIds[0]}`,
+      { graph: activeKey, preset, title: cell.title },
+    );
+    showToast('👍 피드백 저장됨');
+  }
+
+  async function sendFeedbackBad() {
+    if (!feedbackReason.trim()) { setFeedbackOpen(true); return; }
+    await feedbackCorrection(
+      `graph:${activeKey} dataset:${cell.dsIds[0]}`,
+      { graph: activeKey, preset, title: cell.title },
+      feedbackReason.trim(),
+    );
+    setFeedbackOpen(false);
+    setFeedbackReason('');
+    showToast('👎 피드백 저장됨');
   }
 
   return (
@@ -269,6 +318,64 @@ export default function GraphCell({ cell }: Props) {
           <span key={i}>{k} <b>{v}</b></span>
         ))}
       </div>
+
+      {/* AI codegen + feedback row */}
+      <div className="cell-ai-row">
+        {hasDataset && (
+          <button
+            className="gt-btn ai-ask-btn"
+            title="AI에게 이 데이터로 그래프 그려달라고 요청"
+            onClick={() => { setAiOpen((v) => !v); setTimeout(() => aiInputRef.current?.focus(), 50); }}
+          >
+            ✦ Ask AI
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        {hasDataset && cell.previewBlobUrl && (
+          <>
+            <button className="gt-btn fb-btn" title="이 그래프 유용함" onClick={sendFeedbackGood}>👍</button>
+            <button
+              className="gt-btn fb-btn"
+              title="이 그래프 문제 있음"
+              onClick={() => setFeedbackOpen((v) => !v)}
+            >👎</button>
+          </>
+        )}
+      </div>
+
+      {/* AI prompt input */}
+      {aiOpen && hasDataset && (
+        <div className="cell-ai-input">
+          <input
+            ref={aiInputRef}
+            className="ai-prompt-input"
+            placeholder="예: L 힘 추종 오차를 stride별로 그려줘 / Plot R_Pitch over gait cycle"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') runCodegen(); if (e.key === 'Escape') setAiOpen(false); }}
+            disabled={aiBusy}
+          />
+          <button className="gt-btn" onClick={runCodegen} disabled={aiBusy || !aiPrompt.trim()}>
+            {aiBusy ? '…' : 'Run'}
+          </button>
+        </div>
+      )}
+
+      {/* 👎 reason input */}
+      {feedbackOpen && (
+        <div className="cell-ai-input">
+          <input
+            className="ai-prompt-input"
+            placeholder="무엇이 문제였나요? (예: L/R 반전됨, 스케일 이상, 원하는 컬럼 아님)"
+            value={feedbackReason}
+            onChange={(e) => setFeedbackReason(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendFeedbackBad(); if (e.key === 'Escape') setFeedbackOpen(false); }}
+          />
+          <button className="gt-btn" onClick={sendFeedbackBad} disabled={!feedbackReason.trim()}>
+            Send
+          </button>
+        </div>
+      )}
     </>
   );
 }

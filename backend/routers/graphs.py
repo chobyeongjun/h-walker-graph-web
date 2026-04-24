@@ -75,25 +75,24 @@ def _suggest_filename(req: RenderRequest, P) -> str:
 
 
 REAL_DATA_TEMPLATES = {
-    # Force / kinetic (Phase 2A)
+    # Force / kinetic
     "force", "force_avg", "force_lr_subplot", "asymmetry", "peak_box", "trials",
-    # Motion / kinematic (Phase 0)
+    # Motion / kinematic
     "imu", "imu_avg", "cyclogram", "stride_time_trend",
     "stance_swing_bar", "rom_bar", "symmetry_radar",
-    # Debug · Phase 2I
+    # New analysis templates
+    "kinematics_ensemble", "spatiotemporal_bar", "force_tracking", "mos_trajectory",
+    # Debug
     "debug_ts",
 }
 
-# Phase 1: templates that support clean multi-dataset overlay.
-# For these, `datasets[]` produces one trace per dataset with distinct
-# colors. Templates omitted from this set fall back to first-dataset
-# rendering (single-plot semantics are clearer for boxplots/radars).
 MULTI_DATASET_TEMPLATES = {
-    "force_avg",         # overlay L+R mean±SD per subject, color per subject
-    "imu_avg",           # overlay joint angle profiles per subject
-    "stride_time_trend", # overlay stride-time series per subject
-    "asymmetry",         # overlay asymmetry series per subject
-    "cyclogram",         # overlay phase portraits per subject
+    "force_avg",
+    "imu_avg",
+    "kinematics_ensemble",  # overlay per-subject angle profiles
+    "stride_time_trend",
+    "asymmetry",
+    "cyclogram",
 }
 
 _DEFAULT_SERIES_PALETTE = [
@@ -349,6 +348,49 @@ def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
         return render_from_traces(
             traces, title=req.title or "",
             x_label="L_Pitch (°)", y_label="R_Pitch (°)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── kinematics_ensemble · per-subject angle profile overlay
+    if req.template == "kinematics_ensemble":
+        _ANGLE_PRIORITY = ("L_Hip_Flex", "L_HipFlexion", "L_Knee_Flex", "L_KneeFlexion",
+                            "L_Ankle_Flex", "L_AnkleFlexion", "L_Pitch")
+        for i, s in enumerate(req.datasets):
+            try:
+                res, _ = analyze_cached(s.id)
+            except Exception:
+                continue
+            if res is None:
+                continue
+            path = get_path(s.id)
+            if not path:
+                continue
+            try:
+                df = _pd.read_csv(path)
+            except Exception:
+                continue
+            ls = res.left_stride
+            angle_col = next((c for c in _ANGLE_PRIORITY if c in df.columns), None)
+            if angle_col is None:
+                continue
+            result = resample_column(df, angle_col, ls.hs_indices, ls.valid_mask)
+            if result is None:
+                continue
+            mean, std = result
+            c = color_for(i, s)
+            traces.append(Trace(kind="band", name="",
+                                x=gcp_axis, y=list(mean),
+                                y_upper=list(mean + std), y_lower=list(mean - std),
+                                color=c, opacity=0.12))
+            traces.append(Trace(kind="line", name=label_for(s),
+                                x=gcp_axis, y=list(mean),
+                                color=c, width=1.8))
+        if not traces:
+            return None
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Gait cycle (%)", y_label="Angle (°)",
             preset=req.preset, variant=req.variant, format=req.format,
             dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
         )
@@ -869,6 +911,215 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             fig.tight_layout(pad=0.4)
             fig.set_size_inches(inch_w, inch_h)
             return _emit(fig, req.format, dpi_val, preset_name=P.name)
+
+    # ── kinematics_ensemble · GCP-normalized joint angle, detect available joints
+    if req.template == "kinematics_ensemble":
+        if df is None:
+            return None
+        from backend.services.compute_engine import resample_column as _resample
+        import matplotlib as _mpl
+        import matplotlib.pyplot as _plt
+        from backend.services.publication_engine import JOURNAL_PRESETS as _JP, _compose_rc, _emit
+
+        # Detect joints in priority order (hip/knee/ankle for MoCap; shank pitch for H-Walker)
+        _JOINT_SPECS = [
+            ("Hip",       "Hip flex (°)",   [("L_Hip_Flex",   "R_Hip_Flex"),   ("L_HipFlexion",  "R_HipFlexion")]),
+            ("Knee",      "Knee flex (°)",  [("L_Knee_Flex",  "R_Knee_Flex"),  ("L_KneeFlexion", "R_KneeFlexion")]),
+            ("Ankle",     "Ankle (°)",      [("L_Ankle_Flex", "R_Ankle_Flex"), ("L_AnkleFlexion","R_AnkleFlexion"), ("L_AnkleDorsi","R_AnkleDorsi")]),
+            ("Shank IMU", "Pitch (°)",      [("L_Pitch",      "R_Pitch")]),
+        ]
+        ls, rs = res.left_stride, res.right_stride
+        panels = []
+        for jname, ylabel, cands in _JOINT_SPECS:
+            l_col = next((lc for lc, rc in cands if lc in df.columns), None)
+            r_col = next((rc for lc, rc in cands if rc in df.columns), None)
+            if l_col or r_col:
+                panels.append((jname, ylabel, l_col, r_col))
+
+        if not panels:
+            return None
+
+        P = _JP[req.preset]
+        dpi_val = req.dpi or P.dpi
+        if req.variant == "col1":
+            w_mm, h_mm = P.col1
+        elif req.variant == "onehalf" and P.onehalf:
+            w_mm, h_mm = P.onehalf
+        else:
+            w_mm, h_mm = P.col2
+        n_panels = len(panels)
+        inch_w = w_mm / 25.4
+        inch_h = (h_mm / 25.4) * (0.6 + 0.55 * n_panels)
+        x = _np.linspace(0, 100, 101)
+
+        rc = _compose_rc(P)
+        with _mpl.rc_context(rc):
+            fig, axes = _plt.subplots(n_panels, 1, figsize=(inch_w, inch_h), sharex=True)
+            if n_panels == 1:
+                axes = [axes]
+            for ax, (jname, ylabel, l_col, r_col) in zip(axes, panels):
+                if inc_L and l_col:
+                    lr = _resample(df, l_col, ls.hs_indices, ls.valid_mask)
+                    if lr is not None:
+                        m, s = lr
+                        ax.fill_between(x, m - s, m + s, color="#3B82C4", alpha=0.18, linewidth=0)
+                        ax.plot(x, m, color="#1E5F9E", linewidth=P.stroke_pt * 1.8, label="L")
+                if inc_R and r_col:
+                    rr = _resample(df, r_col, rs.hs_indices, rs.valid_mask)
+                    if rr is not None:
+                        m, s = rr
+                        ax.fill_between(x, m - s, m + s, color="#D35454", alpha=0.18, linewidth=0)
+                        ax.plot(x, m, color="#9E3838", linewidth=P.stroke_pt * 1.8, label="R")
+                ax.set_ylabel(ylabel)
+                ax.set_title(jname, fontsize=P.title_pt, loc="left", pad=2)
+                ax.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+                ax.legend(loc="best", frameon=False, fontsize=P.legend_pt, ncol=2)
+            axes[-1].set_xlabel("Gait cycle (%)")
+            if req.title:
+                fig.suptitle(req.title, fontsize=P.title_pt)
+            fig.tight_layout(pad=0.35)
+            fig.set_size_inches(inch_w, inch_h)
+            return _emit(fig, req.format, dpi_val, preset_name=P.name)
+
+    # ── spatiotemporal_bar · cadence / stride length / symmetry, 3 panels
+    if req.template == "spatiotemporal_bar":
+        import matplotlib as _mpl
+        import matplotlib.pyplot as _plt
+        from backend.services.publication_engine import JOURNAL_PRESETS as _JP, _compose_rc, _emit
+
+        ls, rs = res.left_stride, res.right_stride
+        P = _JP[req.preset]
+        dpi_val = req.dpi or P.dpi
+        if req.variant == "col1":
+            w_mm, h_mm = P.col1
+        elif req.variant == "onehalf" and P.onehalf:
+            w_mm, h_mm = P.onehalf
+        else:
+            w_mm, h_mm = P.col2
+        inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+        bar_w = 0.5
+
+        rc = _compose_rc(P)
+        with _mpl.rc_context(rc):
+            fig, (ax1, ax2, ax3) = _plt.subplots(1, 3, figsize=(inch_w, inch_h))
+
+            # Cadence
+            cad_x, cad_y, cad_c = [], [], []
+            if inc_L and ls.cadence > 0:
+                cad_x.append("L"); cad_y.append(ls.cadence); cad_c.append("#1E5F9E")
+            if inc_R and rs.cadence > 0:
+                cad_x.append("R"); cad_y.append(rs.cadence); cad_c.append("#9E3838")
+            if cad_y:
+                ax1.bar(cad_x, cad_y, color=cad_c, width=bar_w)
+            ax1.set_ylabel("Cadence (steps/min)")
+            ax1.set_title("Cadence", fontsize=P.title_pt)
+            ax1.grid(axis="y", linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+
+            # Stride length ± SD
+            sl_x, sl_y, sl_e, sl_c = [], [], [], []
+            if inc_L and ls.stride_length_mean > 0:
+                sl_x.append("L"); sl_y.append(ls.stride_length_mean)
+                sl_e.append(ls.stride_length_std); sl_c.append("#1E5F9E")
+            if inc_R and rs.stride_length_mean > 0:
+                sl_x.append("R"); sl_y.append(rs.stride_length_mean)
+                sl_e.append(rs.stride_length_std); sl_c.append("#9E3838")
+            if sl_y:
+                ax2.bar(sl_x, sl_y, color=sl_c, width=bar_w,
+                        yerr=sl_e if any(e > 0 for e in sl_e) else None,
+                        capsize=3, error_kw={"linewidth": P.stroke_pt, "ecolor": "#6B7280"})
+            ax2.set_ylabel("Stride length (m)")
+            ax2.set_title("Stride Length", fontsize=P.title_pt)
+            ax2.grid(axis="y", linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+
+            # Symmetry indices — red if >5 %
+            sym_pairs = [
+                ("T",  res.stride_time_symmetry,   "Stride time"),
+                ("L",  res.stride_length_symmetry, "Stride length"),
+                ("St", res.stance_symmetry,         "Stance %"),
+                ("F",  res.force_symmetry,          "Force RMSE"),
+            ]
+            sym_x = [p[0] for p in sym_pairs if p[1] >= 0]
+            sym_y = [max(p[1], 0.0) for p in sym_pairs if p[1] >= 0]
+            sym_c = ["#D35454" if v > 5.0 else "#F09708" for v in sym_y]
+            if sym_y:
+                ax3.bar(sym_x, sym_y, color=sym_c, width=0.5)
+                ax3.axhline(5.0, color="#6B7280", linestyle="--",
+                            linewidth=P.grid_pt * 1.5, label="5% threshold")
+                ax3.legend(frameon=False, fontsize=P.legend_pt)
+            ax3.set_ylabel("Asymmetry (%)")
+            ax3.set_title("Symmetry", fontsize=P.title_pt)
+            ax3.grid(axis="y", linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
+
+            if req.title:
+                fig.suptitle(req.title, fontsize=P.title_pt)
+            fig.tight_layout(pad=0.35)
+            fig.set_size_inches(inch_w, inch_h)
+            return _emit(fig, req.format, dpi_val, preset_name=P.name)
+
+    # ── force_tracking · per-stride RMSE convergence (ILC)
+    if req.template == "force_tracking":
+        lft = res.left_force_tracking
+        rft = res.right_force_tracking
+        has_l = inc_L and len(lft.rmse_per_stride) > 0
+        has_r = inc_R and len(rft.rmse_per_stride) > 0
+        if not has_l and not has_r:
+            return None
+        if has_l:
+            n_l = len(lft.rmse_per_stride)
+            traces.append(Trace(kind="line", name=f"L  (mean {lft.rmse:.2f} N)",
+                                x=list(range(1, n_l + 1)),
+                                y=list(lft.rmse_per_stride),
+                                color="#3B82C4", width=1.8))
+            if lft.rmse > 0:
+                traces.append(Trace(kind="line", name="",
+                                    x=[1, n_l], y=[lft.rmse, lft.rmse],
+                                    color="#7FB5E4", width=1.0, dash=True))
+        if has_r:
+            n_r = len(rft.rmse_per_stride)
+            traces.append(Trace(kind="line", name=f"R  (mean {rft.rmse:.2f} N)",
+                                x=list(range(1, n_r + 1)),
+                                y=list(rft.rmse_per_stride),
+                                color="#D35454", width=1.8))
+            if rft.rmse > 0:
+                traces.append(Trace(kind="line", name="",
+                                    x=[1, n_r], y=[rft.rmse, rft.rmse],
+                                    color="#E89B9B", width=1.0, dash=True))
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Stride #", y_label="Force RMSE (N)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
+
+    # ── mos_trajectory · XCoM / MoS time series (requires XCoM columns in CSV)
+    if req.template == "mos_trajectory":
+        if df is None:
+            return None
+        _MOS_CANDIDATES = [
+            ("XCoM_AP", "XCoM AP (m)"),
+            ("MoS_AP",  "MoS AP (m)"),
+            ("XCoM_ML", "XCoM ML (m)"),
+            ("MoS_ML",  "MoS ML (m)"),
+            ("CoM_AP",  "CoM AP (m)"),
+            ("BOS_ant", "BOS anterior (m)"),
+        ]
+        available_mos = [(col, lbl) for col, lbl in _MOS_CANDIDATES if col in df.columns]
+        if not available_mos:
+            return None
+        fs = res.sample_rate
+        n = min(len(df), int(fs * 30))
+        t = list(_np.arange(n) / fs)
+        _mos_colors = ["#00FFB2", "#A78BFA", "#F09708", "#7FB5E4"]
+        for i, (col, lbl) in enumerate(available_mos[:4]):
+            traces.append(Trace(kind="line", name=lbl,
+                                x=t, y=df[col].iloc[:n].tolist(),
+                                color=_mos_colors[i % len(_mos_colors)], width=1.6))
+        return render_from_traces(
+            traces, title=req.title or "",
+            x_label="Time (s)", y_label="Distance (m)",
+            preset=req.preset, variant=req.variant, format=req.format,
+            dpi=req.dpi, colorblind_safe=req.colorblind_safe, legend=True,
+        )
 
     if req.template == "symmetry_radar":
         # Multi-axis symmetry polar chart — rendered as polar bars for

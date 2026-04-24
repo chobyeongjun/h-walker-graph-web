@@ -6,9 +6,10 @@ import { JOURNAL_PRESETS } from '../../data/journalPresets';
 import { renderGraph, codegenGraph, feedbackPositive, feedbackCorrection } from '../../api';
 
 const GRAPH_GROUPS = [
-  { label: 'Force / Kinetic', keys: ['debug_ts', 'force', 'force_avg', 'force_lr_subplot', 'asymmetry', 'peak_box', 'trials'] },
-  { label: 'IMU / Kinematic', keys: ['imu', 'imu_avg', 'cyclogram', 'stride_time_trend'] },
-  { label: 'Summary', keys: ['stance_swing_bar', 'rom_bar', 'symmetry_radar'] },
+  { label: 'Force / Kinetic', keys: ['force_lr_subplot', 'force_avg', 'asymmetry', 'peak_box', 'force_tracking'] },
+  { label: 'Kinematics',      keys: ['kinematics_ensemble'] },
+  { label: 'Spatiotemporal',  keys: ['spatiotemporal_bar', 'stride_time_trend', 'stance_swing_bar'] },
+  { label: 'Stability',       keys: ['mos_trajectory'] },
 ];
 
 interface Props { cell: Cell; }
@@ -30,16 +31,16 @@ export default function GraphCell({ cell }: Props) {
   const aiInputRef = useRef<HTMLInputElement>(null);
 
   const activeKey =
-    cell.strideAvg && cell.graph === 'force' && GRAPH_TPLS.force_avg ? 'force_avg' : cell.graph;
-  const tpl = GRAPH_TPLS[activeKey || 'force'];
+    cell.strideAvg && cell.graph === 'force_lr_subplot' && GRAPH_TPLS.force_avg ? 'force_avg' : cell.graph;
+  const tpl = GRAPH_TPLS[activeKey || 'force_lr_subplot'];
   const preset = globalPreset;
   const P = JOURNAL_PRESETS[preset];
-  const canToggleAvg = cell.graph === 'force' || cell.graph === 'force_avg';
+  const canToggleAvg = cell.graph === 'force_lr_subplot' || cell.graph === 'force_avg';
   const palette = P?.paletteColor?.length ? P.paletteColor : P?.palette || [];
   const hasDataset = !!cell.dsIds[0];
   const side = cell.side || 'both';
-  // Templates without meaningful L/R distinction skip the toggle
-  const NO_LR_TEMPLATES = new Set(['asymmetry', 'cyclogram', 'symmetry_radar', 'debug_ts']);
+  // Templates where L/R toggle doesn't apply
+  const NO_LR_TEMPLATES = new Set(['asymmetry', 'spatiotemporal_bar', 'stride_time_trend', 'stance_swing_bar', 'force_tracking', 'mos_trajectory']);
   const canToggleSide = !NO_LR_TEMPLATES.has(cell.graph || '');
 
   // Auto-trigger backend preview when dataset is bound and no preview exists yet.
@@ -73,7 +74,7 @@ export default function GraphCell({ cell }: Props) {
     try {
       const hasSeries = cell.series && cell.series.length >= 2;
       const blob = await renderGraph({
-        template: activeKey || 'force',
+        template: activeKey || 'force_lr_subplot',
         preset,
         variant,
         format: fmt,

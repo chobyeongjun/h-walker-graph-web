@@ -487,6 +487,16 @@ GRAPH_SPECS: dict[str, GraphSpec] = {
         ],
         summary=[("XCoM AP", "0.12 m"), ("MoS min", "0.04 m"), ("note", "requires XCoM columns")],
     ),
+    "raw_ts": GraphSpec(
+        eyebrow="Column · time series", title="Raw column plot", ds="ds1",
+        y_unit="Value", x_unit="Time (s)",
+        y_ticks=["max", "", "0", "", "min"],
+        x_ticks=["0", "25", "50", "75", "100"],
+        paths=[
+            PathSpec("#3B82C4", 1.8, "col", "M48,120 C70,100 90,80 110,90 C130,100 150,140 170,160 C190,155 210,130 230,110 C250,95 270,85 290,90 C310,100 330,130 350,150 C370,155 390,140 408,120"),
+        ],
+        summary=[("note", "real data replaces this preview")],
+    ),
 }
 
 

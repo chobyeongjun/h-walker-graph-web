@@ -150,7 +150,9 @@ def main():
 
     try:
         from backend.routers.sync import router as sync_router
+        from backend.routers.split import router_split
         app.include_router(sync_router)
+        app.include_router(router_split)
     except ImportError as e:
         print(f"  Note: Phase 3 sync router unavailable — {e}")
 

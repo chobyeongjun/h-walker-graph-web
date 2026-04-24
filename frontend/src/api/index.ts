@@ -206,6 +206,7 @@ export interface RenderGraphRequest {
   datasets?: Array<{ id: string; label?: string; color?: string }>;  // Phase 1 overlay
   title?: string;
   side?: 'L' | 'R' | 'both';  // limb filter — 'both' = default (show L and R)
+  col_names?: string[];        // raw_ts: which CSV columns to plot
 }
 
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {

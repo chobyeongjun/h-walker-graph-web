@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, Trash2, Home, Plus, X } from 'lucide-react';
-import { usePage, type Dataset, type WorkspaceRoom } from '../store/page';
+import { Link2, Trash2, Home, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { usePage, type Dataset, type WorkspaceRoom, type Cell, type DatasetColumn } from '../store/page';
 import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, syncTrimExecute, type GateInfo } from '../api';
 
 // ── Experiment prefix extraction ─────────────────────────────────────────
@@ -27,6 +27,7 @@ export default function DatasetPanel() {
   const removeDataset = usePage((s) => s.removeDataset);
   const setDatasetMeta = usePage((s) => s.setDatasetMeta);
   const applyRecipes = usePage((s) => s.applyRecipes);
+  const addCell = usePage((s) => s.addCell);
   const showToast = usePage((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -370,13 +371,14 @@ export default function DatasetPanel() {
             {(d as { sync_col?: string | null }).sync_col && !(d as { split_from?: string | null }).split_from && (
               <GateSplitPanel dataset={d} />
             )}
-            <div className="ds-cols">
-              {d.cols.slice(0, 5).map((c, i) => (
-                <span key={i} className={`ds-col${c.mapped && c.mapped !== '—' ? ' mapped' : ''}`}>
-                  {c.name}
-                </span>
-              ))}
-            </div>
+            <ColList
+              cols={d.cols}
+              dsId={d.id}
+              dsName={d.name}
+              allDatasets={visibleDatasets}
+              addCell={addCell}
+              showToast={showToast}
+            />
           </div>
         ))}
       </div>
@@ -641,6 +643,91 @@ function GateSplitPanel({ dataset }: { dataset: Dataset }) {
       {error && (
         <span style={{ marginLeft: 8, fontSize: 10, color: '#f87171' }}>
           {error.slice(0, 60)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Column list ───────────────────────────────────────────────────────────
+// Shows all CSV columns. Clicking a column badge creates a raw_ts graph cell
+// for that column on this dataset. Long lists are collapsed by default.
+const COL_COLLAPSE = 8;
+
+function ColList({ cols, dsId, dsName, allDatasets, addCell, showToast }: {
+  cols: DatasetColumn[];
+  dsId: string;
+  dsName: string;
+  allDatasets: Dataset[];
+  addCell: (c: Cell) => void;
+  showToast: (msg: string) => void;
+}) {
+  const runCell = usePage((s) => s.runCell);
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? cols : cols.slice(0, COL_COLLAPSE);
+  const hasMore = cols.length > COL_COLLAPSE;
+
+  function plotCol(colName: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    // If multiple visible datasets share this column, create a multi-dataset overlay
+    const matching = allDatasets.filter((d) =>
+      d.cols.some((c) => c.name.toLowerCase() === colName.toLowerCase()),
+    );
+    const id = `cell_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    if (matching.length >= 2) {
+      addCell({
+        id, type: 'graph', graph: 'raw_ts',
+        dsIds: matching.map((d) => d.id),
+        series: matching.map((d, i) => ({
+          dsId: d.id,
+          label: d.name.replace(/\.csv$/i, '').slice(0, 20),
+          color: ['#3B82C4', '#D35454', '#F09708', '#00FFB2', '#A78BFA'][i % 5],
+        })),
+        colNames: [colName],
+        title: colName,
+        loading: true,
+      });
+      showToast(`Plotting "${colName}" across ${matching.length} datasets`);
+    } else {
+      addCell({
+        id, type: 'graph', graph: 'raw_ts',
+        dsIds: [dsId],
+        colNames: [colName],
+        title: `${dsName.replace(/\.csv$/i, '')} · ${colName}`,
+        loading: true,
+      });
+      showToast(`Plotting "${colName}" from ${dsName}`);
+    }
+    // Defer so the cell is in the store before runCell reads it
+    setTimeout(() => runCell(id), 50);
+  }
+
+  return (
+    <div className="ds-cols" onClick={(e) => e.stopPropagation()}>
+      {visible.map((c, i) => (
+        <span
+          key={i}
+          className={`ds-col${c.mapped && c.mapped !== '—' ? ' mapped' : ''}`}
+          style={{ cursor: 'pointer' }}
+          title={`Click to plot "${c.name}"`}
+          onClick={(e) => plotCol(c.name, e)}
+        >
+          {c.name}
+        </span>
+      ))}
+      {hasMore && (
+        <span
+          style={{
+            cursor: 'pointer', fontSize: 10, color: '#7FB5E4',
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            padding: '1px 5px', borderRadius: 4,
+            background: 'rgba(127,181,228,.1)',
+          }}
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+        >
+          {expanded
+            ? <><ChevronUp size={9} /> less</>
+            : <><ChevronDown size={9} /> +{cols.length - COL_COLLAPSE} more</>}
         </span>
       )}
     </div>

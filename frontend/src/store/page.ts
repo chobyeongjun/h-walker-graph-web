@@ -42,6 +42,8 @@ export interface Cell {
   series?: Array<{ dsId: string; label?: string; color?: string }>;
   // L/R/both side filter — passed to backend render to show only one limb.
   side?: 'L' | 'R' | 'both';
+  // raw_ts: which CSV columns to plot
+  colNames?: string[];
   // Phase 3: cross-file stat cell — if set, overrides a_col/b_col mode.
   statDatasetsA?: Array<{ id: string; metric: string }>;
   statDatasetsB?: Array<{ id: string; metric: string }>;
@@ -549,6 +551,7 @@ export const usePage = create<PageState>()(
             stride_avg: !!cell.strideAvg,
             title: cell.title || '',
             side: cell.side || 'both',
+            col_names: cell.colNames && cell.colNames.length > 0 ? cell.colNames : undefined,
           });
           // Revoke old preview URL
           if (cell.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);

@@ -67,6 +67,8 @@ class RenderRequest(BaseModel):
     title: Optional[str] = None
     # L/R/both side filter — 'both' keeps current behavior (show both limbs).
     side: Literal["L", "R", "both"] = "both"
+    # Arbitrary column names for raw_ts template — plot these columns from the CSV.
+    col_names: list[str] = []
 
 
 def _suggest_filename(req: RenderRequest, P) -> str:
@@ -82,8 +84,8 @@ REAL_DATA_TEMPLATES = {
     "stance_swing_bar", "rom_bar", "symmetry_radar",
     # New analysis templates
     "kinematics_ensemble", "spatiotemporal_bar", "force_tracking", "mos_trajectory",
-    # Debug
-    "debug_ts",
+    # Debug / arbitrary column
+    "debug_ts", "raw_ts",
 }
 
 MULTI_DATASET_TEMPLATES = {
@@ -152,6 +154,102 @@ def _auto_sync_if_needed(req: RenderRequest) -> None:
     for s in req.datasets:
         if s.id in id_map:
             s.id = id_map[s.id]
+
+
+def _render_raw_ts(req: RenderRequest) -> tuple[bytes, str] | None:
+    """Render arbitrary CSV columns as a time-series overlay.
+
+    Works for both single-dataset (dataset_id) and multi-dataset (datasets[]).
+    col_names selects which columns to plot from each CSV.
+    Returns None if no data is loadable.
+    """
+    if req.template != "raw_ts":
+        return None
+
+    from backend.routers.datasets import _REGISTRY, get_path
+    import pandas as _pd
+    import numpy as _np
+    from backend.services.publication_engine import (
+        JOURNAL_PRESETS as _JP, _compose_rc, _emit,
+    )
+    import matplotlib as _mpl
+    import matplotlib.pyplot as _plt
+
+    P = _JP[req.preset]
+    if req.variant == "col1":
+        w_mm, h_mm = P.col1
+    elif req.variant == "onehalf" and P.onehalf:
+        w_mm, h_mm = P.onehalf
+    else:
+        w_mm, h_mm = P.col2
+    dpi_val = req.dpi or P.dpi
+    inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
+
+    # Collect (df, label, ds_id) tuples
+    sources: list[tuple] = []
+    if req.datasets:
+        for s in req.datasets:
+            p = get_path(s.id)
+            if p:
+                try:
+                    df = _pd.read_csv(p)
+                    sources.append((df, s.label or s.id[:8], s.id, s.color))
+                except Exception:
+                    pass
+    elif req.dataset_id:
+        p = get_path(req.dataset_id)
+        if p:
+            try:
+                df = _pd.read_csv(p)
+                ds_name = _REGISTRY.get(req.dataset_id, {}).get("name", req.dataset_id)
+                sources.append((df, ds_name, req.dataset_id, None))
+            except Exception:
+                pass
+
+    if not sources:
+        return None
+
+    col_names = req.col_names or []
+    palette = _DEFAULT_SERIES_PALETTE
+
+    with _mpl.rc_context(_compose_rc(P)):
+        fig, ax = _plt.subplots(figsize=(inch_w, inch_h), dpi=dpi_val)
+
+        color_idx = 0
+        for df, ds_label, ds_id, series_color in sources:
+            hz_str = _REGISTRY.get(ds_id, {}).get("hz", "100Hz")
+            try:
+                fs = float(str(hz_str).replace("Hz", "").strip()) or 100.0
+            except Exception:
+                fs = 100.0
+            t = _np.arange(len(df)) / fs
+
+            # Which columns to plot from this source
+            numeric_cols = df.select_dtypes(include=[_np.number]).columns.tolist()
+            if col_names:
+                # Plot requested columns that exist in this CSV (case-insensitive match)
+                col_lower = {c.lower(): c for c in numeric_cols}
+                picks = [col_lower[req_c.lower()] for req_c in col_names if req_c.lower() in col_lower]
+                if not picks:
+                    picks = [numeric_cols[0]] if numeric_cols else []
+            else:
+                picks = numeric_cols[:3]
+
+            for col in picks:
+                color = series_color or palette[color_idx % len(palette)]
+                label = f"{ds_label} · {col}" if len(sources) > 1 or len(picks) > 1 else col
+                ax.plot(t, df[col].to_numpy(dtype=float),
+                        color=color, linewidth=1.2, label=label)
+                color_idx += 1
+
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel(", ".join(col_names) if col_names else "Value")
+        if req.title:
+            ax.set_title(req.title)
+        if color_idx > 1:
+            ax.legend(loc="best", frameon=False, fontsize=max(5, P.body_pt - 2))
+        fig.tight_layout()
+        return _emit(fig, req.format, dpi_val)
 
 
 def _render_multi_dataset(req: RenderRequest) -> tuple[bytes, str] | None:
@@ -1335,6 +1433,20 @@ def render_endpoint(req: RenderRequest):
             status_code=400,
             detail=f"Unknown preset '{req.preset}'. Known: {sorted(JOURNAL_PRESETS.keys())}",
         )
+    # raw_ts: direct CSV column plot — bypass the H-Walker analysis pipeline
+    if req.template == "raw_ts":
+        try:
+            result = _render_raw_ts(req)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"raw_ts render failed: {exc}") from exc
+        if result is None:
+            raise HTTPException(status_code=422, detail="raw_ts: no loadable data (check dataset_id / datasets)")
+        data, mime = result
+        P = JOURNAL_PRESETS[req.preset]
+        fname = _suggest_filename(req, P)
+        return Response(content=data, media_type=mime,
+                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
     # Phase 1 · multi-dataset overlay first (datasets[] ≥ 2)
     try:
         multi = _render_multi_dataset(req)

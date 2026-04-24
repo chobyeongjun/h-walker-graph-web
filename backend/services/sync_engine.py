@@ -210,6 +210,118 @@ def sync_window(
 
 
 
+# ─── gate-region detection ────────────────────────────────────────────
+#
+# Gate protocol (contrast with pulse protocol above):
+#
+#   LOW  ──┐         ┌──┐         ┌──┐         ┌──  (idle between trials)
+#           │  trial  │  │  trial  │  │  trial  │
+#           └─ HIGH ──┘  └─ HIGH ──┘  └─ HIGH ──┘
+#
+# Each HIGH gate = one MoCap/experiment recording session.
+# detect_gate_regions() extracts them so the user can split the CSV
+# into per-trial sub-datasets.
+
+
+@dataclass
+class Gate:
+    """One continuous HIGH region in a binary sync signal — one recording session."""
+    start_idx: int
+    end_idx: int   # inclusive
+    start_t: float
+    end_t: float
+
+    @property
+    def width_s(self) -> float:
+        return self.end_t - self.start_t
+
+
+def detect_gate_regions(
+    signal: np.ndarray,
+    sample_rate: float,
+    min_gate_width_s: float = 1.0,
+    max_gate_width_s: float = 600.0,
+    merge_gap_s: float = 0.5,
+    threshold_rel: float = 0.5,
+) -> list[Gate]:
+    """Find all continuous HIGH regions in a binary sync signal.
+
+    Works for the gate protocol where the signal is LOW at rest and HIGH
+    during each recording session. Each returned Gate is one trial.
+
+    Parameters
+    ----------
+    min_gate_width_s : float
+        Discard gates shorter than this (noise rejection).  Default 1 s.
+    max_gate_width_s : float
+        Discard gates longer than this.  Default 600 s (10 min).
+    merge_gap_s : float
+        If two adjacent HIGH regions are separated by less than this,
+        merge them into one gate (handles brief signal glitches).
+    threshold_rel : float in (0, 1)
+        LOW/HIGH boundary as a fraction of the peak-to-peak range.
+    """
+    sig = np.asarray(signal, dtype=float).ravel()
+    n = len(sig)
+    if n < 3:
+        return []
+
+    lo, hi = float(np.nanmin(sig)), float(np.nanmax(sig))
+    if hi - lo < 1e-9:
+        return []  # flat signal — no gating
+
+    thr = lo + threshold_rel * (hi - lo)
+    is_high = sig >= thr
+
+    edges = np.diff(is_high.astype(np.int8))
+    rise_idx = np.flatnonzero(edges == 1) + 1   # LOW→HIGH
+    fall_idx = np.flatnonzero(edges == -1) + 1  # HIGH→LOW (exclusive end)
+
+    # Signal that starts HIGH — treat index 0 as a virtual rise
+    if is_high[0]:
+        rise_idx = np.concatenate([[0], rise_idx])
+    # Signal that ends HIGH — treat index n as a virtual fall
+    if is_high[-1]:
+        fall_idx = np.concatenate([fall_idx, [n]])
+
+    # Pair each rise with its immediately following fall
+    raw_gates: list[tuple[int, int]] = []  # (start_incl, end_excl)
+    for r in rise_idx:
+        fs_after = fall_idx[fall_idx > r]
+        if fs_after.size == 0:
+            continue
+        raw_gates.append((int(r), int(fs_after[0])))
+
+    if not raw_gates:
+        return []
+
+    # Merge closely-spaced gates (handle brief LOW glitches mid-trial)
+    merge_samples = max(0, int(round(merge_gap_s * sample_rate)))
+    merged: list[tuple[int, int]] = [raw_gates[0]]
+    for start, end in raw_gates[1:]:
+        prev_start, prev_end = merged[-1]
+        if start - prev_end <= merge_samples:
+            merged[-1] = (prev_start, end)
+        else:
+            merged.append((start, end))
+
+    # Filter by duration
+    min_w = max(1, int(round(min_gate_width_s * sample_rate)))
+    max_w = max(min_w, int(round(max_gate_width_s * sample_rate)))
+
+    gates: list[Gate] = []
+    for start, end in merged:
+        w = end - start
+        if min_w <= w <= max_w:
+            gates.append(Gate(
+                start_idx=start,
+                end_idx=end - 1,  # inclusive
+                start_t=start / sample_rate,
+                end_t=(end - 1) / sample_rate,
+            ))
+    return gates
+
+
 # ─── cropping + resampling ─────────────────────────────────────────────
 
 def crop_to_sync(

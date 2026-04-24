@@ -98,7 +98,7 @@ export interface WorkspaceRoom {
   createdAt: number;
 }
 
-export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings' | 'study';
+export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings';
 
 export interface HistoryEntry {
   id: string;

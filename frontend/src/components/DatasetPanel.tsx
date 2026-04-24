@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Trash2, Home, Plus, X } from 'lucide-react';
 import { usePage, type Dataset, type WorkspaceRoom } from '../store/page';
-import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, type GateInfo } from '../api';
 
 // ── Experiment prefix extraction ─────────────────────────────────────────
@@ -24,8 +23,6 @@ export default function DatasetPanel() {
   const renameRoom = usePage((s) => s.renameRoom);
   const addDatasetToRoom = usePage((s) => s.addDatasetToRoom);
   const setActive = usePage((s) => s.setActiveDataset);
-  const applyRecipes = usePage((s) => s.applyRecipes);
-  const toggleRecipe = usePage((s) => s.toggleRecipe);
   const addDataset = usePage((s) => s.addDataset);
   const removeDataset = usePage((s) => s.removeDataset);
   const setDatasetMeta = usePage((s) => s.setDatasetMeta);
@@ -38,9 +35,6 @@ export default function DatasetPanel() {
   const visibleDatasets = activeRoomId && activeRoom
     ? datasets.filter((d) => activeRoom.datasetIds.includes(d.id))
     : datasets;
-
-  const active = visibleDatasets.find((d) => d.active) || visibleDatasets[0];
-  const recipes = active ? CANONICAL_RECIPES[active.kind] || CANONICAL_RECIPES.force : [];
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
@@ -91,8 +85,7 @@ export default function DatasetPanel() {
           } catch { /* no gates detected — proceed normally */ }
         }
 
-        showToast(`Uploaded ${f.name} · running default recipes…`);
-        applyRecipes(ds.id).catch((e) => showToast(`Auto-run failed: ${(e as Error).message}`));
+        showToast(`Uploaded ${f.name}`);
         accepted += 1;
       } catch (e) {
         showToast(`Upload failed (${f.name}): ${(e as Error).message}`);
@@ -345,15 +338,6 @@ export default function DatasetPanel() {
           onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
         />
       </div>
-
-      {recipes.length > 0 && active && (
-        <AutoRecipes
-          recipes={recipes}
-          active={active}
-          onToggle={(id) => toggleRecipe(active.id, id)}
-          onApply={() => applyRecipes(active.id)}
-        />
-      )}
     </div>
   );
 }
@@ -378,85 +362,6 @@ function DatasetTag({ label, value, placeholder, onChange }: {
   );
 }
 
-/**
- * AutoRecipes · Phase 2I
- *
- * Replaces the old checkbox grid. Compute metrics auto-run (they're just
- * numbers, no user choice needed). Graphs show only the currently-enabled
- * set in a compact chip strip; the user can toggle extras from a
- * "+ more graphs" expandable section. "Apply" button re-runs the active
- * set (skip duplicates thanks to dedup in page.applyRecipes).
- */
-function AutoRecipes({ recipes, active, onToggle, onApply }: {
-  recipes: Array<{ id: string; label: string; default: boolean; type: 'graph' | 'compute'; hint?: string }>;
-  active: { id: string; kind: string; recipeState: Record<string, boolean>; analyzing?: boolean };
-  onToggle: (id: string) => void;
-  onApply: () => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  const graphs = recipes.filter((r) => r.type === 'graph');
-  const computes = recipes.filter((r) => r.type === 'compute');
-  const enabledGraph = graphs.filter((r) => active.recipeState[r.id] ?? r.default);
-  const disabledGraph = graphs.filter((r) => !(active.recipeState[r.id] ?? r.default));
-
-  return (
-    <div className="recipes" style={{ margin: '0 12px 12px' }}>
-      <div className="recipes-head">
-        <h4>Auto-analysis · {active.kind}</h4>
-        <span className="sub">
-          {computes.length} metrics run automatically · {enabledGraph.length} graphs enabled
-        </span>
-        <button
-          className="apply"
-          onClick={onApply}
-          disabled={active.analyzing}
-        >
-          {active.analyzing ? 'Analyzing…' : 'Run on this dataset'}
-        </button>
-      </div>
-
-      <div className="auto-summary">
-        <span className="auto-lbl">Graphs</span>
-        {enabledGraph.map((r) => (
-          <button
-            key={r.id}
-            className="auto-chip on"
-            title={r.hint || r.label}
-            onClick={() => onToggle(r.id)}
-          >
-            {r.label}
-            <span className="auto-x">×</span>
-          </button>
-        ))}
-        {disabledGraph.length > 0 && (
-          <button
-            className="auto-more"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? '− hide' : `+ ${disabledGraph.length} more`}
-          </button>
-        )}
-      </div>
-
-      {expanded && (
-        <div className="auto-advanced">
-          {disabledGraph.map((r) => (
-            <button
-              key={r.id}
-              className="auto-chip off"
-              title={r.hint || r.label}
-              onClick={() => onToggle(r.id)}
-            >
-              + {r.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Room Tabs ─────────────────────────────────────────────────────────────
 // Compact tab strip at the top of the DatasetPanel. "거실" = global view,
 // other tabs = experiment rooms auto-created from filename prefixes.
@@ -476,13 +381,14 @@ function RoomTabs({ rooms, activeRoomId, onSelect, onDelete, onRename, onCreate 
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     display: 'inline-flex', alignItems: 'center', gap: 4,
-    padding: '4px 8px', borderRadius: 6, cursor: 'pointer',
+    padding: '5px 8px', borderRadius: 6, cursor: 'pointer',
     border: 'none', flexShrink: 0,
-    font: '600 10.5px/1 Pretendard,sans-serif',
+    font: '600 10.5px/1.4 Pretendard,sans-serif',
     letterSpacing: '.04em',
     background: active ? 'rgba(240,151,8,.18)' : 'rgba(255,255,255,.04)',
     color: active ? '#F09708' : '#94A3B8',
     transition: 'background .15s, color .15s',
+    whiteSpace: 'nowrap',
   });
 
   return (
@@ -491,6 +397,7 @@ function RoomTabs({ rooms, activeRoomId, onSelect, onDelete, onRename, onCreate 
       padding: '8px 12px 6px', overflowX: 'auto',
       borderBottom: '1px solid rgba(255,255,255,.06)',
       scrollbarWidth: 'none',
+      WebkitOverflowScrolling: 'touch' as any,
     }}>
       {/* 거실 */}
       <button style={tabStyle(!activeRoomId)} onClick={() => onSelect(null)} title="거실 — see all datasets">

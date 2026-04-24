@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePage } from '../store/page';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
-import { PlayCircle, FileText, GitCompare } from 'lucide-react';
+import { PlayCircle, FileText } from 'lucide-react';
 import { paperBundle } from '../api';
 import {
   DndContext,
@@ -41,20 +41,7 @@ export default function Canvas() {
   const pageTitleState = usePage((s) => s.pageTitle);
   const showToast = usePage((s) => s.showToast);
   const logHistory = usePage((s) => s.logHistory);
-  const compareDatasets = usePage((s) => s.compareDatasets);
-  const datasets = usePage((s) => s.datasets);
   const [paperBusy, setPaperBusy] = useState(false);
-  const [compareBusy, setCompareBusy] = useState(false);
-
-  async function runCompare() {
-    if (compareBusy) return;
-    setCompareBusy(true);
-    try {
-      await compareDatasets();
-    } finally {
-      setCompareBusy(false);
-    }
-  }
 
   async function runPaper() {
     if (paperBusy) return;
@@ -167,23 +154,6 @@ export default function Canvas() {
           <span><b>{cells.length}</b> cells</span>
           <span><b>{liveCount}</b> / {bindableCount} live</span>
           <span className="accent">{globalPreset.toUpperCase()}</span>
-          <button
-            className="ds-btn"
-            onClick={runCompare}
-            disabled={compareBusy || datasets.length < 2}
-            title={datasets.length < 2
-              ? 'Upload ≥ 2 datasets to compare them in one figure + cross-file stats'
-              : 'Overlay all datasets in one figure + auto cross-file stats when conditions are tagged'}
-            style={{
-              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(167,139,250,.1)',
-              borderColor: 'rgba(167,139,250,.45)',
-              color: '#A78BFA', fontWeight: 600,
-            }}
-          >
-            <GitCompare size={13} />
-            {compareBusy ? 'Comparing…' : `RUN COMPARE${datasets.length >= 2 ? ` (${datasets.length})` : ''}`}
-          </button>
           <button
             className="ds-btn"
             onClick={() => runAll()}

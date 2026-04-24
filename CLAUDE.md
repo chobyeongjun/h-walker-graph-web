@@ -4,6 +4,8 @@
 
 ---
 
+**Vault**: `~/research-vault/10_Wiki/h-walker-graph-web/h-walker-graph-web.md` — 주요 변경/버그/개선은 여기에도 동시 기록
+
 ## 👤 사용자
 
 - 조병준 (ARLAB, 케이블 드리븐 보행 재활 로봇 "H-Walker" 연구자)

@@ -27,7 +27,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.routers.datasets import _UPLOAD_DIR, _REGISTRY, _HASH_INDEX, _save_registry, _content_hash, _detect_hz, _guess_kind, _guess_role, _guess_unit, _parse_filename
-from backend.services.sync_engine import find_sync_column
+from backend.services.sync_engine import find_sync_column, detect_gate_regions
 
 router_split = APIRouter(prefix="/api/sync/split", tags=["sync"])
 
@@ -326,6 +326,197 @@ def split_execute(req: SplitRequest) -> SplitResponse:
         n_segments=len(result_segments),
         total_duration_s=round(total_dur, 3),
         segments=result_segments,
+    )
+
+
+# ─── Gate-based split (MoCap trial segmentation) ────────────────────
+#
+# Gate protocol: sync signal is LOW at rest, HIGH during each recording.
+# Each continuous HIGH region = one trial → split into a sub-dataset.
+
+
+class GateSplitRequest(BaseModel):
+    ds_id: str
+    signal_col: Optional[str] = None  # auto-detect if None
+    min_gate_width_s: float = 1.0     # discard gates shorter than this
+    max_gate_width_s: float = 600.0   # discard gates longer than this
+    merge_gap_s: float = 0.5          # merge gaps shorter than this
+    threshold_rel: float = 0.5        # LOW/HIGH threshold (fraction of range)
+
+
+class GateInfo(BaseModel):
+    trial_index: int
+    start_idx: int
+    end_idx: int
+    start_t: float
+    end_t: float
+    duration_s: float
+    new_ds_id: Optional[str] = None
+    new_name: Optional[str] = None
+
+
+class GateSplitResponse(BaseModel):
+    source_ds_id: str
+    signal_col: str
+    n_trials: int
+    gates: list[GateInfo]
+
+
+@router_split.post("/gates/preview")
+def gates_preview(req: GateSplitRequest) -> dict[str, Any]:
+    """Detect HIGH gate regions (recording windows) without splitting.
+    Returns detected trial count and time spans for user confirmation.
+    """
+    ds = _REGISTRY.get(req.ds_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail=f"Dataset '{req.ds_id}' not found")
+
+    df = _load_df(ds["_path"])
+    sample_rate = _parse_hz(ds.get("hz", "100Hz"))
+
+    sig_col = req.signal_col or _find_condition_column(df, ds.get("sync_col")) or find_sync_column(df)
+    if not sig_col or sig_col not in df.columns:
+        raise HTTPException(
+            status_code=422,
+            detail="동기화 신호 컬럼을 찾을 수 없습니다. signal_col을 직접 지정해주세요.",
+        )
+
+    gates = detect_gate_regions(
+        df[sig_col].to_numpy(),
+        sample_rate,
+        min_gate_width_s=req.min_gate_width_s,
+        max_gate_width_s=req.max_gate_width_s,
+        merge_gap_s=req.merge_gap_s,
+        threshold_rel=req.threshold_rel,
+    )
+
+    return {
+        "source_ds_id": req.ds_id,
+        "signal_col": sig_col,
+        "n_trials": len(gates),
+        "sample_rate": sample_rate,
+        "gates": [
+            {
+                "trial_index": i + 1,
+                "start_idx": g.start_idx,
+                "end_idx": g.end_idx,
+                "start_t": round(g.start_t, 3),
+                "end_t": round(g.end_t, 3),
+                "duration_s": round(g.width_s, 3),
+            }
+            for i, g in enumerate(gates)
+        ],
+    }
+
+
+@router_split.post("/gates/execute")
+def gates_execute(req: GateSplitRequest) -> GateSplitResponse:
+    """Split a CSV into per-trial sub-datasets based on HIGH gate regions.
+
+    Each continuous HIGH period in the sync signal becomes an independent
+    dataset named '<source>_trial_01.csv', '_trial_02.csv', etc.
+    The new datasets are registered and ready for analysis immediately.
+    """
+    ds = _REGISTRY.get(req.ds_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail=f"Dataset '{req.ds_id}' not found")
+
+    df = _load_df(ds["_path"])
+    sample_rate = _parse_hz(ds.get("hz", "100Hz"))
+    src_name = os.path.splitext(ds["name"])[0]
+
+    sig_col = req.signal_col or _find_condition_column(df, ds.get("sync_col")) or find_sync_column(df)
+    if not sig_col or sig_col not in df.columns:
+        raise HTTPException(
+            status_code=422,
+            detail="동기화 신호 컬럼을 찾을 수 없습니다. signal_col을 직접 지정해주세요.",
+        )
+
+    gates = detect_gate_regions(
+        df[sig_col].to_numpy(),
+        sample_rate,
+        min_gate_width_s=req.min_gate_width_s,
+        max_gate_width_s=req.max_gate_width_s,
+        merge_gap_s=req.merge_gap_s,
+        threshold_rel=req.threshold_rel,
+    )
+
+    if not gates:
+        raise HTTPException(
+            status_code=422,
+            detail="유효한 게이트 구간이 감지되지 않았습니다. threshold_rel이나 min_gate_width_s를 조정해보세요.",
+        )
+
+    result_gates: list[GateInfo] = []
+
+    for idx, gate in enumerate(gates):
+        trial_num = idx + 1
+        seg_df = df.iloc[gate.start_idx: gate.end_idx + 1].reset_index(drop=True)
+        new_name = f"{src_name}_trial_{trial_num:02d}.csv"
+
+        csv_bytes = seg_df.to_csv(index=False).encode()
+        chash = _content_hash(csv_bytes)
+
+        if chash in _HASH_INDEX:
+            new_id = _HASH_INDEX[chash]
+        else:
+            save_path = _UPLOAD_DIR / f"{chash}.csv"
+            save_path.write_bytes(csv_bytes)
+            new_id = "ds_" + uuid.uuid4().hex[:8]
+
+            col_names = [str(c).strip() for c in seg_df.columns.tolist()]
+            hz = _detect_hz(col_names, seg_df)
+            kind = _guess_kind(col_names)
+            rows = len(seg_df)
+            cols_meta = []
+            for cname in col_names:
+                role, conf = _guess_role(cname)
+                cols_meta.append({
+                    "name": cname, "unit": _guess_unit(cname),
+                    "mapped": role, "inferred_role": role, "confidence": conf,
+                    "preview": seg_df[cname].head(5).astype(str).tolist(),
+                })
+
+            parsed = _parse_filename(new_name)
+            new_ds: dict[str, Any] = {
+                "id": new_id, "name": new_name,
+                "tag": kind, "kind": kind,
+                "rows": rows,
+                "dur": f"{rows / hz:.1f}s" if hz else "—",
+                "hz": f"{hz}Hz",
+                "cols": cols_meta,
+                "active": False,
+                "recipeState": {},
+                "subject_id": parsed.get("subject_id", ds.get("subject_id", "")),
+                "condition": f"trial_{trial_num:02d}",
+                "group": ds.get("group", ""),
+                "date": parsed.get("date", ds.get("date", "")),
+                "sync_col": None,
+                "source_type": ds.get("source_type", "unknown"),
+                "synced_from": None,
+                "split_from": req.ds_id,
+                "split_trial": trial_num,
+                "_path": str(save_path),
+                "_content_hash": chash,
+            }
+            _REGISTRY[new_id] = new_ds
+            _HASH_INDEX[chash] = new_id
+
+        result_gates.append(GateInfo(
+            trial_index=trial_num,
+            start_idx=gate.start_idx, end_idx=gate.end_idx,
+            start_t=round(gate.start_t, 3), end_t=round(gate.end_t, 3),
+            duration_s=round(gate.width_s, 3),
+            new_ds_id=new_id, new_name=new_name,
+        ))
+
+    _save_registry()
+
+    return GateSplitResponse(
+        source_ds_id=req.ds_id,
+        signal_col=sig_col,
+        n_trials=len(result_gates),
+        gates=result_gates,
     )
 
 

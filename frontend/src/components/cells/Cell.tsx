@@ -22,11 +22,17 @@ export default function Cell({ cell, index, dragHandle }: Props) {
   const focusCell = usePage((s) => s.focusCell);
 
   const typeClass = `cell ${cell.type}`;
-  const displayTitle = cell.title
-    ?? (cell.type === 'graph' ? `Graph · ${cell.graph}`
+  // For graph cells, the card header is a derived label — editing the
+  // figure caption lives inside GraphCell so we don't accidentally inject
+  // "Shank IMU" etc. into the exported figure title. Non-graph cells keep
+  // the editable title behavior.
+  const autoLabel =
+    cell.type === 'graph' ? `Graph · ${cell.graph}`
       : cell.type === 'stat' ? `Stat · ${cell.op}`
       : cell.type === 'compute' ? `Compute · ${cell.metric}`
-      : 'Assistant');
+      : 'Assistant';
+  const headerEditable = cell.type !== 'graph';
+  const displayTitle = (headerEditable && cell.title) ? cell.title : autoLabel;
 
   return (
     <div className={typeClass} id={`cell-${cell.id}`}>
@@ -46,24 +52,31 @@ export default function Cell({ cell, index, dragHandle }: Props) {
         </span>
         <span
           className="cell-title"
-          contentEditable
+          contentEditable={headerEditable}
           suppressContentEditableWarning
-          onBlur={(e) => update(cell.id, { title: e.currentTarget.textContent || '' })}
+          onBlur={headerEditable
+            ? (e) => update(cell.id, { title: e.currentTarget.textContent || '' })
+            : undefined}
+          title={headerEditable ? undefined : 'Edit the figure caption below the plot'}
         >{displayTitle}</span>
         {cell.dsIds.slice(0, 2).map((dsId) => (
           <span key={dsId} className="ds-chip">{dsId}</span>
         ))}
         <div className="cell-tools">
           {cell.type === 'graph' && (
-            <button className="cell-tool" title="Focus" onClick={() => focusCell(cell.id)}>
-              <Expand size={14} />
+            <button
+              className="cell-tool primary"
+              title="Open focus view (single-plot mode)"
+              onClick={() => focusCell(cell.id)}
+            >
+              <Expand size={18} />
             </button>
           )}
           <button className="cell-tool" title="Duplicate" onClick={() => dup(cell.id)}>
-            <Copy size={14} />
+            <Copy size={16} />
           </button>
           <button className="cell-tool danger" title="Delete" onClick={() => remove(cell.id)}>
-            <Trash2 size={14} />
+            <Trash2 size={16} />
           </button>
         </div>
       </div>

@@ -40,7 +40,7 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
   },
   rom: {
     label: 'ROM per stride',
-    cols: ['stride', 'shank ROM (°)', 'thigh ROM (°)'],
+    cols: ['stride', 'L_Pitch ROM (°)', 'R_Pitch ROM (°)'],
     rows: [['1', '42.1', '38.5'], ['2', '41.8', '38.2'], ['3', '42.4', '38.8']],
     summary: { mean: ['42.1 ± 0.3', '38.5 ± 0.3'] },
   },

@@ -442,9 +442,8 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
     # =====================================================
 
     if req.template == "imu":
-        # Joint angle time series (raw, first 8 seconds). Labels follow
-        # the actual column name so we don't mislabel e.g. thigh-mounted
-        # IMUs as "shank".
+        # Pitch/roll/yaw time series (raw, first 8 seconds). Labels follow
+        # the actual column name — no hard-coded "shank" / "thigh" assumption.
         if df is None:
             return None
         fs = res.sample_rate
@@ -458,7 +457,13 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                                 x=t, y=df[col].iloc[:n_max].tolist(),
                                 color=colors[i % len(colors)], width=1.6))
         if not traces:
-            return None
+            raise HTTPException(
+                status_code=400,
+                detail=f"IMU time-series needs at least one of "
+                       f"L_Pitch/R_Pitch/L_Roll/R_Roll/L_Yaw/R_Yaw in the CSV. "
+                       f"Available columns: {list(df.columns)[:20]}"
+                       + (" …" if len(df.columns) > 20 else "") + "."
+            )
         return render_from_traces(
             traces, title=req.title or "",
             x_label="Time (s)", y_label="Pitch (°)",
@@ -467,12 +472,21 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         )
 
     if req.template == "imu_avg":
-        # Joint-angle mean ± SD over 0–100% gait cycle. Labels reflect
-        # the actual column name — no hard-coded "shank" assumption.
+        # Pitch-angle mean ± SD over 0–100% gait cycle. Labels reflect the
+        # actual column name — no hard-coded "shank" / "thigh" assumption.
         if df is None:
             return None
         from backend.services.compute_engine import resample_column
         ls, rs = res.left_stride, res.right_stride
+        available = [c for c in ("L_Pitch", "R_Pitch") if c in df.columns]
+        if not available:
+            raise HTTPException(
+                status_code=400,
+                detail=f"imu_avg needs L_Pitch and/or R_Pitch. "
+                       f"Neither found in this CSV. "
+                       f"Available pitch-like columns: "
+                       f"{[c for c in df.columns if 'Pitch' in c or 'pitch' in c] or 'none'}."
+            )
         for col, color_line, color_band in [
             ("L_Pitch", "#1E5F9E", "#3B82C4"),
             ("R_Pitch", "#9E3838", "#D35454"),
@@ -494,7 +508,13 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                                 x=gcp_axis, y=list(mean),
                                 color=color_line, width=2.0))
         if not traces:
-            return None
+            # Column(s) existed but had no valid stride data
+            raise HTTPException(
+                status_code=400,
+                detail=f"imu_avg: {', '.join(available)} present but no valid "
+                       f"strides found to average. Check heel-strike detection "
+                       f"(debug_ts figure) and make sure force data is also valid."
+            )
         return render_from_traces(
             traces, title=req.title or "",
             x_label="Gait cycle (%)", y_label="Pitch (°)",
@@ -503,7 +523,7 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         )
 
     if req.template == "cyclogram":
-        # Phase plot: shank pitch vs thigh pitch (or L vs R pitch if only one)
+        # Phase plot: L pitch vs R pitch over the gait cycle
         if df is None:
             return None
         from backend.services.compute_engine import resample_column
@@ -512,7 +532,14 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         x_col = "L_Pitch" if "L_Pitch" in df.columns else None
         y_col = "R_Pitch" if "R_Pitch" in df.columns else None
         if not x_col or not y_col:
-            return None
+            missing = [c for c, have in [("L_Pitch", x_col), ("R_Pitch", y_col)] if not have]
+            raise HTTPException(
+                status_code=400,
+                detail=f"cyclogram needs both L_Pitch and R_Pitch columns. "
+                       f"Missing: {', '.join(missing)}. "
+                       f"Available pitch-like columns: "
+                       f"{[c for c in df.columns if 'Pitch' in c or 'pitch' in c] or 'none'}."
+            )
 
         x_res = resample_column(df, x_col, ls.hs_indices, ls.valid_mask)
         y_res = resample_column(df, y_col, ls.hs_indices, ls.valid_mask)

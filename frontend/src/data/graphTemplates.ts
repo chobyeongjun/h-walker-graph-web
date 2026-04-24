@@ -37,11 +37,11 @@ export const GRAPH_TPLS: Record<string, GraphTemplate> = {
     summary: [['n strides', '14'], ['peak ΔL', '48.2 N'], ['peak ΔR', '46.7 N'], ['asym', '3.2%']],
   },
   imu: {
-    ey: 'IMU · Pitch', title: 'Shank vs thigh pitch', ds: 'ds2',
+    ey: 'IMU · Pitch', title: 'L vs R pitch angle', ds: 'ds2',
     yUnit: 'Pitch (°)', xUnit: 'Time (s)',
     paths: [
-      { c: COLORS.lActual, w: 1.8, label: 'Shank', d: 'M48,100 C70,70 92,40 114,50 C136,60 158,130 180,140 C202,150 224,90 246,60 C268,50 290,110 312,140 C332,150 354,100 376,70 C394,55 402,80 408,100' },
-      { c: COLORS.rActual, w: 1.8, label: 'Thigh', d: 'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102' },
+      { c: COLORS.lActual, w: 1.8, label: 'L_Pitch', d: 'M48,100 C70,70 92,40 114,50 C136,60 158,130 180,140 C202,150 224,90 246,60 C268,50 290,110 312,140 C332,150 354,100 376,70 C394,55 402,80 408,100' },
+      { c: COLORS.rActual, w: 1.8, label: 'R_Pitch', d: 'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102' },
     ],
     yTicks: ['+20', '+10', '0', '−10', '−20'], xTicks: ['0', '2', '4', '6', '8'],
     summary: [['strides', '3'], ['cadence', '112 spm'], ['stride T', '1.08 s']],
@@ -158,15 +158,15 @@ export const GRAPH_TPLS: Record<string, GraphTemplate> = {
     ey: 'Kinematics · mean ± SD', title: 'Joint angle over gait cycle', ds: 'ds2',
     yUnit: 'Pitch (°)', xUnit: 'Gait cycle (%)',
     paths: [
-      { c: '#1E5F9E', w: 2.0, label: 'L shank', d: 'M48,100 C70,70 92,40 114,60 C138,80 158,130 180,140 C202,140 224,90 246,60 C268,50 290,110 312,140 C332,140 354,100 376,70 C394,55 402,80 408,100' },
-      { c: '#9E3838', w: 2.0, label: 'R shank', d: 'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102' },
+      { c: '#1E5F9E', w: 2.0, label: 'L_Pitch', d: 'M48,100 C70,70 92,40 114,60 C138,80 158,130 180,140 C202,140 224,90 246,60 C268,50 290,110 312,140 C332,140 354,100 376,70 C394,55 402,80 408,100' },
+      { c: '#9E3838', w: 2.0, label: 'R_Pitch', d: 'M48,110 C70,90 92,70 114,78 C138,88 158,120 180,126 C204,132 224,100 246,82 C268,75 290,108 312,128 C332,136 354,108 376,88 C394,78 402,90 408,102' },
     ],
     yTicks: ['+20', '+10', '0', '−10', '−20'], xTicks: ['0', '25', '50', '75', '100'],
     summary: [['ROM L', '38.4°'], ['ROM R', '37.1°'], ['asym', '3.4%']],
   },
   'cyclogram': {
-    ey: 'Phase portrait', title: 'Shank vs thigh cyclogram', ds: 'ds2',
-    yUnit: 'Thigh pitch (°)', xUnit: 'Shank pitch (°)',
+    ey: 'Phase portrait', title: 'L-vs-R pitch cyclogram', ds: 'ds2',
+    yUnit: 'R pitch (°)', xUnit: 'L pitch (°)',
     paths: [
       { c: COLORS.accent, w: 1.8, label: 'Cycle avg', d: 'M150,100 C120,60 140,30 200,40 C260,50 300,80 340,110 C340,140 280,160 220,150 C160,140 180,120 150,100' },
     ],

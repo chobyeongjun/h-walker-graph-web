@@ -296,43 +296,48 @@ def loading_rate(df: pd.DataFrame, res: AnalysisResult,
 
 def rom(df: pd.DataFrame, res: AnalysisResult,
         n_max_rows: int = 30) -> dict[str, Any]:
-    """ROM per stride. Uses Pitch columns (shank) if present."""
-    ls = res.left_stride
-    # Prefer L_Pitch (shank) and R_Pitch as "thigh" proxy when no explicit thigh column
-    shank_col = "L_Pitch" if "L_Pitch" in df.columns else None
-    thigh_col = "R_Pitch" if "R_Pitch" in df.columns else None
+    """Per-stride range of motion for the pitch columns actually present.
 
-    shank = _rom_per_stride(df, shank_col, ls.hs_indices, ls.valid_mask) if shank_col else np.array([])
-    thigh = _rom_per_stride(df, thigh_col, ls.hs_indices, ls.valid_mask) if thigh_col else np.array([])
-    n = min(len(shank), len(thigh)) if (len(shank) and len(thigh)) else max(len(shank), len(thigh))
+    L_Pitch / R_Pitch are the *left* and *right* pitch channels (whatever
+    the sensor is mounted on — shank, thigh, or foot is caller-determined).
+    We intentionally do not label them as "shank" / "thigh" — that conflates
+    bilateral comparison (L vs R) with joint comparison (shank vs thigh).
+    """
+    ls = res.left_stride
+    l_col = "L_Pitch" if "L_Pitch" in df.columns else None
+    r_col = "R_Pitch" if "R_Pitch" in df.columns else None
+
+    l_rom = _rom_per_stride(df, l_col, ls.hs_indices, ls.valid_mask) if l_col else np.array([])
+    r_rom = _rom_per_stride(df, r_col, ls.hs_indices, ls.valid_mask) if r_col else np.array([])
+    n = min(len(l_rom), len(r_rom)) if (len(l_rom) and len(r_rom)) else max(len(l_rom), len(r_rom))
 
     cols = ["stride"]
-    if len(shank):
-        cols.append(f"{shank_col or 'shank'} ROM (°)")
-    if len(thigh):
-        cols.append(f"{thigh_col or 'thigh'} ROM (°)")
+    if len(l_rom):
+        cols.append(f"{l_col} ROM (°)")
+    if len(r_rom):
+        cols.append(f"{r_col} ROM (°)")
 
     rows = []
     for i in range(n):
         row = [str(i + 1)]
-        if len(shank):
-            row.append(f"{shank[i]:.1f}" if i < len(shank) else "—")
-        if len(thigh):
-            row.append(f"{thigh[i]:.1f}" if i < len(thigh) else "—")
+        if len(l_rom):
+            row.append(f"{l_rom[i]:.1f}" if i < len(l_rom) else "—")
+        if len(r_rom):
+            row.append(f"{r_rom[i]:.1f}" if i < len(r_rom) else "—")
         rows.append(row)
 
     summary = []
-    if len(shank):
-        summary.append(_fmt_mean_std(shank, digits=1))
-    if len(thigh):
-        summary.append(_fmt_mean_std(thigh, digits=1))
+    if len(l_rom):
+        summary.append(_fmt_mean_std(l_rom, digits=1))
+    if len(r_rom):
+        summary.append(_fmt_mean_std(r_rom, digits=1))
 
     return {
         "label": "ROM per stride",
         "cols": cols,
         "rows": _truncate_rows(rows, n_max_rows),
         "summary": {"mean": summary},
-        "meta": {"n_strides": int(n), "shank_col": shank_col, "thigh_col": thigh_col},
+        "meta": {"n_strides": int(n), "l_col": l_col, "r_col": r_col},
     }
 
 

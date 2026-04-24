@@ -64,6 +64,18 @@ def _cohens_d(a: np.ndarray, b: np.ndarray, paired: bool = False) -> float:
     return float((np.mean(a) - np.mean(b)) / sp) if sp > 0 else 0.0
 
 
+def _cohen_magnitude(d: float) -> str:
+    """Cohen (1988) rule-of-thumb magnitude label for |d|."""
+    ad = abs(d)
+    if ad < 0.2:
+        return "negligible"
+    if ad < 0.5:
+        return "small"
+    if ad < 0.8:
+        return "medium"
+    return "large"
+
+
 def _diff_ci95(a: np.ndarray, b: np.ndarray, paired: bool) -> tuple[float, float] | None:
     if paired:
         d = a - b
@@ -93,11 +105,12 @@ def _diff_ci95(a: np.ndarray, b: np.ndarray, paired: bool) -> tuple[float, float
 
 
 def ttest_paired(a: list[float], b: list[float]) -> dict[str, Any]:
-    x, y = _clean(a), _clean(b)
-    n = min(len(x), len(y))
+    x_all, y_all = _clean(a), _clean(b)
+    n = min(len(x_all), len(y_all))
     if n < 3:
         raise ValueError(f"paired t-test needs ≥3 pairs (got {n})")
-    x, y = x[:n], y[:n]
+    trimmed = max(len(x_all), len(y_all)) - n
+    x, y = x_all[:n], y_all[:n]
     diff = x - y
     sh_p, normal = _shapiro(diff)
     if not normal:
@@ -120,6 +133,10 @@ def ttest_paired(a: list[float], b: list[float]) -> dict[str, Any]:
     t_stat, p_val = stats.ttest_rel(x, y)
     d = _cohens_d(x, y, paired=True)
     ci = _diff_ci95(x, y, paired=True)
+    warn = (
+        f"{trimmed} unpaired value(s) dropped — inputs had unequal length"
+        if trimmed else None
+    )
     return {
         "op": "ttest_paired",
         "name": "Paired t-test",
@@ -127,11 +144,13 @@ def ttest_paired(a: list[float], b: list[float]) -> dict[str, Any]:
         "stat_name": "t",
         "p": float(p_val),
         "df": float(n - 1),
-        "effect_size": {"name": "Cohen's d", "value": d},
+        "effect_size": {"name": "Cohen's d", "value": d,
+                        "label": _cohen_magnitude(d)},
         "ci95": list(ci) if ci else None,
         "n": int(n),
         "assumption": {"name": "Shapiro-Wilk (diff)", "p": sh_p, "passed": True},
         "fallback_used": False,
+        "warning": warn,
         "summary": f"t({n-1})={t_stat:.2f}, p={p_val:.3g}, d={d:.2f}",
     }
 
@@ -161,6 +180,7 @@ def ttest_welch(a: list[float], b: list[float]) -> dict[str, Any]:
         }
     t_stat, p_val = stats.ttest_ind(x, y, equal_var=False)
     d = _cohens_d(x, y, paired=False)
+    d_label = _cohen_magnitude(d)
     ci = _diff_ci95(x, y, paired=False)
     # Welch df
     va, vb = np.var(x, ddof=1), np.var(y, ddof=1)
@@ -175,7 +195,7 @@ def ttest_welch(a: list[float], b: list[float]) -> dict[str, Any]:
         "stat_name": "t",
         "p": float(p_val),
         "df": df,
-        "effect_size": {"name": "Cohen's d", "value": d},
+        "effect_size": {"name": "Cohen's d", "value": d, "label": d_label},
         "ci95": list(ci) if ci else None,
         "n": [int(na), int(nb)],
         "assumption": {"name": "Shapiro-Wilk (min group)", "p": min(sh_px, sh_py), "passed": True},

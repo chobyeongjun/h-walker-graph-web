@@ -176,6 +176,7 @@ export interface StatsResponse {
   n: number | number[];
   assumption: { name: string; p: number; passed: boolean } | null;
   fallback_used: boolean;
+  warning?: string | null;
   summary: string;
 }
 

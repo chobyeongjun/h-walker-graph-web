@@ -240,6 +240,7 @@ function BackendKV({ r }: { r: StatsResponse }) {
     ['95% CI', r.ci95 ? `[${r.ci95[0].toFixed(2)}, ${r.ci95[1].toFixed(2)}]` : '', false],
     ['assumption', r.assumption ? `${r.assumption.name}: p=${r.assumption.p.toFixed(3)} ${r.assumption.passed ? '✓' : '✗'}` : '', false],
     ['fallback', r.fallback_used ? 'non-parametric (Shapiro failed)' : '', false],
+    ['⚠ warning', r.warning || '', true],
   ].filter((e) => e[1]) as Array<[string, string, boolean?]>;
 
   return (
@@ -257,9 +258,13 @@ function formatBackendReport(r: StatsResponse, fmt: string): string {
   const p = r.p == null ? '–' : r.p < 0.001 ? '<0.001' : r.p.toFixed(3);
   const d = r.df == null ? '' : Array.isArray(r.df) ? `(${r.df[0]},${r.df[1]})` : `(${Number(r.df).toFixed(1)})`;
   if (fmt === 'apa') {
-    return `<b>${r.name}</b>: <b>${r.stat_name}</b>${d} = ${r.stat.toFixed(2)}, <b>p</b> = ${p}`
-      + (r.effect_size ? `, <b>${r.effect_size.name}</b> = ${r.effect_size.value.toFixed(3)}` : '')
-      + '.';
+    // APA 7th: statistical symbols (t, F, p, d, r) are italicized, not
+    // bold. The test name stays bold so the line scans well.
+    const es = r.effect_size
+      ? `, <i>${r.effect_size.name}</i> = ${r.effect_size.value.toFixed(3)}`
+        + (r.effect_size.label ? ` (${r.effect_size.label})` : '')
+      : '';
+    return `<b>${r.name}</b>: <i>${r.stat_name}</i>${d} = ${r.stat.toFixed(2)}, <i>p</i> = ${p}${es}.`;
   }
   if (fmt === 'ieee') {
     return `${r.name}; ${r.stat_name}${d}=${r.stat.toFixed(2)}, p=${p}`;

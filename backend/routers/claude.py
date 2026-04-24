@@ -248,7 +248,12 @@ def _context_block(ctx: ClaudeContext) -> str:
     ]
     if ctx.datasets:
         lines.append("")
-        lines.append("Dataset analysis summaries:")
+        lines.append(
+            "Dataset analysis summaries "
+            "(NB: `cadence` values below are each-side's estimate of "
+            "**whole-body** steps/min — do NOT sum L + R; average them "
+            "or just quote one if they agree):"
+        )
         for d in ctx.datasets[:6]:
             L = d.get('L') or {}
             R = d.get('R') or {}
@@ -260,10 +265,10 @@ def _context_block(ctx: ClaudeContext) -> str:
                     f"  · {d.get('name', d.get('id'))}{tag}: "
                     f"{d.get('duration_s', '?')}s @ {d.get('sample_rate', '?')}Hz, "
                     f"L={L.get('n_strides', 0)} strides "
-                    f"(cadence {L.get('cadence', 0):.1f}, stride_T {L.get('stride_time_mean', 0):.3f}s "
+                    f"(cadence {L.get('cadence', 0):.1f} spm, stride_T {L.get('stride_time_mean', 0):.3f}s "
                     f"CV {L.get('stride_time_cv', 0):.1f}%, Force RMSE {L.get('force_rmse', 0):.2f}N), "
                     f"R={R.get('n_strides', 0)} strides "
-                    f"(cadence {R.get('cadence', 0):.1f}, Force RMSE {R.get('force_rmse', 0):.2f}N), "
+                    f"(cadence {R.get('cadence', 0):.1f} spm, Force RMSE {R.get('force_rmse', 0):.2f}N), "
                     f"symmetry stride_T {sym.get('stride_time', 0):.1f}% "
                     f"force {sym.get('force', 0):.1f}%, "
                     f"fatigue L {fat.get('left_pct_change', 0):+.1f}% R {fat.get('right_pct_change', 0):+.1f}%"

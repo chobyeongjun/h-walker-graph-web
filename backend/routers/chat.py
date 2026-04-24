@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from collections import deque
 
-import ollama
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+
+# Ollama is an optional dependency (Anthropic is the default provider as
+# of Phase 2B). Import lazily inside the one endpoint that needs it so
+# environments without the ollama SDK can still run tests and serve the
+# Claude-only surface.
 
 from backend.models.schema import AnalysisRequest
 from backend.models.chat_schema import ChatRequest, ChatResponse, ChatMessage
@@ -124,10 +128,11 @@ async def list_models() -> dict[str, list[str]]:
         return {"models": [ANTHROPIC_MODEL]}
 
     try:
+        import ollama
         result = ollama.list()
         models = [m.model for m in result.models]
         return {"models": models}
-    except Exception as e:
+    except Exception:
         return {"models": [OLLAMA_MODEL]}  # fallback
 
 

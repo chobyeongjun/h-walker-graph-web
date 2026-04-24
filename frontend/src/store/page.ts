@@ -605,6 +605,37 @@ export const usePage = create<PageState>()(
     }),
     {
       name: 'hw_page_v1',
+      // Bump this whenever the persisted shape changes in a way that
+      // can crash on rehydrate. The migrate() callback runs against
+      // any older snapshot before partialize / setState run.
+      version: 2,
+      migrate: (persisted: unknown, fromVersion: number): Partial<PageState> => {
+        // Defensive: if the persisted blob came from a previous schema
+        // (or is just garbage in localStorage), fall back to an empty
+        // session rather than crashing the whole app to a blank screen.
+        if (!persisted || typeof persisted !== 'object') return {};
+        try {
+          const p = persisted as Record<string, unknown>;
+          // Only forward fields whose presence + type we recognize.
+          // Anything we can't validate is dropped — the user just
+          // loses persistence for that one slice, which is a far
+          // better outcome than a white screen on every branch swap.
+          const safe: Partial<PageState> = {};
+          if (Array.isArray(p.cells)) safe.cells = p.cells as PageState['cells'];
+          if (Array.isArray(p.datasets)) safe.datasets = p.datasets as PageState['datasets'];
+          if (typeof p.currentPreset === 'string') safe.currentPreset = p.currentPreset as PageState['currentPreset'];
+          if (typeof p.globalPreset === 'string') safe.globalPreset = p.globalPreset as PageState['globalPreset'];
+          if (typeof p.pageTitle === 'string') safe.pageTitle = p.pageTitle as PageState['pageTitle'];
+          if (Array.isArray(p.history)) safe.history = p.history as PageState['history'];
+          if (fromVersion < 2) {
+            console.info(`[hw_page] migrated persisted state from v${fromVersion} → v2`);
+          }
+          return safe;
+        } catch (e) {
+          console.warn('[hw_page] persisted state unreadable, starting fresh:', e);
+          return {};
+        }
+      },
       // Strip live (non-serializable) state before persisting
       partialize: (s) => ({
         cells: s.cells.map((c) => {
@@ -625,19 +656,27 @@ export const usePage = create<PageState>()(
       }),
       // One-shot rehydration pass: dedup any dataset entries that old
       // code paths left in localStorage (so the user doesn't need to
-      // clear storage manually).
+      // clear storage manually). Wrapped in try/catch so a corrupt
+      // entry can't blank-screen the app.
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const seen = new Set<string>();
-        const uniq: Dataset[] = [];
-        for (const d of state.datasets || []) {
-          if (seen.has(d.id)) continue;
-          seen.add(d.id);
-          uniq.push(d);
-        }
-        if (uniq.length !== (state.datasets || []).length) {
-          state.datasets = uniq;
-          console.info(`[workspace] deduplicated ${(state.datasets as unknown as Dataset[]).length} datasets on rehydrate`);
+        try {
+          const seen = new Set<string>();
+          const uniq: Dataset[] = [];
+          for (const d of state.datasets || []) {
+            if (!d || typeof d !== 'object' || !d.id) continue;
+            if (seen.has(d.id)) continue;
+            seen.add(d.id);
+            uniq.push(d);
+          }
+          if (uniq.length !== (state.datasets || []).length) {
+            state.datasets = uniq;
+            console.info(`[hw_page] deduplicated datasets on rehydrate`);
+          }
+        } catch (e) {
+          console.warn('[hw_page] rehydrate post-process failed, ignoring:', e);
+          state.datasets = [];
+          state.cells = [];
         }
       },
     },

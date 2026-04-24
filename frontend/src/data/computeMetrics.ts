@@ -45,10 +45,10 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
     summary: { mean: ['42.1 ± 0.3', '38.5 ± 0.3'] },
   },
   cadence: {
-    label: 'Cadence',
-    cols: ['window', 'spm'],
-    rows: [['0-4s', '110'], ['4-8s', '114']],
-    summary: { mean: ['112 ± 2'] },
+    label: 'Cadence (steps/min · whole-trial avg)',
+    cols: ['L (spm)', 'R (spm)', 'Mean (spm)'],
+    rows: [['112.0', '111.5', '111.8']],
+    summary: { mean: ['111.8 spm'] },
   },
   target_dev: {
     label: 'Target deviation',
@@ -59,15 +59,10 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
   // Phase 0 · motion / spatiotemporal metrics (mock fallback; real data
   // replaces when the cell is bound to a dataset)
   stride_length: {
-    label: 'Stride length (m, ZUPT)',
-    cols: ['stride_#', 'L (m)', 'R (m)', 'asym (%)'],
-    rows: [
-      ['1', '1.12', '1.08', '3.6'],
-      ['2', '1.14', '1.09', '4.5'],
-      ['3', '1.13', '1.08', '4.5'],
-      ['…', '…', '…', '…'],
-    ],
-    summary: { mean: ['1.13 ± 0.02', '1.08 ± 0.02', '4.2 ± 0.4'] },
+    label: 'Stride length (m, ZUPT · whole-trial avg)',
+    cols: ['L (m)', 'R (m)', 'asym (%)'],
+    rows: [['1.13 ± 0.02', '1.08 ± 0.02', '4.5']],
+    summary: { mean: ['1.13 ± 0.02', '1.08 ± 0.02', '4.5%'] },
   },
   stance_time: {
     label: 'Stance time (s)',

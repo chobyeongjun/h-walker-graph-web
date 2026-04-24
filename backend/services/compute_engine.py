@@ -337,35 +337,40 @@ def rom(df: pd.DataFrame, res: AnalysisResult,
 
 
 def cadence(df: pd.DataFrame, res: AnalysisResult,
-            window_s: float = 4.0) -> dict[str, Any]:
-    """Cadence per rolling window (average of L + R steps)."""
-    fs = res.sample_rate
-    total_dur = res.duration_s
-    ls, rs = res.left_stride, res.right_stride
+            **_: Any) -> dict[str, Any]:
+    """Average cadence (steps/min) — a single scalar summary.
 
-    n_windows = int(total_dur // window_s)
-    rows = []
-    cadences = []
-    for w in range(n_windows):
-        t0, t1 = w * window_s, (w + 1) * window_s
-        i0, i1 = int(t0 * fs), int(t1 * fs)
-        steps = 0
-        if len(ls.hs_indices):
-            steps += int(np.sum((ls.hs_indices >= i0) & (ls.hs_indices < i1)))
-        if len(rs.hs_indices):
-            steps += int(np.sum((rs.hs_indices >= i0) & (rs.hs_indices < i1)))
-        spm = steps / window_s * 60.0
-        cadences.append(spm)
-        rows.append([f"{t0:.0f}-{t1:.0f}s", f"{spm:.0f}"])
+    Cadence is a whole-trial parameter, not a per-window time-series. The
+    correct reportable value is the grand mean across strides for each side
+    plus a combined value. For on-the-fly fatigue inspection use the
+    `fatigue_index` metric or ask the LLM for a `stride_time_trend` graph.
+    """
+    ls, rs = res.left_stride, res.right_stride
+    combined = 0.0
+    if ls.cadence and rs.cadence:
+        combined = (ls.cadence + rs.cadence) / 2.0
+    elif ls.cadence:
+        combined = ls.cadence
+    elif rs.cadence:
+        combined = rs.cadence
+
+    rows = [[
+        f"{ls.cadence:.1f}" if ls.cadence else "—",
+        f"{rs.cadence:.1f}" if rs.cadence else "—",
+        f"{combined:.1f}" if combined else "—",
+    ]]
 
     return {
-        "label": "Cadence",
-        "cols": ["window", "spm"],
-        "rows": rows or [["0-0s", f"{(ls.cadence + rs.cadence) / 2:.0f}"]],
-        "summary": {"mean": [_fmt_mean_std(np.array(cadences) if cadences else
-                                            np.array([(ls.cadence + rs.cadence) / 2]),
-                                            digits=0)]},
-        "meta": {"window_s": window_s, "n_windows": n_windows},
+        "label": "Cadence (steps/min · whole-trial avg)",
+        "cols": ["L (spm)", "R (spm)", "Mean (spm)"],
+        "rows": rows,
+        "summary": {"mean": [f"{combined:.1f} spm"]},
+        "meta": {
+            "n_strides_L": int(ls.n_strides),
+            "n_strides_R": int(rs.n_strides),
+            "stride_time_mean_L": float(ls.stride_time_mean),
+            "stride_time_mean_R": float(rs.stride_time_mean),
+        },
     }
 
 
@@ -404,33 +409,41 @@ def target_dev(df: pd.DataFrame, res: AnalysisResult,
 
 
 def stride_length(df: pd.DataFrame, res: AnalysisResult,
-                  n_max_rows: int = 30) -> dict[str, Any]:
-    """Per-stride length (m) from ZUPT integration — analyzer output."""
+                  **_: Any) -> dict[str, Any]:
+    """Average stride length (m) via ZUPT — a single scalar summary.
+
+    Like cadence, stride length is a whole-trial parameter. We report
+    L mean±SD, R mean±SD, and the asymmetry index between them. Per-stride
+    series are available via `per_stride` or `stride_time_trend` graph if
+    the user explicitly wants to see intra-trial variability.
+    """
     ls, rs = res.left_stride, res.right_stride
     L = ls.stride_lengths[np.isfinite(ls.stride_lengths)]
     R = rs.stride_lengths[np.isfinite(rs.stride_lengths)]
-    n = min(len(L), len(R)) if len(L) and len(R) else max(len(L), len(R))
 
-    rows = []
-    for i in range(n):
-        l_val = f"{L[i]:.3f}" if i < len(L) else "—"
-        r_val = f"{R[i]:.3f}" if i < len(R) else "—"
-        asym = (
-            f"{_asym_idx(L[i], R[i]):.1f}"
-            if i < len(L) and i < len(R) else "—"
-        )
-        rows.append([str(i + 1), l_val, r_val, asym])
+    l_mean = float(np.mean(L)) if len(L) else float("nan")
+    r_mean = float(np.mean(R)) if len(R) else float("nan")
+    asym = _asym_idx(l_mean, r_mean) if np.isfinite(l_mean) and np.isfinite(r_mean) else float("nan")
+
+    rows = [[
+        _fmt_mean_std(L, digits=3),
+        _fmt_mean_std(R, digits=3),
+        f"{asym:.1f}" if np.isfinite(asym) else "—",
+    ]]
 
     return {
-        "label": "Stride length (m, ZUPT)",
-        "cols": ["stride_#", "L (m)", "R (m)", "asym (%)"],
-        "rows": _truncate_rows(rows, n_max_rows),
+        "label": "Stride length (m, ZUPT · whole-trial avg)",
+        "cols": ["L (m)", "R (m)", "asym (%)"],
+        "rows": rows,
         "summary": {"mean": [
             _fmt_mean_std(L, digits=3),
             _fmt_mean_std(R, digits=3),
-            "—",
+            f"{asym:.1f}%" if np.isfinite(asym) else "—",
         ]},
-        "meta": {"n_strides": int(n)},
+        "meta": {
+            "n_strides_L": int(len(L)),
+            "n_strides_R": int(len(R)),
+        },
     }
 
 

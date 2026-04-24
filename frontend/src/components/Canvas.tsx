@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePage } from '../store/page';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
-import { PlayCircle, FileText } from 'lucide-react';
+import RoomGrid from './RoomGrid';
+import { PlayCircle, FileText, ArrowLeft } from 'lucide-react';
 import { paperBundle } from '../api';
 import {
   DndContext,
@@ -42,6 +43,28 @@ export default function Canvas() {
   const showToast = usePage((s) => s.showToast);
   const logHistory = usePage((s) => s.logHistory);
   const [paperBusy, setPaperBusy] = useState(false);
+  // "거실" (all cells) mode — set from RoomGrid "All" card, cleared when
+  // entering a specific room.
+  const [showAll, setShowAll] = useState(() => sessionStorage.getItem('hw_showAll') === '1');
+  useEffect(() => {
+    const onChange = () => setShowAll(sessionStorage.getItem('hw_showAll') === '1');
+    window.addEventListener('hw_showAll_change', onChange);
+    return () => window.removeEventListener('hw_showAll_change', onChange);
+  }, []);
+  useEffect(() => {
+    // Entering a room cancels "All" view.
+    if (activeRoomId) {
+      sessionStorage.removeItem('hw_showAll');
+      setShowAll(false);
+    }
+  }, [activeRoomId]);
+
+  const showRoomGrid = !activeRoomId && !showAll && rooms.length > 0;
+  function backToRooms() {
+    sessionStorage.removeItem('hw_showAll');
+    setShowAll(false);
+    setActiveRoom(null);
+  }
 
   async function runPaper() {
     if (paperBusy) return;
@@ -128,10 +151,28 @@ export default function Canvas() {
     reorderCells(fromIdx, toIdx);
   }
 
+  if (showRoomGrid) {
+    return (
+      <section className="canvas">
+        <RoomGrid />
+      </section>
+    );
+  }
+
   return (
     <section className="canvas">
       <div className="page-head">
         <div className="page-crumbs">
+          {(activeRoomId || showAll) && rooms.length > 0 && (
+            <button
+              className="ds-btn plain"
+              onClick={backToRooms}
+              title="Back to room list"
+              style={{ padding: '3px 9px', marginRight: 6 }}
+            >
+              <ArrowLeft size={12} /> Rooms
+            </button>
+          )}
           <a
             style={{ cursor: 'pointer', color: activeRoomId ? '#94A3B8' : '#F09708' }}
             onClick={() => setActiveRoom(null)}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, Trash2, Home, Plus, X } from 'lucide-react';
 import { usePage, type Dataset, type WorkspaceRoom } from '../store/page';
-import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, type GateInfo } from '../api';
+import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, syncTrimExecute, type GateInfo } from '../api';
 
 // ── Experiment prefix extraction ─────────────────────────────────────────
 // Strips known data-type suffixes so "S01_Walk_Pre_force.csv" and
@@ -29,6 +29,25 @@ export default function DatasetPanel() {
   const showToast = usePage((s) => s.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  // Multi-select for "create comparison room"
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function createComparisonRoom() {
+    if (selectedIds.size === 0) return;
+    const name = window.prompt('Comparison room name:', `Compare ${new Date().toLocaleTimeString().slice(0, 5)}`);
+    if (!name || !name.trim()) return;
+    const ids = Array.from(selectedIds);
+    const id = createRoom(name.trim(), ids);
+    setSelectedIds(new Set());
+    setActiveRoom(id);
+    showToast(`✓ "${name}" created with ${ids.length} datasets`);
+  }
 
   // When in a room, show only that room's datasets
   const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
@@ -66,6 +85,7 @@ export default function DatasetPanel() {
 
         // ── 2. Auto gate-split if sync_col detected ────────────────────
         const syncCol = (ds as { sync_col?: string | null }).sync_col;
+        let didGateSplit = false;
         if (syncCol) {
           try {
             const preview = await syncGatesPreview({ ds_id: ds.id, min_gate_width_s: 2.0 });
@@ -81,8 +101,27 @@ export default function DatasetPanel() {
                 }
               });
               showToast(`✓ Auto-split into ${split.n_trials} trials in room "${prefix}"`);
+              didGateSplit = true;
             }
           } catch { /* no gates detected — proceed normally */ }
+        }
+
+        // ── 3. Fallback: no sync column → auto edge-trim (앞/뒤 3걸음) ──
+        if (!didGateSplit && !syncCol) {
+          try {
+            const trim = await syncTrimExecute({ ds_id: ds.id, n_edge: 3 });
+            if (trim.new_ds_id) {
+              const allDs: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+              const trimmed = allDs.find((x) => x.id === trim.new_ds_id);
+              if (trimmed) {
+                addDataset(trimmed);
+                addDatasetToRoom(roomId, trimmed.id);
+              }
+              const kept = trim.info.kept_footfalls;
+              const total = trim.info.total_footfalls;
+              showToast(`✓ Edge-trimmed: ${kept}/${total} steps (dropped 3 at each end)`);
+            }
+          } catch { /* no force column or too few steps — skip silently */ }
         }
 
         showToast(`Uploaded ${f.name}`);
@@ -195,6 +234,22 @@ export default function DatasetPanel() {
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="compare-row">
+          <span className="n-sel">{selectedIds.size} selected</span>
+          <button
+            className="ds-btn"
+            onClick={createComparisonRoom}
+            style={{ background: '#F09708', color: '#0B0E2E', fontWeight: 700 }}
+          >
+            <Plus size={12} /> Create comparison room
+          </button>
+          <button className="ds-btn plain" onClick={() => setSelectedIds(new Set())}>
+            Clear
+          </button>
+        </div>
+      )}
+
       {visibleDatasets.length === 0 && (
         <div className="ds-empty">
           <div className="ds-empty-title">
@@ -216,6 +271,14 @@ export default function DatasetPanel() {
             onClick={() => setActive(d.id)}
           >
             <div className="ds-row1">
+              <input
+                type="checkbox"
+                className="ds-chk"
+                checked={selectedIds.has(d.id)}
+                onChange={() => toggleSelected(d.id)}
+                onClick={(e) => e.stopPropagation()}
+                title="Select for comparison room"
+              />
               <span className={`tag ${d.tag}`}>{d.tag}</span>
               {(d as { source_type?: string }).source_type && (d as { source_type?: string }).source_type !== 'unknown' && (
                 <span style={{

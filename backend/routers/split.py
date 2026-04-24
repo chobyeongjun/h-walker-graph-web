@@ -27,7 +27,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.routers.datasets import _UPLOAD_DIR, _REGISTRY, _HASH_INDEX, _save_registry, _content_hash, _detect_hz, _guess_kind, _guess_role, _guess_unit, _parse_filename
-from backend.services.sync_engine import find_sync_column, detect_gate_regions
+from backend.services.sync_engine import (
+    find_sync_column,
+    detect_gate_regions,
+    find_force_column,
+    detect_footfall_events,
+    edge_trim_window,
+)
 
 router_split = APIRouter(prefix="/api/sync/split", tags=["sync"])
 
@@ -517,6 +523,186 @@ def gates_execute(req: GateSplitRequest) -> GateSplitResponse:
         signal_col=sig_col,
         n_trials=len(result_gates),
         gates=result_gates,
+    )
+
+
+# ─── Edge-trim (fallback when no analog sync) ───────────────────────
+#
+# No sync pulse? Cut the first N and last N footfalls — those are
+# start-up / stop transients that don't reflect steady-state gait.
+
+
+class EdgeTrimRequest(BaseModel):
+    ds_id: str
+    force_col: Optional[str] = None   # auto-detect if None
+    n_edge: int = 3                    # drop first N / last N footfalls
+    threshold_rel: float = 0.15        # rising-edge threshold (fraction of range)
+    min_stride_s: float = 0.3          # refractory between footfalls
+
+
+class EdgeTrimInfo(BaseModel):
+    force_col: str
+    total_footfalls: int
+    n_edge: int
+    start_idx: int
+    end_idx: int
+    start_t: float
+    end_t: float
+    duration_s: float
+    kept_footfalls: int
+
+
+class EdgeTrimResponse(BaseModel):
+    source_ds_id: str
+    new_ds_id: Optional[str]
+    new_name: Optional[str]
+    info: EdgeTrimInfo
+
+
+@router_split.post("/trim/preview")
+def trim_preview(req: EdgeTrimRequest) -> dict[str, Any]:
+    """Preview which rows survive edge-trim without creating a new dataset."""
+    ds = _REGISTRY.get(req.ds_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail=f"Dataset '{req.ds_id}' not found")
+
+    df = _load_df(ds["_path"])
+    sample_rate = _parse_hz(ds.get("hz", "100Hz"))
+
+    col = req.force_col or find_force_column(df)
+    if col is None or col not in df.columns:
+        raise HTTPException(
+            status_code=422,
+            detail="Force 컬럼을 찾을 수 없습니다. force_col을 직접 지정해주세요.",
+        )
+
+    events = detect_footfall_events(
+        df[col].to_numpy(), sample_rate,
+        threshold_rel=req.threshold_rel, min_stride_s=req.min_stride_s,
+    )
+    total = int(len(events))
+    if total < 2 * req.n_edge + 2:
+        raise HTTPException(
+            status_code=422,
+            detail=f"걸음 수 부족: {total}개 감지, n_edge={req.n_edge}에는 최소 {2 * req.n_edge + 2}개 필요.",
+        )
+
+    start = int(events[req.n_edge])
+    end = int(events[-req.n_edge - 1])
+    kept = int(((events >= start) & (events <= end)).sum())
+    return {
+        "source_ds_id": req.ds_id,
+        "force_col": col,
+        "total_footfalls": total,
+        "n_edge": req.n_edge,
+        "start_idx": start,
+        "end_idx": end,
+        "start_t": round(start / sample_rate, 3),
+        "end_t": round(end / sample_rate, 3),
+        "duration_s": round((end - start) / sample_rate, 3),
+        "kept_footfalls": kept,
+    }
+
+
+@router_split.post("/trim/execute")
+def trim_execute(req: EdgeTrimRequest) -> EdgeTrimResponse:
+    """Create a new `<source>_trimmed.csv` dataset with start/stop transients removed."""
+    ds = _REGISTRY.get(req.ds_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail=f"Dataset '{req.ds_id}' not found")
+
+    df = _load_df(ds["_path"])
+    sample_rate = _parse_hz(ds.get("hz", "100Hz"))
+    src_name = os.path.splitext(ds["name"])[0]
+
+    col = req.force_col or find_force_column(df)
+    if col is None or col not in df.columns:
+        raise HTTPException(
+            status_code=422,
+            detail="Force 컬럼을 찾을 수 없습니다. force_col을 직접 지정해주세요.",
+        )
+
+    win = edge_trim_window(
+        df, sample_rate, force_col=col, n_edge=req.n_edge,
+        threshold_rel=req.threshold_rel, min_stride_s=req.min_stride_s,
+    )
+    if win is None:
+        events = detect_footfall_events(
+            df[col].to_numpy(), sample_rate,
+            threshold_rel=req.threshold_rel, min_stride_s=req.min_stride_s,
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Edge-trim 불가: 걸음 {len(events)}개, n_edge={req.n_edge}에 부족.",
+        )
+    start, end, total = win
+
+    seg_df = df.iloc[start: end + 1].reset_index(drop=True)
+    new_name = f"{src_name}_trimmed.csv"
+    csv_bytes = seg_df.to_csv(index=False).encode()
+    chash = _content_hash(csv_bytes)
+
+    if chash in _HASH_INDEX:
+        new_id = _HASH_INDEX[chash]
+    else:
+        save_path = _UPLOAD_DIR / f"{chash}.csv"
+        save_path.write_bytes(csv_bytes)
+        new_id = "ds_" + uuid.uuid4().hex[:8]
+
+        col_names = [str(c).strip() for c in seg_df.columns.tolist()]
+        hz = _detect_hz(col_names, seg_df)
+        kind = _guess_kind(col_names)
+        rows = len(seg_df)
+        cols_meta = []
+        for cname in col_names:
+            role, conf = _guess_role(cname)
+            cols_meta.append({
+                "name": cname, "unit": _guess_unit(cname),
+                "mapped": role, "inferred_role": role, "confidence": conf,
+                "preview": seg_df[cname].head(5).astype(str).tolist(),
+            })
+
+        parsed = _parse_filename(new_name)
+        new_ds: dict[str, Any] = {
+            "id": new_id, "name": new_name,
+            "tag": kind, "kind": kind,
+            "rows": rows,
+            "dur": f"{rows / hz:.1f}s" if hz else "—",
+            "hz": f"{hz}Hz",
+            "cols": cols_meta,
+            "active": False, "recipeState": {},
+            "subject_id": parsed.get("subject_id", ds.get("subject_id", "")),
+            "condition": ds.get("condition", "") or "trimmed",
+            "group": ds.get("group", ""),
+            "date": parsed.get("date", ds.get("date", "")),
+            "sync_col": None,
+            "source_type": ds.get("source_type", "unknown"),
+            "synced_from": None,
+            "split_from": req.ds_id,
+            "trim_mode": "edge",
+            "trim_n_edge": req.n_edge,
+            "_path": str(save_path),
+            "_content_hash": chash,
+        }
+        _REGISTRY[new_id] = new_ds
+        _HASH_INDEX[chash] = new_id
+        _save_registry()
+
+    kept = total - 2 * req.n_edge
+    return EdgeTrimResponse(
+        source_ds_id=req.ds_id,
+        new_ds_id=new_id,
+        new_name=new_name,
+        info=EdgeTrimInfo(
+            force_col=col,
+            total_footfalls=total,
+            n_edge=req.n_edge,
+            start_idx=start, end_idx=end,
+            start_t=round(start / sample_rate, 3),
+            end_t=round(end / sample_rate, 3),
+            duration_s=round((end - start) / sample_rate, 3),
+            kept_footfalls=kept,
+        ),
     )
 
 

@@ -921,3 +921,75 @@ body.pub .gt-sel[data-overriden="true"]{border-color:rgba(240,151,8,.5)}
 }
 .ds-tag-inp::placeholder{color:#4B5563;font-style:italic}
 
+
+/* ── Room grid landing ─────────────────────────────────────────────── */
+.room-grid{max-width:1100px;margin:0 auto;padding:8px 0 40px}
+.room-grid-head{margin:8px 0 28px;text-align:left}
+.room-grid-ey{
+  font:700 10px/1 'Pretendard',sans-serif;
+  letter-spacing:.22em;text-transform:uppercase;color:#F09708;
+}
+.room-grid-head h1{
+  margin:8px 0 8px;
+  font:700 32px/1.1 'Pretendard',sans-serif;color:#fff;
+  letter-spacing:-.02em;
+}
+.room-grid-sub{
+  margin:0;max-width:620px;
+  font:400 13px/1.55 'Pretendard',sans-serif;color:#94A3B8;
+}
+.room-grid-cards{
+  display:grid;gap:16px;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+}
+.room-card{
+  display:flex;flex-direction:column;gap:10px;
+  padding:20px 18px 18px;text-align:left;cursor:pointer;
+  background:rgba(23,27,94,.42);
+  border:1px solid rgba(255,255,255,.08);border-radius:14px;
+  transition:all var(--hw-ease,cubic-bezier(.22,1,.36,1)) .2s;
+  min-height:130px;
+}
+.room-card:hover{
+  border-color:rgba(240,151,8,.45);
+  background:rgba(240,151,8,.05);
+  transform:translateY(-2px);
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+}
+.room-card-icon{
+  color:#F09708;width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(240,151,8,.10);border-radius:10px;
+}
+.room-card-name{
+  font:700 16px/1.2 'Pretendard',sans-serif;color:#fff;letter-spacing:-.01em;
+}
+.room-card-meta{
+  display:flex;gap:14px;flex-wrap:wrap;margin-top:auto;
+  font:500 11px/1 'JetBrains Mono',monospace;color:#94A3B8;
+}
+.room-card-meta span{display:inline-flex;align-items:center;gap:4px}
+.room-card-new{border-style:dashed;background:transparent}
+.room-card-new:hover{background:rgba(240,151,8,.04)}
+.room-card-all{
+  border-color:rgba(0,255,178,.25);
+  background:rgba(0,255,178,.03);
+}
+.room-card-all .room-card-icon{color:#00FFB2;background:rgba(0,255,178,.10)}
+.room-card-all:hover{border-color:rgba(0,255,178,.5);background:rgba(0,255,178,.06)}
+
+/* ── Comparison room creator in DatasetPanel ───────────────────────── */
+.compare-row{
+  display:flex;gap:8px;align-items:center;padding:8px 10px;
+  margin:4px 0 2px;
+  background:rgba(240,151,8,.06);
+  border:1px solid rgba(240,151,8,.24);border-radius:10px;
+}
+.compare-row .n-sel{
+  font:700 10px/1 'JetBrains Mono',monospace;color:#F09708;
+  letter-spacing:.14em;text-transform:uppercase;
+}
+.ds-chk{
+  accent-color:#F09708;cursor:pointer;
+  margin-right:6px;width:13px;height:13px;
+}

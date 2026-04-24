@@ -31,6 +31,13 @@ This module:
                                        uniform fs_out grid
   • `align_datasets(items)`        — batch: crop each to its A7, upsample
                                        every one to a common target_hz
+
+Edge-trim fallback (no analog sync):
+  • `detect_footfall_events(sig, fs)` — rising edges on a force signal
+  • `edge_trim_window(df, force_col, fs, n_edge)` — (start_sample, end_sample)
+                                                    that drops the first / last
+                                                    N footfalls (warm-up /
+                                                    cool-down transients).
 """
 from __future__ import annotations
 
@@ -488,3 +495,134 @@ def align_datasets(
             duration_s=common_dur,
         ))
     return results
+
+
+# ─── edge-trim fallback (no analog sync) ───────────────────────────────
+#
+# Many H-Walker experiments omit the analog trigger entirely. The first
+# few and last few steps are then start-up / stop transients (the subject
+# accelerates into cadence then slows to a stop). We drop those by
+# detecting footfalls on a force column and keeping only the middle
+# portion.
+
+# Force-column heuristics — first match wins.
+_FORCE_COL_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^l[_ ]?actforce([_ ]?n)?$", re.I),   # L_ActForce_N
+    re.compile(r"^r[_ ]?actforce([_ ]?n)?$", re.I),   # R_ActForce_N
+    re.compile(r"^l[_ ]?force([_ ]?n)?$", re.I),
+    re.compile(r"^r[_ ]?force([_ ]?n)?$", re.I),
+    re.compile(r"^force([_ ]?n)?$", re.I),
+    re.compile(r"grf|fz|vgrf", re.I),
+]
+
+
+def find_force_column(df: pd.DataFrame) -> Optional[str]:
+    """Return a column name that looks like a foot-force channel (for
+    heel-strike detection during edge-trim), or None."""
+    for pat in _FORCE_COL_PATTERNS:
+        for c in df.columns:
+            if pat.search(c.strip()):
+                return c
+    return None
+
+
+def detect_footfall_events(
+    signal: np.ndarray,
+    sample_rate: float,
+    threshold_rel: float = 0.15,
+    min_stride_s: float = 0.3,
+) -> np.ndarray:
+    """Detect heel-strike-like rising events on a foot-force signal.
+
+    Strategy: binary threshold at `threshold_rel` of peak-to-peak, then
+    pick every LOW→HIGH edge. A refractory period (`min_stride_s`)
+    suppresses chatter.
+
+    Returns a 1-D ndarray of sample indices (int).
+    """
+    sig = np.asarray(signal, dtype=float).ravel()
+    if sig.size < 3:
+        return np.array([], dtype=int)
+
+    lo, hi = float(np.nanmin(sig)), float(np.nanmax(sig))
+    if hi - lo < 1e-9:
+        return np.array([], dtype=int)
+    thr = lo + threshold_rel * (hi - lo)
+
+    is_high = sig >= thr
+    edges = np.diff(is_high.astype(np.int8))
+    rises = np.flatnonzero(edges == 1) + 1  # LOW→HIGH = foot down
+
+    if rises.size == 0:
+        return np.array([], dtype=int)
+
+    # Refractory filter — drop any event within min_stride_s of previous.
+    min_gap = max(1, int(round(min_stride_s * sample_rate)))
+    kept = [int(rises[0])]
+    for r in rises[1:]:
+        if int(r) - kept[-1] >= min_gap:
+            kept.append(int(r))
+    return np.asarray(kept, dtype=int)
+
+
+def edge_trim_window(
+    df: pd.DataFrame,
+    sample_rate: float,
+    *,
+    force_col: Optional[str] = None,
+    n_edge: int = 3,
+    threshold_rel: float = 0.15,
+    min_stride_s: float = 0.3,
+) -> Optional[tuple[int, int, int]]:
+    """Compute (start_sample, end_sample, total_footfalls) that drops the
+    first `n_edge` and last `n_edge` footfalls.
+
+    Used when no analog sync column exists — trims start/stop transients
+    so statistics and plots only see the steady-state middle portion.
+
+    Returns None if the column cannot be found or there are too few
+    footfalls (< 2·n_edge + 2 events).
+    """
+    col = force_col or find_force_column(df)
+    if col is None or col not in df.columns:
+        return None
+    events = detect_footfall_events(
+        df[col].to_numpy(),
+        sample_rate,
+        threshold_rel=threshold_rel,
+        min_stride_s=min_stride_s,
+    )
+    total = len(events)
+    if total < 2 * n_edge + 2:
+        return None
+    start = int(events[n_edge])
+    end = int(events[-n_edge - 1])
+    if end <= start:
+        return None
+    return start, end, total
+
+
+def crop_by_edge_trim(
+    df: pd.DataFrame,
+    sample_rate: float,
+    *,
+    force_col: Optional[str] = None,
+    n_edge: int = 3,
+) -> tuple[pd.DataFrame, Optional[tuple[int, int]], int]:
+    """Apply edge-trim and return (cropped_df, (start, end), total_events).
+
+    If trim is impossible, returns (df, None, total_events) — caller
+    decides whether to warn the user or proceed with untrimmed data.
+    """
+    col = force_col or find_force_column(df)
+    if col is None:
+        return df.copy().reset_index(drop=True), None, 0
+    events = detect_footfall_events(df[col].to_numpy(), sample_rate)
+    total = len(events)
+    win = edge_trim_window(
+        df, sample_rate, force_col=col, n_edge=n_edge,
+    )
+    if win is None:
+        return df.copy().reset_index(drop=True), None, total
+    s, e, _ = win
+    return df.iloc[s:e + 1].reset_index(drop=True), (s, e), total

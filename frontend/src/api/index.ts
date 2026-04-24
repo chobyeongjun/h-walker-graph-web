@@ -552,3 +552,47 @@ export const syncGatesExecute = (req: GateSplitRequest) =>
     method: 'POST',
     body: JSON.stringify(req),
   });
+
+// ============================================================
+// Edge-trim (fallback when no analog sync column)
+// POST /api/sync/split/trim/*
+// ============================================================
+
+export interface EdgeTrimRequest {
+  ds_id: string;
+  force_col?: string;
+  n_edge?: number;         // default 3
+  threshold_rel?: number;  // default 0.15
+  min_stride_s?: number;   // default 0.3
+}
+
+export interface EdgeTrimInfo {
+  force_col: string;
+  total_footfalls: number;
+  n_edge: number;
+  start_idx: number;
+  end_idx: number;
+  start_t: number;
+  end_t: number;
+  duration_s: number;
+  kept_footfalls: number;
+}
+
+export interface EdgeTrimResponse {
+  source_ds_id: string;
+  new_ds_id?: string | null;
+  new_name?: string | null;
+  info: EdgeTrimInfo;
+}
+
+export const syncTrimPreview = (req: EdgeTrimRequest) =>
+  json<EdgeTrimInfo & { source_ds_id: string }>('/api/sync/split/trim/preview', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+
+export const syncTrimExecute = (req: EdgeTrimRequest) =>
+  json<EdgeTrimResponse>('/api/sync/split/trim/execute', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });

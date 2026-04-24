@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import { usePage, type Cell } from '../store/page';
 import { claudeComplete, type ToolUseBlock } from '../api';
+import { GRAPH_TPLS } from '../data/graphTemplates';
+import { COMPUTE_METRICS } from '../data/computeMetrics';
+import { STAT_OPS } from '../data/statOps';
 
 export default function LlmDock() {
   const [q, setQ] = useState('');
@@ -245,10 +248,20 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
 
   switch (tu.name) {
     case 'add_graph_cell': {
+      // Validate template before mounting the cell — otherwise an
+      // unknown id (e.g. LLM hallucinates "heatmap") leaves a forever-
+      // loading shell on the canvas. Reject upfront with a clear message.
+      const tpl = String(input.template || 'force');
+      if (!(tpl in GRAPH_TPLS)) {
+        const close = Object.keys(GRAPH_TPLS).slice(0, 6).join(', ');
+        throw new Error(
+          `unknown graph template '${tpl}'. Try: ${close}…`
+        );
+      }
       const id = newId();
       store.addCell({
         id, type: 'graph',
-        graph: String(input.template || 'force'),
+        graph: tpl,
         dsIds: [activeDsId as string],
         preset: input.preset ? String(input.preset) : undefined,
         previewVariant: input.variant ? String(input.variant) as 'col1' | 'col2' | 'onehalf' : undefined,
@@ -257,33 +270,45 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
         loading: true,
       });
       store.runPreview(id);
-      return `Added graph cell · ${input.template}${input.preset ? ` · ${input.preset}` : ''}`;
+      return `Added graph cell · ${tpl}${input.preset ? ` · ${input.preset}` : ''}`;
     }
 
     case 'add_compute_cell': {
+      const metric = String(input.metric || 'per_stride');
+      if (!(metric in COMPUTE_METRICS)) {
+        const close = Object.keys(COMPUTE_METRICS).slice(0, 6).join(', ');
+        throw new Error(
+          `unknown compute metric '${metric}'. Try: ${close}…`
+        );
+      }
       const id = newId();
       store.addCell({
         id, type: 'compute',
-        metric: String(input.metric || 'per_stride'),
+        metric,
         dsIds: [activeDsId as string],
         loading: true,
       });
       store.runCompute(id);
-      return `Added compute cell · ${input.metric}`;
+      return `Added compute cell · ${metric}`;
     }
 
     case 'add_stat_cell': {
+      const op = String(input.op || 'ttest_paired');
+      if (!(op in STAT_OPS)) {
+        const close = Object.keys(STAT_OPS).join(', ');
+        throw new Error(`unknown stat op '${op}'. Available: ${close}`);
+      }
       const id = newId();
       store.addCell({
         id, type: 'stat',
-        op: String(input.op || 'ttest_paired'),
+        op,
         inputs: { a: String(input.a_col || ''), b: String(input.b_col || '') },
         dsIds: [activeDsId as string],
         fmt: 'apa',
         loading: true,
       });
       store.runStat(id);
-      return `Added stat cell · ${input.op} (${input.a_col}${input.b_col ? ` vs ${input.b_col}` : ''})`;
+      return `Added stat cell · ${op} (${input.a_col}${input.b_col ? ` vs ${input.b_col}` : ''})`;
     }
 
     case 'apply_recipe': {

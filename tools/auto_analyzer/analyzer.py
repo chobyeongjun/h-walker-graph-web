@@ -468,6 +468,14 @@ def analyze_file(filepath: str, analyses: list[str] = None) -> AnalysisResult:
 
     df = lf.df
     fs = DataManager.estimate_sample_rate(df)
+    # Defensive: malformed CSV (all-identical timestamps) can report
+    # fs=0, which would crash downstream division and integration.
+    # Fall back to a sentinel and surface the bad-data condition.
+    if not fs or fs <= 0:
+        raise ValueError(
+            f"Could not estimate sample rate for {filepath} (got {fs!r}). "
+            "CSV is likely missing a monotonic timestamp column."
+        )
 
     result = AnalysisResult(
         filename=os.path.basename(filepath),

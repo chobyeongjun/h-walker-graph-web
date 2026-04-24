@@ -28,13 +28,11 @@ const FORCE_RECIPES: CanonicalRecipe[] = [
   // ── Debug (see raw signal — find where things go wrong)
   { id: 'debug_ts',     label: 'Debug · raw time-series',             default: true,  type: 'graph',   graph: 'debug_ts',
     hint: 'Full-duration L/R force + heel-strike markers. Use this first to confirm the signal looks right.' },
-  // ── Core (always on)
+  // ── Core (always on — publication-ready kinetics)
   { id: 'grf_lr',       label: 'GRF · L / R subplots (GCP-based)',    default: true,  type: 'graph',   graph: 'force_lr_subplot',
     hint: 'Side-by-side panels, one per leg, both GCP-normalized with desired overlay. The standard paper Figure 1.' },
   { id: 'grf_avg',      label: 'GRF waveform · mean ± SD (overlay)',  default: true,  type: 'graph',   graph: 'force_avg',
     hint: 'Vertical ground reaction force averaged across strides, normalized to 0-100% gait cycle.' },
-  { id: 'grf_raw',      label: 'GRF raw · L vs R',                    default: true,  type: 'graph',   graph: 'force',
-    hint: 'Instantaneous force (not averaged) showing both legs overlaid.' },
   { id: 'asymmetry',    label: 'Asymmetry index · per stride',        default: true,  type: 'graph',   graph: 'asymmetry',
     hint: 'Peak L vs R force asymmetry for each stride. 0% = perfectly symmetric.' },
   { id: 'peak_box',     label: 'Peak force · L vs R boxplot',         default: true,  type: 'graph',   graph: 'peak_box',
@@ -45,7 +43,9 @@ const FORCE_RECIPES: CanonicalRecipe[] = [
     hint: 'Radar plot of % asymmetry across stride time / length / force / stance / peak.' },
   { id: 'stance_swing', label: 'Stance / swing phase bar',            default: true,  type: 'graph',   graph: 'stance_swing_bar',
     hint: '% of gait cycle spent in stance vs swing, L and R.' },
-  // ── Advanced (off by default)
+  // ── Bookshelf (off by default — tick to add, or ask the LLM)
+  { id: 'grf_raw',      label: 'GRF raw · L vs R overlay',            default: false, type: 'graph',   graph: 'force',
+    hint: 'Instantaneous force (not averaged). Similar to debug_ts; kept as a stand-alone figure when you want the overlay without heel-strike markers.' },
   { id: 'loading_rate', label: 'Loading rate (0–50ms)',               default: false, type: 'compute', compute: 'loading_rate',
     hint: 'Slope of force rise immediately after heel-strike (BW/s).' },
   { id: 'impulse',      label: 'Impulse (∫F·dt)',                     default: false, type: 'compute', compute: 'impulse',

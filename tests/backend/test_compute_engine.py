@@ -108,3 +108,21 @@ def test_cadence_formula_is_steps_per_minute(sample_csv):
         f"cadence {ls.cadence:.1f} spm is not physiologically plausible "
         "for ~1 Hz synthetic gait — check the formula."
     )
+
+
+# ---------------------------------------------------------------
+# Bad-data defenses
+# ---------------------------------------------------------------
+
+def test_analyze_file_rejects_zero_sample_rate(sample_csv, monkeypatch):
+    """If estimate_sample_rate ever returns 0 (malformed CSV, future
+    refactor), analyze_file must raise a clear ValueError rather than
+    let a silent ZeroDivisionError surface 20 lines deep in ZUPT
+    integration."""
+    import pytest
+    from tools.graph_analyzer.data_manager import DataManager
+
+    monkeypatch.setattr(DataManager, "estimate_sample_rate",
+                        staticmethod(lambda df: 0.0))
+    with pytest.raises(ValueError, match="sample rate"):
+        analyze_file(sample_csv)

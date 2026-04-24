@@ -23,7 +23,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.routers.analyze import analyze_cached
-from backend.routers.datasets import get_path
+from backend.routers.datasets import get_path, _REGISTRY
 from backend.services import compute_engine
 
 
@@ -62,7 +62,14 @@ def compute_metric(req: ComputeRequest) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"CSV unreadable: {exc}") from exc
 
-    opts = req.options or {}
+    opts = dict(req.options or {})
+    # Forward treadmill meta to stride_length for mode switching.
+    if req.metric == 'stride_length':
+        d = _REGISTRY.get(req.dataset_id, {}) or {}
+        if 'belt_speed_ms' not in opts and d.get('belt_speed_ms') is not None:
+            opts['belt_speed_ms'] = d.get('belt_speed_ms')
+        if 'is_treadmill' not in opts and d.get('is_treadmill'):
+            opts['is_treadmill'] = bool(d.get('is_treadmill'))
     try:
         return compute_engine.compute(req.metric, df, res, **opts)
     except TypeError as exc:

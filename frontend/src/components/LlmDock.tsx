@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles } from 'lucide-react';
-import { usePage, type Cell } from '../store/page';
-import { claudeComplete, type ToolUseBlock } from '../api';
+import { usePage, type Cell, type Dataset } from '../store/page';
+import {
+  claudeComplete,
+  syncGatesExecute,
+  syncTrimExecute,
+  syncAlign,
+  type ToolUseBlock,
+} from '../api';
 
 export default function LlmDock() {
   const [q, setQ] = useState('');
@@ -321,6 +327,93 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
       if (btn) { btn.click(); return 'Paper bundle exporting…'; }
       store.showToast('RUN PAPER button not found');
       return 'RUN PAPER button not found';
+    }
+
+    case 'analyze_study': {
+      const dir = String(input.directory || '');
+      const name = String(input.name || 'Auto Study');
+      store.discoverAndRunStudy(dir, name);
+      return `Study processing started: ${name} (${dir})`;
+    }
+
+    case 'gate_split': {
+      const dsId = input.dataset_id ? String(input.dataset_id) : activeDsId;
+      if (!dsId) throw new Error('no active dataset — upload a CSV first');
+      const minW = typeof input.min_gate_width_s === 'number' ? input.min_gate_width_s : 2.0;
+      const thr = typeof input.threshold_rel === 'number' ? input.threshold_rel : 0.5;
+      const resp = await syncGatesExecute({
+        ds_id: dsId, min_gate_width_s: minW, threshold_rel: thr,
+      });
+      const allDs: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+      const roomsState = usePage.getState().rooms;
+      const srcDs = allDs.find((d) => d.id === dsId);
+      const srcRoom = roomsState.find((r) => r.datasetIds.includes(dsId));
+      const roomId = srcRoom?.id;
+      resp.gates.forEach((g) => {
+        const trial = allDs.find((x) => x.id === g.new_ds_id);
+        if (trial) {
+          store.addDataset(trial);
+          if (roomId) store.addDatasetToRoom(roomId, trial.id);
+        }
+      });
+      return `Gate-split ${srcDs?.name ?? dsId} → ${resp.n_trials} trials`;
+    }
+
+    case 'edge_trim': {
+      const dsId = input.dataset_id ? String(input.dataset_id) : activeDsId;
+      if (!dsId) throw new Error('no active dataset — upload a CSV first');
+      const nEdge = typeof input.n_edge === 'number' ? input.n_edge : 3;
+      const resp = await syncTrimExecute({ ds_id: dsId, n_edge: nEdge });
+      if (!resp.new_ds_id) {
+        throw new Error('edge_trim produced no new dataset');
+      }
+      const allDs: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+      const trimmed = allDs.find((x) => x.id === resp.new_ds_id);
+      if (trimmed) {
+        store.addDataset(trimmed);
+        const roomsState = usePage.getState().rooms;
+        const srcRoom = roomsState.find((r) => r.datasetIds.includes(dsId));
+        if (srcRoom) store.addDatasetToRoom(srcRoom.id, trimmed.id);
+      }
+      const info = resp.info;
+      return `Edge-trimmed: kept ${info.kept_footfalls}/${info.total_footfalls} steps (${info.duration_s.toFixed(1)}s)`;
+    }
+
+    case 'sync_align': {
+      const targetHz = typeof input.target_hz === 'number' ? input.target_hz : undefined;
+      const dsIds = usePage.getState().datasets.map((d) => d.id);
+      if (dsIds.length < 2) {
+        throw new Error('sync_align needs at least 2 datasets loaded');
+      }
+      const resp = await syncAlign({
+        dataset_ids: dsIds,
+        ...(targetHz !== undefined ? { target_hz: targetHz } : {}),
+      });
+      // Sync align creates new _synced datasets; fetch & register them.
+      const allDs: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+      const existingIds = new Set(usePage.getState().datasets.map((d) => d.id));
+      const newOnes = allDs.filter((d) => !existingIds.has(d.id));
+      newOnes.forEach((d) => store.addDataset(d));
+      return `Synced ${resp.aligned.length} datasets @ ${resp.target_hz}Hz`;
+    }
+
+    case 'create_comparison_room': {
+      const name = String(input.name || `Compare ${new Date().toLocaleTimeString().slice(0, 5)}`);
+      const patterns = Array.isArray(input.dataset_patterns)
+        ? (input.dataset_patterns as unknown[]).map(String).map((s) => s.toLowerCase())
+        : [];
+      const allDs = usePage.getState().datasets;
+      const matchedIds = allDs
+        .filter((d) => patterns.some((p) => d.name.toLowerCase().includes(p)))
+        .map((d) => d.id);
+      if (matchedIds.length === 0) {
+        throw new Error(`no datasets matched patterns: ${patterns.join(', ')}`);
+      }
+      const roomId = store.createRoom(name, matchedIds);
+      store.setActiveRoom(roomId);
+      sessionStorage.removeItem('hw_showAll');
+      window.dispatchEvent(new Event('hw_showAll_change'));
+      return `Room "${name}" created with ${matchedIds.length} datasets`;
     }
 
     default:

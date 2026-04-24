@@ -430,6 +430,63 @@ GRAPH_SPECS: dict[str, GraphSpec] = {
         ],
         summary=[("avg", "3.9%"), ("max", "stride L · 5.6%")],
     ),
+    # ── new templates (real rendering via _render_real_data; specs = placeholder) ──
+    "kinematics_ensemble": GraphSpec(
+        eyebrow="Kinematics · ensemble", title="Joint angle over gait cycle (avg ± SD)", ds="ds2",
+        y_unit="Angle (°)", x_unit="Gait cycle (%)",
+        y_ticks=["+30", "+15", "0", "−15", "−30"],
+        x_ticks=["0", "25", "50", "75", "100"],
+        bands=[
+            BandSpec("#3B82C4", 0.18,
+                     "M48,100 C70,70 92,40 114,60 C138,80 158,130 180,140 C202,140 224,90 246,60 C268,50 290,110 312,140 C332,140 354,100 376,70 C394,55 402,80 408,100",
+                     "M48,120 C70,90 92,60 114,80 C138,100 158,150 180,160 C202,160 224,110 246,80 C268,70 290,130 312,160 C332,160 354,120 376,90 C394,75 402,100 408,120"),
+        ],
+        paths=[
+            PathSpec("#1E5F9E", 2.0, "L mean", "M48,110 C70,80 92,50 114,70 C138,90 158,140 180,150 C202,150 224,100 246,70 C268,60 290,120 312,150 C332,150 354,110 376,80 C394,65 402,90 408,110"),
+            PathSpec("#9E3838", 2.0, "R mean", "M48,115 C70,85 92,65 114,80 C138,95 158,135 180,142 C202,148 224,105 246,78 C268,68 290,122 312,145 C332,148 354,115 376,85 C394,72 402,92 408,112"),
+        ],
+        summary=[("ROM L", "38°"), ("ROM R", "37°"), ("asym", "2.7%")],
+    ),
+    "spatiotemporal_bar": GraphSpec(
+        eyebrow="Spatiotemporal", title="Cadence · stride length · symmetry", ds="ds1",
+        y_unit="", x_unit="",
+        y_ticks=["100", "75", "50", "25", "0"],
+        x_ticks=["L", "R"],
+        bars=[
+            BarSpec(65, 30, 108, "#1E5F9E", "cad L"),
+            BarSpec(105, 30, 112, "#9E3838", "cad R"),
+            BarSpec(185, 30, 90,  "#1E5F9E", "len L"),
+            BarSpec(225, 30, 88,  "#9E3838", "len R"),
+            BarSpec(310, 30, 36,  "#F09708", "T asym"),
+            BarSpec(355, 30, 56,  "#F09708", "L asym"),
+            BarSpec(400, 30, 28,  "#F09708", "St asym"),
+        ],
+        summary=[("cadence", "112/110 spm"), ("stride L", "1.24/1.21 m"), ("max asym", "3.8%")],
+    ),
+    "force_tracking": GraphSpec(
+        eyebrow="ILC · RMSE per stride", title="Cable force tracking convergence", ds="ds1",
+        y_unit="RMSE (N)", x_unit="Stride #",
+        y_ticks=["8", "6", "4", "2", "0"],
+        x_ticks=["1", "5", "10", "15", "20"],
+        paths=[
+            PathSpec("#3B82C4", 1.8, "L RMSE", "M48,60 L90,54 L130,72 L170,68 L210,76 L250,74 L290,80 L330,78 L370,84 L408,82"),
+            PathSpec("#D35454", 1.8, "R RMSE", "M48,68 L90,62 L130,78 L170,74 L210,82 L250,80 L290,88 L330,84 L370,90 L408,88"),
+            PathSpec("#7FB5E4", 1.0, "L mean", "M48,80 L408,80", dash="4 3"),
+            PathSpec("#E89B9B", 1.0, "R mean", "M48,87 L408,87", dash="4 3"),
+        ],
+        summary=[("L RMSE", "3.8 N"), ("R RMSE", "4.1 N"), ("bias L", "+0.2 N")],
+    ),
+    "mos_trajectory": GraphSpec(
+        eyebrow="MoS · XCoM", title="Margin of Stability — XCoM trajectory", ds="ds1",
+        y_unit="Distance (m)", x_unit="Time (s)",
+        y_ticks=["0.3", "0.2", "0.1", "0.0", "−0.1"],
+        x_ticks=["0", "5", "10", "15", "20"],
+        paths=[
+            PathSpec("#00FFB2", 1.8, "XCoM AP", "M48,100 C70,80 90,120 110,90 C130,70 150,110 170,95 C190,80 210,115 230,98 C250,82 270,118 290,102 C310,85 330,115 350,100 C370,88 390,112 408,100"),
+            PathSpec("#A78BFA", 1.4, "MoS AP",  "M48,140 C70,125 90,155 110,135 C130,118 150,148 170,130 C190,115 210,145 230,128 C250,112 270,142 290,126 C310,110 330,140 350,125 C370,112 390,138 408,128"),
+        ],
+        summary=[("XCoM AP", "0.12 m"), ("MoS min", "0.04 m"), ("note", "requires XCoM columns")],
+    ),
 }
 
 

@@ -121,6 +121,31 @@ def _generic_analysis(df: pd.DataFrame, filename: str) -> dict[str, Any]:
     }
 
 
+def _apply_treadmill_override(ds_id: str, res: AnalysisResult) -> None:
+    """Replace ZUPT stride lengths with stride_time × belt_speed when treadmill mode is set.
+
+    Mutates res in-place. Called after every cache retrieval so the payload
+    always reflects the current treadmill metadata, even on cache hit.
+    The disk cache intentionally stores raw ZUPT values so toggling treadmill
+    off works correctly (disk → ZUPT values, no override applied).
+    """
+    d = _REGISTRY.get(ds_id) or {}
+    if not (d.get('is_treadmill') and d.get('belt_speed_ms')):
+        return
+    belt = float(d['belt_speed_ms'])
+    for sr in (res.left_stride, res.right_stride):
+        if len(sr.stride_times) == 0:
+            continue
+        sr.stride_lengths = np.asarray(sr.stride_times, dtype=float) * belt
+        valid = sr.stride_lengths[np.isfinite(sr.stride_lengths)]
+        sr.stride_length_mean = float(np.mean(valid)) if len(valid) else 0.0
+        sr.stride_length_std = float(np.std(valid, ddof=1)) if len(valid) > 1 else 0.0
+    l_m = res.left_stride.stride_length_mean
+    r_m = res.right_stride.stride_length_mean
+    denom = (l_m + r_m) / 2.0
+    res.stride_length_symmetry = abs(l_m - r_m) / denom * 100.0 if denom > 1e-9 else 0.0
+
+
 def _profile_to_json(fp) -> dict[str, Any]:
     """Convert ForceProfileResult to JSON-friendly dict."""
     if fp.mean is None:
@@ -174,8 +199,13 @@ def analyze_cached(ds_id: str) -> tuple[AnalysisResult | None, dict[str, Any]]:
     # Disk cache — skip the full pipeline when we've seen this file before
     cached = _disk_load(path)
     if cached is not None:
-        _CACHE[ds_id] = cached
-        return cached
+        res, payload = cached
+        if res is not None:
+            # Disk always stores raw ZUPT; apply current treadmill metadata on load.
+            _apply_treadmill_override(ds_id, res)
+            payload = _result_payload(res)
+        _CACHE[ds_id] = (res, payload)
+        return res, payload
 
     try:
         df = pd.read_csv(path, nrows=5)
@@ -199,9 +229,13 @@ def analyze_cached(ds_id: str) -> tuple[AnalysisResult | None, dict[str, Any]]:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"analyzer failed: {exc}") from exc
 
+    # Save raw ZUPT result to disk before applying treadmill override.
+    # This way toggling treadmill off triggers a cache miss that returns
+    # correct ZUPT values from disk.
+    _disk_save(path, res, _result_payload(res))
+    _apply_treadmill_override(ds_id, res)
     payload = _result_payload(res)
     _CACHE[ds_id] = (res, payload)
-    _disk_save(path, res, payload)
     return res, payload
 
 

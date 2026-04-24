@@ -51,31 +51,54 @@ export default function StatCell({ cell }: Props) {
             ))}
           </div>
         </div>
-        <div className="stat-row">
-          <label>{hasDataset ? 'A column' : 'Input A'}</label>
-          <input
-            type="text"
-            value={cell.inputs?.a || ''}
-            onChange={(e) => update(cell.id, {
-              inputs: { a: e.target.value, b: cell.inputs?.b || '' },
-              statData: undefined,
-            })}
-            placeholder={hasDataset ? 'L_ActForce_N' : 'c2.L_peak'}
-          />
-        </div>
-        {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
-          <div className="stat-row">
-            <label>{hasDataset ? 'B column' : 'Input B'}</label>
-            <input
-              type="text"
-              value={cell.inputs?.b || ''}
-              onChange={(e) => update(cell.id, {
-                inputs: { a: cell.inputs?.a || '', b: e.target.value },
-                statData: undefined,
-              })}
-              placeholder={hasDataset ? 'R_ActForce_N' : 'c2.R_peak'}
-            />
-          </div>
+        {/* Column inputs — datalist autocomplete when dataset is bound */}
+        {hasDataset && (() => {
+          const ds = allDatasets.find((d) => d.id === cell.dsIds[0]);
+          const colList = (ds?.cols || []).filter((c) => !['Event','Phase','Segment'].includes(c.name));
+          const listId = `stat-cols-${cell.id}`;
+          return (
+            <>
+              <datalist id={listId}>
+                {colList.map((c) => (
+                  <option key={c.name} value={c.name}>{c.unit ? `[${c.unit}]` : ''}</option>
+                ))}
+              </datalist>
+              <div className="stat-row">
+                <label>A column</label>
+                <input type="text" list={listId}
+                  value={cell.inputs?.a || ''}
+                  onChange={(e) => update(cell.id, { inputs: { a: e.target.value, b: cell.inputs?.b || '' }, statData: undefined })}
+                  placeholder="L_ActForce_N" />
+              </div>
+              {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
+                <div className="stat-row">
+                  <label>B column</label>
+                  <input type="text" list={listId}
+                    value={cell.inputs?.b || ''}
+                    onChange={(e) => update(cell.id, { inputs: { a: cell.inputs?.a || '', b: e.target.value }, statData: undefined })}
+                    placeholder="R_ActForce_N" />
+                </div>
+              )}
+            </>
+          );
+        })()}
+        {!hasDataset && (
+          <>
+            <div className="stat-row">
+              <label>Input A</label>
+              <input type="text" value={cell.inputs?.a || ''}
+                onChange={(e) => update(cell.id, { inputs: { a: e.target.value, b: cell.inputs?.b || '' }, statData: undefined })}
+                placeholder="c2.L_peak" />
+            </div>
+            {cell.op !== 'shapiro' && cell.op !== 'anova1' && (
+              <div className="stat-row">
+                <label>Input B</label>
+                <input type="text" value={cell.inputs?.b || ''}
+                  onChange={(e) => update(cell.id, { inputs: { a: cell.inputs?.a || '', b: e.target.value }, statData: undefined })}
+                  placeholder="c2.R_peak" />
+              </div>
+            )}
+          </>
         )}
         <div className="stat-row">
           <label>Format</label>
@@ -178,6 +201,8 @@ export default function StatCell({ cell }: Props) {
           </>
         )}
 
+        {crossFile && <CrossFilePreview cell={cell} />}
+
         <div className="stat-row">
           <label>Run</label>
           <div>
@@ -229,13 +254,68 @@ function prettyOp(k: string): string {
   return map[k] || k;
 }
 
+/** Live preview of "Group A: n subjects / Group B: n subjects" + warnings.
+ *  Lets the user catch n-too-low before clicking Run. */
+function CrossFilePreview({ cell }: { cell: Cell }) {
+  const nA = (cell.statDatasetsA || []).length;
+  const nB = (cell.statDatasetsB || []).length;
+  const op = cell.op || '';
+  // Per stats_engine.py minimum-sample rules
+  const MIN: Record<string, number> = {
+    ttest_paired: 3, ttest_welch: 3, pearson: 3,
+    cohens_d: 3, anova1: 3, shapiro: 3,
+  };
+  const minReq = MIN[op] || 3;
+  const pairedMismatch = (op === 'ttest_paired' || op === 'pearson') && nA !== nB;
+  const tooFewA = nA < minReq;
+  const tooFewB = op !== 'shapiro' && op !== 'anova1' && nB < minReq;
+  const warn = tooFewA || tooFewB || pairedMismatch;
+  return (
+    <div className="stat-row">
+      <label>Match</label>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, flex: 1,
+        font: '500 11px/1.3 Pretendard,sans-serif',
+        color: warn ? '#f87171' : '#00FFB2',
+      }}>
+        <span>
+          Group A: <b>{nA}</b> subj{nA !== 1 ? 's' : ''}
+          {op !== 'shapiro' && op !== 'anova1' && (
+            <> · Group B: <b>{nB}</b> subj{nB !== 1 ? 's' : ''}</>
+          )}
+        </span>
+        {warn && (
+          <span style={{ color: '#f87171', fontSize: 10.5 }}>
+            {tooFewA && `⚠ need ≥${minReq} in A`}
+            {tooFewA && tooFewB && ' · '}
+            {tooFewB && `⚠ need ≥${minReq} in B`}
+            {pairedMismatch && !tooFewA && !tooFewB && '⚠ paired: nA must equal nB'}
+          </span>
+        )}
+        {!warn && (
+          <span style={{ color: '#00FFB2', fontSize: 10.5 }}>✓ ready</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function sigStars(p: number | null): string {
+  if (p === null) return '';
+  if (p < 0.001) return ' ***';
+  if (p < 0.01)  return ' **';
+  if (p < 0.05)  return ' *';
+  return ' ns';
+}
+
 function BackendKV({ r }: { r: StatsResponse }) {
+  const pLabel = r.p == null ? '' : (r.p < 0.001 ? '<0.001' : r.p.toFixed(3)) + sigStars(r.p);
   const entries: Array<[string, string, boolean?]> = [
     ['Test', r.name, false],
     ['n', Array.isArray(r.n) ? r.n.join(' / ') : String(r.n), false],
     [r.stat_name, r.stat.toFixed(r.stat_name === 'r' || r.stat_name === 'ρ' || r.stat_name === 'd' ? 3 : 2), false],
     ['df', Array.isArray(r.df) ? `${r.df[0]}, ${r.df[1]}` : r.df != null ? Number(r.df).toFixed(1) : '', false],
-    ['p', r.p == null ? '' : (r.p < 0.001 ? '<0.001' : r.p.toFixed(3)), !!(r.p != null && r.p < 0.05)],
+    ['p', pLabel, !!(r.p != null && r.p < 0.05)],
     ['effect', r.effect_size ? `${r.effect_size.name} = ${r.effect_size.value.toFixed(3)}${r.effect_size.label ? ` (${r.effect_size.label})` : ''}` : '', false],
     ['95% CI', r.ci95 ? `[${r.ci95[0].toFixed(2)}, ${r.ci95[1].toFixed(2)}]` : '', false],
     ['assumption', r.assumption ? `${r.assumption.name}: p=${r.assumption.p.toFixed(3)} ${r.assumption.passed ? '✓' : '✗'}` : '', false],

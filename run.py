@@ -148,6 +148,12 @@ def main():
     except ImportError as e:
         print(f"  Note: Phase 2A analyze/compute/stats routers unavailable — {e}")
 
+    try:
+        from backend.routers.sync import router as sync_router
+        app.include_router(sync_router)
+    except ImportError as e:
+        print(f"  Note: Phase 3 sync router unavailable — {e}")
+
     # Serve public-folder static assets (fonts, svg) separately so /fonts/ works
     if os.path.isdir(os.path.join(FRONTEND_DIST, "fonts")):
         app.mount("/fonts", StaticFiles(directory=os.path.join(FRONTEND_DIST, "fonts")), name="fonts")

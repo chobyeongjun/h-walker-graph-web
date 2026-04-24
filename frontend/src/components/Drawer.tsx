@@ -416,7 +416,7 @@ function SettingsPanel() {
           <div className="set-row-info">
             <span className="k">API key</span>
             <span className={`set-dot ${health?.key_present ? 'ok' : 'bad'}`}>
-              {health?.key_present ? '● ready' : '● missing — set ANTHROPIC_API_KEY and restart'}
+              {health?.key_present ? '● ready' : '● missing'}
             </span>
           </div>
           <div className="set-row-info">
@@ -424,6 +424,13 @@ function SettingsPanel() {
             <code>{health?.provider || '—'}</code>
           </div>
         </div>
+        <ApiKeyEditor
+          keyPresent={!!health?.key_present}
+          onSaved={() => {
+            // Refresh health immediately
+            fetch('/api/claude/health').then((r) => r.json()).then(setHealth).catch(() => {});
+          }}
+        />
       </div>
 
       <div className="set-group">
@@ -575,6 +582,85 @@ function PageBackup({ close }: { close: () => void }) {
           <span className="sub">Replaces current page (save-as first)</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Inline editor that posts the Anthropic key to /api/claude/set-key.
+ *  The key is stored in ~/.hwalker.env (chmod 600) and live-bound into
+ *  the running server so the user doesn't have to restart. */
+function ApiKeyEditor({ keyPresent, onSaved }: { keyPresent: boolean; onSaved: () => void }) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const showToast = usePage((s) => s.showToast);
+
+  async function save() {
+    const k = value.trim();
+    if (!k) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch('/api/claude/set-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: k }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail || `${r.status}`);
+      setValue('');
+      showToast('API key saved to ~/.hwalker.env · live');
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(11,14,46,.45)',
+                  border: '1px solid rgba(240,151,8,.2)', borderRadius: 8,
+                  display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ font: '700 9.5px/1 Pretendard,sans-serif', letterSpacing: '.2em',
+                      textTransform: 'uppercase', color: '#F09708' }}>
+        {keyPresent ? 'Replace API key' : 'Set API key'}
+      </label>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="sk-ant-api03-..."
+          style={{
+            flex: 1, background: 'rgba(23,27,94,.5)', border: '1px solid rgba(255,255,255,.1)',
+            borderRadius: 6, padding: '6px 10px', color: '#fff', font: "500 12px/1 'JetBrains Mono',monospace",
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+        />
+        <button
+          onClick={save}
+          disabled={busy || !value.trim()}
+          style={{
+            background: '#F09708', color: '#0B0E2E', border: 'none', borderRadius: 6,
+            padding: '6px 14px', font: '700 11px/1 Pretendard,sans-serif', letterSpacing: '.06em',
+            cursor: 'pointer', opacity: value.trim() ? 1 : 0.5,
+          }}
+        >
+          {busy ? '…saving' : 'SAVE'}
+        </button>
+      </div>
+      <div style={{ font: '500 10px/1.4 Pretendard,sans-serif', color: '#9CA3AF' }}>
+        Saved to <code>~/.hwalker.env</code> (chmod 600). The H-Walker CORE
+        launcher auto-loads it on every restart. Get one at{' '}
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer"
+           style={{ color: '#F09708' }}>console.anthropic.com</a>.
+      </div>
+      {err && (
+        <div style={{ color: '#f87171', font: '500 10.5px/1.4 Pretendard,sans-serif' }}>
+          ✗ {err}
+        </div>
+      )}
     </div>
   );
 }

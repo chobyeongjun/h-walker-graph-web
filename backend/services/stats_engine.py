@@ -96,7 +96,11 @@ def ttest_paired(a: list[float], b: list[float]) -> dict[str, Any]:
     x, y = _clean(a), _clean(b)
     n = min(len(x), len(y))
     if n < 3:
-        raise ValueError(f"paired t-test needs ≥3 pairs (got {n})")
+        raise ValueError(
+            f"paired t-test needs ≥3 matched pairs (got {n}). "
+            f"For cross-file designs, ensure ≥3 subjects contributed to "
+            f"each group (Group A / Group B must each have ≥3 datasets)."
+        )
     x, y = x[:n], y[:n]
     diff = x - y
     sh_p, normal = _shapiro(diff)

@@ -140,6 +140,42 @@ def _parse_filename(fname: str) -> dict[str, str]:
     return {}
 
 
+_TIME_COL_PAT = re.compile(
+    r'^(time|timestamp|t|t_s|time_s|time_ms|time_us|ts)$', re.I
+)
+
+
+def _detect_hz(col_names: list[str], df: pd.DataFrame) -> int:
+    """Robustly infer sample rate from a time column.
+
+    Handles:
+    - Time column at any position (not just first)
+    - Seconds OR milliseconds units (auto-detected via magnitude)
+    - Guards against bogus values (returns 100 as fallback)
+    """
+    time_col = None
+    for c in col_names:
+        if _TIME_COL_PAT.match(c.strip()):
+            time_col = c
+            break
+
+    if time_col is None:
+        return 100  # no time column → default
+
+    try:
+        dt_raw = float(df[time_col].diff().dropna().median())
+        if dt_raw <= 0:
+            return 100
+        # Auto-detect unit: if median dt ≥ 0.5 → likely ms, else seconds
+        if dt_raw >= 0.5:
+            hz = int(round(1000.0 / dt_raw))   # ms → Hz
+        else:
+            hz = int(round(1.0 / dt_raw))       # s  → Hz
+        return hz if 1 <= hz <= 10000 else 100
+    except Exception:
+        return 100
+
+
 _UNIT_HINTS = [
     ('force', 'N'), ('_n', 'N'),
     ('pitch', '°'), ('roll', '°'), ('yaw', '°'),
@@ -223,14 +259,7 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
 
     col_names = [str(c).strip() for c in df.columns.tolist()]
     ds_id = 'ds_' + uuid.uuid4().hex[:8]
-    hz = 100
-    try:
-        if 'time' in col_names[0].lower() or 't' == col_names[0].lower():
-            dt = df.iloc[:, 0].diff().dropna().median()
-            if dt and dt > 0:
-                hz = int(round(1.0 / float(dt)))
-    except Exception:
-        pass
+    hz = _detect_hz(col_names, df)
     kind = _guess_kind(col_names)
     rows = len(df) if len(df) < 500 else None
     if rows is None:
@@ -260,6 +289,25 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
     # Phase 2: auto-parse filename for subject/condition/group
     parsed = _parse_filename(file.filename)
 
+    # Phase 3 · Sync meta — detect analog trigger column + guess source type
+    try:
+        from backend.services.sync_engine import find_sync_column
+        sync_col = find_sync_column(df)
+    except Exception:
+        sync_col = None
+    # Source type heuristic from filename / columns
+    joined = (file.filename + ' ' + ' '.join(col_names)).lower()
+    if any(k in joined for k in ('mocap', 'vicon', 'qualisys', 'optitrack', 'marker',
+                                  'pelvis_x', 'pelvis_y', 'pelvis_z')):
+        source_type = 'mocap'
+    elif any(k in joined for k in ('forceplate', 'force_plate', 'fp1', 'fp2', 'cop_x', 'cop_y')):
+        source_type = 'forceplate'
+    elif any(k in joined for k in ('hwalker', 'h-walker', 'actforce', 'desforce',
+                                    'l_gcp', 'r_gcp', 'l_event')):
+        source_type = 'robot'
+    else:
+        source_type = 'unknown'
+
     ds = {
         'id': ds_id,
         'name': file.filename,
@@ -275,6 +323,9 @@ async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
         'condition': parsed.get('condition', ''),
         'group': parsed.get('group', ''),
         'date': parsed.get('date', ''),
+        'sync_col': sync_col,                 # None if not detected
+        'source_type': source_type,           # robot / mocap / forceplate / unknown
+        'synced_from': None,                  # set only on sync outputs
         '_path': str(save_path),
         '_content_hash': chash,
     }
@@ -327,13 +378,35 @@ def delete_dataset(ds_id: str) -> Response:
 
 @router.patch("/{ds_id}/meta")
 def update_meta(ds_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Phase 2 · Update dataset's group/subject/condition tags."""
+    """Update dataset's group/subject/condition tags + Phase 3 sync/treadmill
+    meta. Invalidates the analyzer cache when treadmill mode changes so the
+    next compute picks up the new belt speed."""
     if ds_id not in _REGISTRY:
         raise HTTPException(status_code=404, detail="dataset not found")
     d = _REGISTRY[ds_id]
+    cache_invalidate = False
     for key in ('subject_id', 'condition', 'group', 'date'):
         if key in payload:
             d[key] = str(payload[key] or '')
+    # Treadmill meta — affects stride-length computation path
+    if 'belt_speed_ms' in payload:
+        try:
+            v = float(payload['belt_speed_ms']) if payload['belt_speed_ms'] not in (None, '') else None
+            if v is not None and (v < 0 or v > 5.0):
+                raise HTTPException(status_code=422, detail=f"belt_speed_ms must be 0–5 m/s (got {v})")
+            d['belt_speed_ms'] = v
+            cache_invalidate = True
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=f"belt_speed_ms invalid: {exc}") from exc
+    if 'is_treadmill' in payload:
+        d['is_treadmill'] = bool(payload['is_treadmill'])
+        cache_invalidate = True
+    if cache_invalidate:
+        try:
+            from backend.routers.analyze import invalidate_cache
+            invalidate_cache(ds_id)
+        except Exception:
+            pass
     _save_registry()
     return {k: v for k, v in d.items() if not k.startswith('_')}
 

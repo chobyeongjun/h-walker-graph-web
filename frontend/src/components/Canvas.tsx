@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePage } from '../store/page';
 import DatasetPanel from './DatasetPanel';
 import Cell from './cells/Cell';
-import { PlayCircle, FileText, GitCompare } from 'lucide-react';
+import RoomGrid from './RoomGrid';
+import { PlayCircle, FileText, ArrowLeft } from 'lucide-react';
 import { paperBundle } from '../api';
 import {
   DndContext,
@@ -23,7 +24,15 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Cell as CellModel } from '../store/page';
 
 export default function Canvas() {
-  const cells = usePage((s) => s.cells);
+  const allCells = usePage((s) => s.cells);
+  const activeRoomId = usePage((s) => s.activeRoomId);
+  const rooms = usePage((s) => s.rooms);
+  const setActiveRoom = usePage((s) => s.setActiveRoom);
+  const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
+  // In a room: show only that room's cells. In 거실: show all cells.
+  const cells = activeRoomId && activeRoom
+    ? allCells.filter((c) => activeRoom.cellIds.includes(c.id))
+    : allCells;
   const pageTitle = usePage((s) => s.pageTitle);
   const setPageTitle = usePage((s) => s.setPageTitle);
   const runAll = usePage((s) => s.runAll);
@@ -33,19 +42,28 @@ export default function Canvas() {
   const pageTitleState = usePage((s) => s.pageTitle);
   const showToast = usePage((s) => s.showToast);
   const logHistory = usePage((s) => s.logHistory);
-  const compareDatasets = usePage((s) => s.compareDatasets);
-  const datasets = usePage((s) => s.datasets);
   const [paperBusy, setPaperBusy] = useState(false);
-  const [compareBusy, setCompareBusy] = useState(false);
-
-  async function runCompare() {
-    if (compareBusy) return;
-    setCompareBusy(true);
-    try {
-      await compareDatasets();
-    } finally {
-      setCompareBusy(false);
+  // "거실" (all cells) mode — set from RoomGrid "All" card, cleared when
+  // entering a specific room.
+  const [showAll, setShowAll] = useState(() => sessionStorage.getItem('hw_showAll') === '1');
+  useEffect(() => {
+    const onChange = () => setShowAll(sessionStorage.getItem('hw_showAll') === '1');
+    window.addEventListener('hw_showAll_change', onChange);
+    return () => window.removeEventListener('hw_showAll_change', onChange);
+  }, []);
+  useEffect(() => {
+    // Entering a room cancels "All" view.
+    if (activeRoomId) {
+      sessionStorage.removeItem('hw_showAll');
+      setShowAll(false);
     }
+  }, [activeRoomId]);
+
+  const showRoomGrid = !activeRoomId && !showAll && rooms.length > 0;
+  function backToRooms() {
+    sessionStorage.removeItem('hw_showAll');
+    setShowAll(false);
+    setActiveRoom(null);
   }
 
   async function runPaper() {
@@ -71,7 +89,7 @@ export default function Canvas() {
           datasets_b: c.statDatasetsB,
           metric: c.metric,
         }));
-      const blob = await paperBundle({
+      const result = await paperBundle({
         preset: globalPreset,
         variant: 'col2',
         format: 'pdf',
@@ -79,13 +97,29 @@ export default function Canvas() {
         cells: paperCells,
       });
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = URL.createObjectURL(result.blob);
       a.download = `hwalker_paper_${globalPreset}_${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      logHistory({ kind: 'tool', actor: 'you',
-        label: `Exported paper bundle · ${paperCells.length} cells · ${globalPreset.toUpperCase()}` });
-      showToast(`Paper bundle exported (${paperCells.length} cells)`);
+
+      if (result.errorCount > 0) {
+        // Loud warning — some cells were dropped. Also log the first one
+        // so the user knows which cell to inspect first.
+        logHistory({
+          kind: 'tool', actor: 'you',
+          label: `⚠ Paper bundle exported with ${result.errorCount} error(s) · ${globalPreset.toUpperCase()}`,
+          meta: { first_error: result.firstError || '' },
+        });
+        showToast(
+          `⚠ ${result.errorCount} cell(s) failed — ${result.firstError || 'see ERRORS.txt in the ZIP'}`,
+        );
+      } else {
+        logHistory({
+          kind: 'tool', actor: 'you',
+          label: `Exported paper bundle · ${paperCells.length} cells · ${globalPreset.toUpperCase()}`,
+        });
+        showToast(`Paper bundle exported (${paperCells.length} cells)`);
+      }
     } catch (e) {
       showToast(`Paper export failed: ${(e as Error).message}`);
     } finally {
@@ -93,6 +127,7 @@ export default function Canvas() {
     }
   }
 
+  // Drag-and-drop reorder uses indices into the *visible* cells
   const workCells = cells.filter((c) => c.type !== 'llm');
   const liveCount = workCells.filter((c) =>
     (c.type === 'graph' && c.previewBlobUrl) ||
@@ -116,13 +151,39 @@ export default function Canvas() {
     reorderCells(fromIdx, toIdx);
   }
 
+  if (showRoomGrid) {
+    return (
+      <section className="canvas">
+        <RoomGrid />
+      </section>
+    );
+  }
+
   return (
     <section className="canvas">
       <div className="page-head">
         <div className="page-crumbs">
-          <a>Project</a><span>/</span>
-          <a>Treadmill · 0.8 m/s</a><span>/</span>
-          <a>Pilot 03</a>
+          {(activeRoomId || showAll) && rooms.length > 0 && (
+            <button
+              className="ds-btn plain"
+              onClick={backToRooms}
+              title="Back to room list"
+              style={{ padding: '3px 9px', marginRight: 6 }}
+            >
+              <ArrowLeft size={12} /> Rooms
+            </button>
+          )}
+          <a
+            style={{ cursor: 'pointer', color: activeRoomId ? '#94A3B8' : '#F09708' }}
+            onClick={() => setActiveRoom(null)}
+            title="거실 — global view of all cells"
+          >거실</a>
+          {activeRoom && (
+            <>
+              <span>/</span>
+              <a style={{ color: '#F09708' }}>{activeRoom.name}</a>
+            </>
+          )}
         </div>
         <div
           className="page-title"
@@ -134,23 +195,6 @@ export default function Canvas() {
           <span><b>{cells.length}</b> cells</span>
           <span><b>{liveCount}</b> / {bindableCount} live</span>
           <span className="accent">{globalPreset.toUpperCase()}</span>
-          <button
-            className="ds-btn"
-            onClick={runCompare}
-            disabled={compareBusy || datasets.length < 2}
-            title={datasets.length < 2
-              ? 'Upload ≥ 2 datasets to compare them in one figure + cross-file stats'
-              : 'Overlay all datasets in one figure + auto cross-file stats when conditions are tagged'}
-            style={{
-              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(167,139,250,.1)',
-              borderColor: 'rgba(167,139,250,.45)',
-              color: '#A78BFA', fontWeight: 600,
-            }}
-          >
-            <GitCompare size={13} />
-            {compareBusy ? 'Comparing…' : `RUN COMPARE${datasets.length >= 2 ? ` (${datasets.length})` : ''}`}
-          </button>
           <button
             className="ds-btn"
             onClick={() => runAll()}

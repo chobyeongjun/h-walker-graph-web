@@ -6,8 +6,9 @@ import { SEED_DATASETS } from '../data/seedDatasets';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import {
   analyzeDataset, computeMetric, renderGraph, runStats, updateDatasetMeta,
+  discoverStudy, analyzeStudy, listStudies,
   type ComputeMetricKey, type StatOpKey, type StatsResponse, type ComputeResponse,
-  type AnalyzeResponse, type AnalysisPayload,
+  type AnalyzeResponse, type AnalysisPayload, type Study, type StudySummary
 } from '../api';
 
 export type CellType = 'graph' | 'stat' | 'compute' | 'llm';
@@ -39,6 +40,8 @@ export interface Cell {
   // graph renders as a multi-subject overlay with one colored trace per
   // entry. dsIds mirrors `series[].dsId` for backwards compat + filtering.
   series?: Array<{ dsId: string; label?: string; color?: string }>;
+  // L/R/both side filter — passed to backend render to show only one limb.
+  side?: 'L' | 'R' | 'both';
   // Phase 3: cross-file stat cell — if set, overrides a_col/b_col mode.
   statDatasetsA?: Array<{ id: string; metric: string }>;
   statDatasetsB?: Array<{ id: string; metric: string }>;
@@ -72,6 +75,27 @@ export interface Dataset {
   analysis?: AnalyzeResponse;
   analyzing?: boolean;
   analyzeError?: string;
+  // Phase 3 · cross-source sync
+  sync_col?: string | null;             // A7 etc. (null if not found)
+  source_type?: 'robot' | 'mocap' | 'forceplate' | 'unknown';
+  synced_from?: string | null;          // ds id of the original before sync
+  sync_target_hz?: number;
+  sync_window?: [number, number] | null;
+  // Phase 4 · treadmill stride-length fix
+  is_treadmill?: boolean;
+  belt_speed_ms?: number | null;
+}
+
+// ── Workspace Room (experimental workspace partition) ─────────────────
+// null activeRoomId = 거실 (all datasets + cells visible)
+// A room groups datasets uploaded from the same experiment session
+// and the analysis cells generated from them.
+export interface WorkspaceRoom {
+  id: string;
+  name: string;          // auto-derived from filename prefix; user-editable
+  datasetIds: string[];
+  cellIds: string[];
+  createdAt: number;
 }
 
 export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings';
@@ -88,6 +112,10 @@ export interface HistoryEntry {
 interface PageState {
   cells: Cell[];
   datasets: Dataset[];
+  rooms: WorkspaceRoom[];
+  activeRoomId: string | null;
+  studies: Study[];
+  studyResults: Record<string, StudySummary>;
   currentPreset: string;
   globalPreset: string;
   pageTitle: string;
@@ -101,6 +129,13 @@ interface PageState {
   toast: { msg: string; id: number } | null;
   runAllBusy: boolean;
 
+  // Room management
+  createRoom: (name: string, datasetIds?: string[]) => string;
+  setActiveRoom: (id: string | null) => void;
+  deleteRoom: (id: string) => void;
+  renameRoom: (id: string, name: string) => void;
+  addDatasetToRoom: (roomId: string, dsId: string) => void;
+
   addCell: (c: Cell, at?: number) => void;
   updateCell: (id: string, patch: Partial<Cell>) => void;
   removeCell: (id: string) => void;
@@ -113,7 +148,10 @@ interface PageState {
   toggleRecipe: (dsId: string, recipeId: string) => void;
   applyRecipes: (dsId: string) => Promise<void>;
   analyzeIfNeeded: (dsId: string) => Promise<AnalyzeResponse | undefined>;
-  setDatasetMeta: (dsId: string, meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date'>>) => Promise<void>;
+  setDatasetMeta: (
+    dsId: string,
+    meta: Partial<Pick<Dataset, 'subject_id' | 'condition' | 'group' | 'date' | 'is_treadmill' | 'belt_speed_ms'>>,
+  ) => Promise<void>;
 
   runCompute: (cellId: string) => Promise<void>;
   runStat: (cellId: string) => Promise<void>;
@@ -121,6 +159,9 @@ interface PageState {
   runCell: (cellId: string) => Promise<void>;
   runAll: () => Promise<void>;
   compareDatasets: () => Promise<void>;
+
+  discoverAndRunStudy: (directory: string, name: string) => Promise<void>;
+  listLocalStudies: () => Promise<void>;
 
   setCurrentPreset: (p: string) => void;
   setGlobalPreset: (p: string) => void;
@@ -151,6 +192,10 @@ export const usePage = create<PageState>()(
     (set, get) => ({
       cells: SEED_CELLS,
       datasets: SEED_DATASETS,
+      rooms: [],
+      activeRoomId: null,
+      studies: [],
+      studyResults: {},
       currentPreset: 'ieee',
       globalPreset: 'ieee',
       pageTitle: 'Pilot subject 03 · Treadmill 0.8 m/s',
@@ -163,6 +208,27 @@ export const usePage = create<PageState>()(
       helpOpen: false,
       toast: null,
       runAllBusy: false,
+
+      // ── Room actions ───────────────────────────────────────────────────
+      createRoom: (name, datasetIds = []) => {
+        const id = 'room_' + Date.now().toString(36);
+        const room: WorkspaceRoom = { id, name, datasetIds, cellIds: [], createdAt: Date.now() };
+        set((s) => ({ rooms: [...s.rooms, room] }));
+        return id;
+      },
+      setActiveRoom: (id) => set({ activeRoomId: id }),
+      deleteRoom: (id) => set((s) => ({
+        rooms: s.rooms.filter((r) => r.id !== id),
+        activeRoomId: s.activeRoomId === id ? null : s.activeRoomId,
+      })),
+      renameRoom: (id, name) => set((s) => ({
+        rooms: s.rooms.map((r) => r.id === id ? { ...r, name } : r),
+      })),
+      addDatasetToRoom: (roomId, dsId) => set((s) => ({
+        rooms: s.rooms.map((r) => r.id === roomId
+          ? { ...r, datasetIds: r.datasetIds.includes(dsId) ? r.datasetIds : [...r.datasetIds, dsId] }
+          : r),
+      })),
 
       logHistory: (entry) => set((s) => {
         const next: HistoryEntry = {
@@ -180,7 +246,12 @@ export const usePage = create<PageState>()(
         const cells = [...s.cells];
         if (at == null) cells.push(c);
         else cells.splice(at, 0, c);
-        return { cells };
+        // Auto-register cell in the active room
+        const rooms = s.activeRoomId
+          ? s.rooms.map((r) => r.id === s.activeRoomId
+              ? { ...r, cellIds: [...r.cellIds, c.id] } : r)
+          : s.rooms;
+        return { cells, rooms };
       }),
       updateCell: (id, patch) => set((s) => ({
         cells: s.cells.map((c) => (c.id === id ? { ...c, ...patch } : c)),
@@ -188,7 +259,10 @@ export const usePage = create<PageState>()(
       removeCell: (id) => set((s) => {
         const cell = s.cells.find((c) => c.id === id);
         if (cell?.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);
-        return { cells: s.cells.filter((c) => c.id !== id) };
+        return {
+          cells: s.cells.filter((c) => c.id !== id),
+          rooms: s.rooms.map((r) => ({ ...r, cellIds: r.cellIds.filter((cid) => cid !== id) })),
+        };
       }),
       duplicateCell: (id) => set((s) => {
         const idx = s.cells.findIndex((c) => c.id === id);
@@ -240,7 +314,10 @@ export const usePage = create<PageState>()(
       },
       removeDataset: (id) => {
         const d = get().datasets.find((x) => x.id === id);
-        set((s) => ({ datasets: s.datasets.filter((x) => x.id !== id) }));
+        set((s) => ({
+          datasets: s.datasets.filter((x) => x.id !== id),
+          rooms: s.rooms.map((r) => ({ ...r, datasetIds: r.datasetIds.filter((did) => did !== id) })),
+        }));
         if (d) get().logHistory({
           kind: 'remove', actor: 'you',
           label: `Removed dataset ${d.name}`,
@@ -363,7 +440,16 @@ export const usePage = create<PageState>()(
             });
           }
         }
-        set((s) => ({ cells: [...s.cells, ...newCells] }));
+        set((s) => {
+          const newIds = newCells.map((c) => c.id);
+          return {
+            cells: [...s.cells, ...newCells],
+            rooms: s.activeRoomId
+              ? s.rooms.map((r) => r.id === s.activeRoomId
+                  ? { ...r, cellIds: [...r.cellIds, ...newIds] } : r)
+              : s.rooms,
+          };
+        });
         get().logHistory({
           kind: 'apply', actor: 'you',
           label: `Applied ${newCells.length} recipe cells for ${ds.name}`,
@@ -462,6 +548,7 @@ export const usePage = create<PageState>()(
             datasets,
             stride_avg: !!cell.strideAvg,
             title: cell.title || '',
+            side: cell.side || 'both',
           });
           // Revoke old preview URL
           if (cell.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);
@@ -551,7 +638,16 @@ export const usePage = create<PageState>()(
           );
         }
 
-        set((s) => ({ cells: [...s.cells, ...newCells] }));
+        set((s) => {
+          const newIds = newCells.map((c) => c.id);
+          return {
+            cells: [...s.cells, ...newCells],
+            rooms: s.activeRoomId
+              ? s.rooms.map((r) => r.id === s.activeRoomId
+                  ? { ...r, cellIds: [...r.cellIds, ...newIds] } : r)
+              : s.rooms,
+          };
+        });
         get().logHistory({
           kind: 'apply', actor: 'you',
           label: `Compared ${ds.length} datasets → ${newCells.length} cells`,
@@ -560,6 +656,35 @@ export const usePage = create<PageState>()(
 
         // Fire in parallel
         await Promise.all(newCells.map((c) => get().runCell(c.id)));
+      },
+
+      discoverAndRunStudy: async (directory, name) => {
+        try {
+          const study = await discoverStudy(directory, name);
+          set((s) => ({ studies: [...s.studies, study] }));
+          get().showToast(`Discovered ${study.files.length} files in ${name}`);
+          
+          const summary = await analyzeStudy(study.id);
+          set((s) => ({ studyResults: { ...s.studyResults, [study.id]: summary } }));
+          
+          // Add a new cell to show the report
+          const cellId = nextCellId();
+          get().addCell({
+            id: cellId,
+            type: 'llm', // Using LLM cell for markdown report for now
+            title: `Study Report: ${name}`,
+            answer: { text: [summary.report_md] },
+            dsIds: study.files.map(f => f.id)
+          });
+          get().showToast(`Study analysis complete: ${name}`);
+        } catch (e) {
+          get().showToast(`Study error: ${(e as Error).message}`);
+        }
+      },
+
+      listLocalStudies: async () => {
+        const studies = await listStudies();
+        set({ studies });
       },
 
       runAll: async () => {
@@ -618,6 +743,8 @@ export const usePage = create<PageState>()(
           void _a; void _ae; void _an;
           return rest;
         }),
+        rooms: s.rooms,
+        activeRoomId: s.activeRoomId,
         currentPreset: s.currentPreset,
         globalPreset: s.globalPreset,
         pageTitle: s.pageTitle,

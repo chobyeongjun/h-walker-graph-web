@@ -127,10 +127,13 @@ def main():
         print("  Note: feedback router unavailable")
 
     try:
-        from backend.routers.claude import router as claude_router
+        # Claude Haiku integration removed per user directive — the
+        # bookshelf-style Library panel replaced the LLM dock. The
+        # backend/routers/claude.py file is kept but not registered
+        # so the anthropic SDK import doesn't fail when the package
+        # isn't installed.
         from backend.routers.datasets import router as datasets_router
         from backend.routers.graphs import router as graphs_router
-        app.include_router(claude_router)
         app.include_router(datasets_router)
         app.include_router(graphs_router)
     except ImportError as e:
@@ -141,10 +144,12 @@ def main():
         from backend.routers.compute import router as compute_router
         from backend.routers.stats import router as stats_router
         from backend.routers.paper import router as paper_router
+        from backend.routers.inspector import router as inspector_router
         app.include_router(analyze_router)
         app.include_router(compute_router)
         app.include_router(stats_router)
         app.include_router(paper_router)
+        app.include_router(inspector_router)
     except ImportError as e:
         print(f"  Note: Phase 2A analyze/compute/stats routers unavailable — {e}")
 

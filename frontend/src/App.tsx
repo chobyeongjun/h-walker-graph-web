@@ -4,7 +4,7 @@ import TopNav from './components/TopNav';
 import Sidebar from './components/Sidebar';
 import PublicationBar from './components/PublicationBar';
 import Canvas from './components/Canvas';
-import LlmDock from './components/LlmDock';
+import Library from './components/Library';
 import FocusOverlay from './components/FocusOverlay';
 import Drawer from './components/Drawer';
 import Toast from './components/Toast';
@@ -41,7 +41,7 @@ export default function App() {
         <Canvas />
       </div>
       <aside className="chat-rail">
-        <LlmDock />
+        <Library />
       </aside>
       <div className="footer">
         <span>H-WALKER CORE · v3</span>

@@ -296,43 +296,62 @@ def loading_rate(df: pd.DataFrame, res: AnalysisResult,
 
 def rom(df: pd.DataFrame, res: AnalysisResult,
         n_max_rows: int = 30) -> dict[str, Any]:
-    """ROM per stride. Uses Pitch columns (shank) if present."""
+    """ROM (range of motion) per stride, per IMU channel.
+
+    H-Walker wears one IMU per side, on the SHANK (lower leg). Pitch
+    is the sagittal-plane angle. Thigh ROM is NOT measured — earlier
+    versions of this function mislabeled R_Pitch as "thigh", which is
+    wrong (R_Pitch is the right *shank*). We now name the columns
+    after the actual CSV column they came from.
+    """
     ls = res.left_stride
-    # Prefer L_Pitch (shank) and R_Pitch as "thigh" proxy when no explicit thigh column
-    shank_col = "L_Pitch" if "L_Pitch" in df.columns else None
-    thigh_col = "R_Pitch" if "R_Pitch" in df.columns else None
+    rs = res.right_stride
 
-    shank = _rom_per_stride(df, shank_col, ls.hs_indices, ls.valid_mask) if shank_col else np.array([])
-    thigh = _rom_per_stride(df, thigh_col, ls.hs_indices, ls.valid_mask) if thigh_col else np.array([])
-    n = min(len(shank), len(thigh)) if (len(shank) and len(thigh)) else max(len(shank), len(thigh))
+    candidates: list[tuple[str, str, "AnalysisResult"]] = [
+        ("L_Pitch (shank, sag)", "L_Pitch", ls),
+        ("R_Pitch (shank, sag)", "R_Pitch", rs),
+        # Roll planes if the firmware exposes them — useful when a
+        # frontal-plane IMU is added.
+        ("L_Roll (shank, fro)",  "L_Roll",  ls),
+        ("R_Roll (shank, fro)",  "R_Roll",  rs),
+    ]
+    series: list[tuple[str, np.ndarray]] = []
+    for label, col, side_res in candidates:
+        if col not in df.columns:
+            continue
+        arr = _rom_per_stride(df, col, side_res.hs_indices, side_res.valid_mask)
+        if len(arr):
+            series.append((label, arr))
 
-    cols = ["stride"]
-    if len(shank):
-        cols.append(f"{shank_col or 'shank'} ROM (°)")
-    if len(thigh):
-        cols.append(f"{thigh_col or 'thigh'} ROM (°)")
+    if not series:
+        return {
+            "label": "ROM per stride · per joint",
+            "cols": ["stride_#"],
+            "rows": [],
+            "summary": {"mean": []},
+            "meta": {"n_strides": 0, "channels": []},
+        }
 
+    n = max(len(arr) for _, arr in series)
+    cols = ["stride_#"] + [f"{label} (°)" for label, _ in series]
     rows = []
     for i in range(n):
         row = [str(i + 1)]
-        if len(shank):
-            row.append(f"{shank[i]:.1f}" if i < len(shank) else "—")
-        if len(thigh):
-            row.append(f"{thigh[i]:.1f}" if i < len(thigh) else "—")
+        for _, arr in series:
+            row.append(f"{arr[i]:.1f}" if i < len(arr) else "—")
         rows.append(row)
-
-    summary = []
-    if len(shank):
-        summary.append(_fmt_mean_std(shank, digits=1))
-    if len(thigh):
-        summary.append(_fmt_mean_std(thigh, digits=1))
+    summary = [_fmt_mean_std(arr, digits=1) for _, arr in series]
 
     return {
-        "label": "ROM per stride",
+        "label": "ROM per stride · per joint (shank-mounted IMUs)",
         "cols": cols,
         "rows": _truncate_rows(rows, n_max_rows),
         "summary": {"mean": summary},
-        "meta": {"n_strides": int(n), "shank_col": shank_col, "thigh_col": thigh_col},
+        "meta": {
+            "n_strides": int(n),
+            "channels": [label for label, _ in series],
+            "note": "H-Walker IMUs are mounted on the shank only — thigh ROM is not measured.",
+        },
     }
 
 

@@ -10,7 +10,7 @@ import {
   type AnalyzeResponse, type AnalysisPayload,
 } from '../api';
 
-export type CellType = 'graph' | 'stat' | 'compute' | 'llm';
+export type CellType = 'graph' | 'stat' | 'compute' | 'llm' | 'inspector';
 
 export interface Cell {
   id: string;
@@ -28,6 +28,9 @@ export interface Cell {
   prompt?: string;
   refs?: string[];
   answer?: { text: string[]; spawns?: Array<{ label: string; action: string }> };
+  // Inspector cell extras
+  inspectorChannels?: string[];   // CSV columns currently displayed
+  inspectorSyncIdx?: number | null;  // -1 / null = full trial
   // Phase 2B: live backend state
   loading?: boolean;
   error?: string;

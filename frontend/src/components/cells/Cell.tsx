@@ -2,7 +2,7 @@ import type { Cell as CellModel } from '../../store/page';
 import GraphCell from './GraphCell';
 import StatCell from './StatCell';
 import ComputeCell from './ComputeCell';
-import LlmCell from './LlmCell';
+import InspectorCell from './InspectorCell';
 import { usePage } from '../../store/page';
 import { Copy, Trash2, GripVertical, Expand } from 'lucide-react';
 
@@ -26,7 +26,8 @@ export default function Cell({ cell, index, dragHandle }: Props) {
     ?? (cell.type === 'graph' ? `Graph · ${cell.graph}`
       : cell.type === 'stat' ? `Stat · ${cell.op}`
       : cell.type === 'compute' ? `Compute · ${cell.metric}`
-      : 'Assistant');
+      : cell.type === 'inspector' ? 'Inspector · raw signal'
+      : 'Cell');
 
   return (
     <div className={typeClass} id={`cell-${cell.id}`}>
@@ -42,7 +43,8 @@ export default function Cell({ cell, index, dragHandle }: Props) {
           {cell.type === 'graph' ? 'GRAPH'
             : cell.type === 'stat' ? 'STATS'
             : cell.type === 'compute' ? 'COMPUTE'
-            : 'ASSISTANT'}
+            : cell.type === 'inspector' ? 'INSPECT'
+            : 'CELL'}
         </span>
         <span
           className="cell-title"
@@ -71,7 +73,11 @@ export default function Cell({ cell, index, dragHandle }: Props) {
       {cell.type === 'graph' && <GraphCell cell={cell} />}
       {cell.type === 'stat' && <StatCell cell={cell} />}
       {cell.type === 'compute' && <ComputeCell cell={cell} />}
-      {cell.type === 'llm' && <LlmCell cell={cell} />}
+      {cell.type === 'inspector' && <InspectorCell cell={cell} />}
+      {/* `llm` cell type is deprecated — Haiku integration was removed
+          per user directive ("haiku 없애고 클릭으로"). Old persisted
+          cells of this type are silently ignored and removable via
+          the trash icon. */}
     </div>
   );
 }

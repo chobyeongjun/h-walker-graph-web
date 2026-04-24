@@ -323,3 +323,49 @@ export const claudeComplete = (req: ClaudeCompleteRequest) =>
 
 export const claudeHealth = () =>
   json<{ provider: string; model: string; key_present: boolean }>('/api/claude/health');
+
+
+// ============================================================
+// Inspector — per-sync zoom / pan over raw CSV columns
+// ============================================================
+
+export interface SyncBoundary {
+  index: number;
+  t_start: number;
+  t_end: number;
+  duration: number;
+}
+
+export interface SyncsResponse {
+  column: string | null;
+  n_samples: number;
+  sample_rate_hz: number | null;
+  cycles: SyncBoundary[];
+}
+
+export const listSyncs = (dsId: string) =>
+  json<SyncsResponse>(`/api/inspector/${dsId}/syncs`);
+
+export interface WindowRequest {
+  columns: string[];
+  t_start: number;
+  t_end: number;
+  max_points?: number;
+}
+
+export interface WindowSeries { name: string; y: number[]; }
+
+export interface WindowResponse {
+  t: number[];
+  series: WindowSeries[];
+  n_total: number;
+  n_returned: number;
+  columns_missing: string[];
+}
+
+export const fetchWindow = (dsId: string, req: WindowRequest) =>
+  json<WindowResponse>(`/api/inspector/${dsId}/window`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+

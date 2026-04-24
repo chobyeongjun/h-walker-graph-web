@@ -233,7 +233,16 @@ export interface BundleRequest {
   variant?: 'col1' | 'col2' | 'onehalf';
   format?: 'svg' | 'pdf' | 'eps' | 'png' | 'tiff';
   dpi?: number;
-  cells: Array<{ id: string; template: string; stride_avg?: boolean; preset?: string; variant?: string }>;
+  cells: Array<{
+    id: string;
+    template: string;
+    stride_avg?: boolean;
+    preset?: string;
+    variant?: string;
+    dataset_id?: string;
+    datasets?: Array<{ id: string; label?: string; color?: string }>;
+    title?: string;
+  }>;
   include_readme?: boolean;
 }
 

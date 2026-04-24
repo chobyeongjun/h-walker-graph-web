@@ -5,6 +5,12 @@ import { GRAPH_TPLS, type GraphTemplate } from '../../data/graphTemplates';
 import { JOURNAL_PRESETS } from '../../data/journalPresets';
 import { renderGraph } from '../../api';
 
+const GRAPH_GROUPS = [
+  { label: 'Force / Kinetic', keys: ['debug_ts', 'force', 'force_avg', 'force_lr_subplot', 'asymmetry', 'peak_box', 'cop', 'cv_bar', 'trials'] },
+  { label: 'IMU / Kinematic', keys: ['imu', 'imu_avg', 'cyclogram', 'stride_time_trend'] },
+  { label: 'Summary', keys: ['stance_swing_bar', 'rom_bar', 'symmetry_radar'] },
+];
+
 interface Props { cell: Cell; }
 
 export default function GraphCell({ cell }: Props) {
@@ -55,13 +61,16 @@ export default function GraphCell({ cell }: Props) {
 
   async function backendRender(fmt: 'svg' | 'pdf' | 'png' | 'eps' | 'tiff', variant: 'col1' | 'col2' | 'onehalf' = 'col2') {
     try {
+      const hasSeries = cell.series && cell.series.length >= 2;
       const blob = await renderGraph({
         template: activeKey || 'force',
         preset,
         variant,
         format: fmt,
         stride_avg: !!cell.strideAvg,
-        dataset_id: cell.dsIds[0],
+        ...(hasSeries
+          ? { datasets: cell.series.map((s) => ({ id: s.dsId, label: s.label, color: s.color })) }
+          : { dataset_id: cell.dsIds[0] }),
         title: cell.title || '',
       });
       const w = variant === 'col1' ? P?.col1.w : (variant === 'onehalf' ? P?.onehalf?.w ?? P?.col2.w : P?.col2.w);
@@ -89,8 +98,12 @@ export default function GraphCell({ cell }: Props) {
             value={cell.graph || ''}
             onChange={(e) => updateCell(cell.id, { graph: e.target.value })}
           >
-            {Object.keys(GRAPH_TPLS).map((k) => (
-              <option key={k} value={k}>{k}</option>
+            {GRAPH_GROUPS.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.keys.filter((k) => k in GRAPH_TPLS).map((k) => (
+                  <option key={k} value={k}>{GRAPH_TPLS[k].ey}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

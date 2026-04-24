@@ -655,8 +655,9 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
                 1, 2, figsize=(inch_w, inch_h), sharey=True,
             )
             # Left panel
-            axL.fill_between(x, lfp.mean - lfp.std, lfp.mean + lfp.std,
-                              color="#3B82C4", alpha=0.18, linewidth=0)
+            if lfp.std is not None:
+                axL.fill_between(x, lfp.mean - lfp.std, lfp.mean + lfp.std,
+                                  color="#3B82C4", alpha=0.18, linewidth=0)
             axL.plot(x, lfp.mean, color="#1E5F9E",
                      linewidth=P.stroke_pt * 1.8, label="L actual")
             if lfp.des_mean is not None:
@@ -669,8 +670,9 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
             axL.grid(True, linewidth=P.grid_pt, color=P.grid_color, alpha=0.6)
             axL.legend(loc="best", frameon=False, fontsize=P.legend_pt)
             # Right panel
-            axR.fill_between(x, rfp.mean - rfp.std, rfp.mean + rfp.std,
-                              color="#D35454", alpha=0.18, linewidth=0)
+            if rfp.std is not None:
+                axR.fill_between(x, rfp.mean - rfp.std, rfp.mean + rfp.std,
+                                  color="#D35454", alpha=0.18, linewidth=0)
             axR.plot(x, rfp.mean, color="#9E3838",
                      linewidth=P.stroke_pt * 1.8, label="R actual")
             if rfp.des_mean is not None:
@@ -954,15 +956,32 @@ def bundle_endpoint(req: BundleRequest):
             cell_preset = cell.get("preset") or req.preset
             cell_variant = cell.get("variant") or req.variant
             stride_avg = bool(cell.get("stride_avg", False))
+            ds_id = cell.get("dataset_id") or cell.get("dataset_id")
+            datasets_raw = cell.get("datasets") or []
             try:
-                data, _ = render(
-                    template=tpl,
-                    preset=cell_preset,
-                    variant=cell_variant,
-                    format=req.format,
-                    dpi=req.dpi,
-                    stride_avg=stride_avg,
-                )
+                real: tuple[bytes, str] | None = None
+                if ds_id or len(datasets_raw) >= 2:
+                    cell_req = RenderRequest(
+                        template=tpl, preset=cell_preset, variant=cell_variant,
+                        format=req.format, dpi=req.dpi, stride_avg=stride_avg,
+                        dataset_id=ds_id,
+                        datasets=[DatasetSeries(**d) for d in datasets_raw],
+                        title=cell.get("title") or "",
+                    )
+                    try:
+                        if len(datasets_raw) >= 2:
+                            real = _render_multi_dataset(cell_req)
+                        if real is None and ds_id:
+                            real = _render_real_data(cell_req)
+                    except Exception:
+                        pass
+                if real is not None:
+                    data, _ = real
+                else:
+                    data, _ = render(
+                        template=tpl, preset=cell_preset, variant=cell_variant,
+                        format=req.format, dpi=req.dpi, stride_avg=stride_avg,
+                    )
             except Exception as exc:  # noqa: BLE001
                 zf.writestr(
                     f"ERRORS/{cell.get('id', i)}.txt",

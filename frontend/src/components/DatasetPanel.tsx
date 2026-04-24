@@ -1,11 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, Trash2 } from 'lucide-react';
-import { usePage, type Dataset } from '../store/page';
+import { Link2, Trash2, Home, Plus, X } from 'lucide-react';
+import { usePage, type Dataset, type WorkspaceRoom } from '../store/page';
 import { CANONICAL_RECIPES } from '../data/canonicalRecipes';
 import { uploadDataset, deleteDataset as apiDeleteDataset, syncAlign, syncGatesPreview, syncGatesExecute, type GateInfo } from '../api';
 
+// ── Experiment prefix extraction ─────────────────────────────────────────
+// Strips known data-type suffixes so "S01_Walk_Pre_force.csv" and
+// "S01_Walk_Pre_imu.csv" both map to room "S01_Walk_Pre".
+const _TYPE_SUFFIX = /[_\s\-]+(force|imu|mocap|fp|forceplate|robot|treadmill|emg|acc|gyro|kin(?:ematics)?|grf|motion|sync|trial\d*)$/i;
+
+function experimentPrefix(filename: string): string {
+  const base = filename.replace(/\.csv$/i, '').trim();
+  return base.replace(_TYPE_SUFFIX, '').trim() || base;
+}
+
 export default function DatasetPanel() {
   const datasets = usePage((s) => s.datasets);
+  const rooms = usePage((s) => s.rooms);
+  const activeRoomId = usePage((s) => s.activeRoomId);
+  const createRoom = usePage((s) => s.createRoom);
+  const setActiveRoom = usePage((s) => s.setActiveRoom);
+  const deleteRoom = usePage((s) => s.deleteRoom);
+  const renameRoom = usePage((s) => s.renameRoom);
+  const addDatasetToRoom = usePage((s) => s.addDatasetToRoom);
   const setActive = usePage((s) => s.setActiveDataset);
   const applyRecipes = usePage((s) => s.applyRecipes);
   const toggleRecipe = usePage((s) => s.toggleRecipe);
@@ -16,30 +33,65 @@ export default function DatasetPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  const active = datasets.find((d) => d.active) || datasets[0];
+  // When in a room, show only that room's datasets
+  const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
+  const visibleDatasets = activeRoomId && activeRoom
+    ? datasets.filter((d) => activeRoom.datasetIds.includes(d.id))
+    : datasets;
+
+  const active = visibleDatasets.find((d) => d.active) || visibleDatasets[0];
   const recipes = active ? CANONICAL_RECIPES[active.kind] || CANONICAL_RECIPES.force : [];
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
     let accepted = 0;
-    let skipped: string[] = [];
+    const skipped: string[] = [];
+
     for (const f of Array.from(files)) {
-      // Accept anything whose name ends with .csv (case-insensitive) OR
-      // has no recognisable extension (e.g. `foo` — try upload, backend
-      // will 422 if it's not a CSV). This catches `.CSV`, `foo.csv (1)`,
-      // and Finder-rename quirks that dropped the extension.
       const n = f.name.toLowerCase();
       const looksCsv = /\.csv(\b|$|\s|\.)/.test(n) || !/\.\w+$/.test(n);
-      if (!looksCsv) {
-        skipped.push(f.name);
-        continue;
-      }
+      if (!looksCsv) { skipped.push(f.name); continue; }
+
       try {
         const ds = await uploadDataset(f);
+
+        // ── 1. Auto room assignment by filename prefix ──────────────────
+        const prefix = experimentPrefix(f.name);
+        const existingRoom = rooms.find((r) => r.name.toLowerCase() === prefix.toLowerCase());
+        let roomId: string;
+        if (existingRoom) {
+          roomId = existingRoom.id;
+          addDatasetToRoom(roomId, ds.id);
+        } else {
+          roomId = createRoom(prefix, [ds.id]);
+        }
+
         addDataset(ds);
         setActive(ds.id);
+        setActiveRoom(roomId);
+
+        // ── 2. Auto gate-split if sync_col detected ────────────────────
+        const syncCol = (ds as { sync_col?: string | null }).sync_col;
+        if (syncCol) {
+          try {
+            const preview = await syncGatesPreview({ ds_id: ds.id, min_gate_width_s: 2.0 });
+            if (preview.n_trials >= 2) {
+              showToast(`Sync gate detected — auto-splitting ${preview.n_trials} trials…`);
+              const split = await syncGatesExecute({ ds_id: ds.id, min_gate_width_s: 2.0 });
+              const allDs: Dataset[] = await fetch('/api/datasets').then((r) => r.json());
+              split.gates.forEach((g) => {
+                const trial = allDs.find((x) => x.id === g.new_ds_id);
+                if (trial) {
+                  addDataset(trial);
+                  addDatasetToRoom(roomId, trial.id);
+                }
+              });
+              showToast(`✓ Auto-split into ${split.n_trials} trials in room "${prefix}"`);
+            }
+          } catch { /* no gates detected — proceed normally */ }
+        }
+
         showToast(`Uploaded ${f.name} · running default recipes…`);
-        // Auto-apply default recipes — the "one-click" flow
         applyRecipes(ds.id).catch((e) => showToast(`Auto-run failed: ${(e as Error).message}`));
         accepted += 1;
       } catch (e) {
@@ -51,9 +103,9 @@ export default function DatasetPanel() {
     }
   }
 
-  // Phase 3 · cross-source sync detection
+  // Phase 3 · cross-source sync detection (within visible datasets only)
   const syncStatus = useMemo(() => {
-    const unsynced = datasets.filter((d) => !('synced_from' in d) || !d.synced_from);
+    const unsynced = visibleDatasets.filter((d) => !('synced_from' in d) || !d.synced_from);
     const rates = new Set(unsynced.map((d) => d.hz));
     const sourceTypes = new Set(unsynced.map((d) => (d as { source_type?: string }).source_type || 'unknown').filter((s) => s !== 'unknown'));
     const cross = sourceTypes.size >= 2;
@@ -104,6 +156,19 @@ export default function DatasetPanel() {
         </div>
       </div>
 
+      {/* ── Room tabs ──────────────────────────────────────────────────── */}
+      <RoomTabs
+        rooms={rooms}
+        activeRoomId={activeRoomId}
+        onSelect={setActiveRoom}
+        onDelete={deleteRoom}
+        onRename={renameRoom}
+        onCreate={() => {
+          const id = createRoom(`Room ${rooms.length + 1}`);
+          setActiveRoom(id);
+        }}
+      />
+
       {syncStatus.needed && (
         <div className="ds-sync-banner" style={{
           margin: '8px 12px 0', padding: '10px 12px',
@@ -137,19 +202,21 @@ export default function DatasetPanel() {
         </div>
       )}
 
-      {datasets.length === 0 && (
+      {visibleDatasets.length === 0 && (
         <div className="ds-empty">
-          <div className="ds-empty-title">No datasets yet</div>
+          <div className="ds-empty-title">
+            {activeRoomId ? 'Room is empty' : 'No datasets yet'}
+          </div>
           <div className="ds-empty-sub">
-            Drop a CSV below to get started — default recipe auto-runs and
-            fills the canvas with graphs + metrics for the active journal
-            preset.
+            {activeRoomId
+              ? 'Drop a CSV here — it will be auto-assigned to this room.'
+              : 'Drop a CSV below to get started — default recipe auto-runs and fills the canvas.'}
           </div>
         </div>
       )}
 
       <div className="ds-grid">
-        {datasets.map((d) => (
+        {visibleDatasets.map((d) => (
           <div
             key={d.id}
             className={`ds-card${d.active ? ' active' : ''}`}
@@ -386,6 +453,103 @@ function AutoRecipes({ recipes, active, onToggle, onApply }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Room Tabs ─────────────────────────────────────────────────────────────
+// Compact tab strip at the top of the DatasetPanel. "거실" = global view,
+// other tabs = experiment rooms auto-created from filename prefixes.
+
+function RoomTabs({ rooms, activeRoomId, onSelect, onDelete, onRename, onCreate }: {
+  rooms: WorkspaceRoom[];
+  activeRoomId: string | null;
+  onSelect: (id: string | null) => void;
+  onDelete: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onCreate: () => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState('');
+
+  if (rooms.length === 0) return null;
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '4px 8px', borderRadius: 6, cursor: 'pointer',
+    border: 'none', flexShrink: 0,
+    font: '600 10.5px/1 Pretendard,sans-serif',
+    letterSpacing: '.04em',
+    background: active ? 'rgba(240,151,8,.18)' : 'rgba(255,255,255,.04)',
+    color: active ? '#F09708' : '#94A3B8',
+    transition: 'background .15s, color .15s',
+  });
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: '8px 12px 6px', overflowX: 'auto',
+      borderBottom: '1px solid rgba(255,255,255,.06)',
+      scrollbarWidth: 'none',
+    }}>
+      {/* 거실 */}
+      <button style={tabStyle(!activeRoomId)} onClick={() => onSelect(null)} title="거실 — see all datasets">
+        <Home size={10} />
+        거실
+      </button>
+
+      {rooms.map((r) => (
+        <div key={r.id} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          {editingId === r.id ? (
+            <input
+              autoFocus
+              value={editVal}
+              onChange={(e) => setEditVal(e.target.value)}
+              onBlur={() => { onRename(r.id, editVal || r.name); setEditingId(null); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { onRename(r.id, editVal || r.name); setEditingId(null); }
+                if (e.key === 'Escape') setEditingId(null);
+              }}
+              style={{
+                width: 90, font: '600 10.5px/1 Pretendard,sans-serif',
+                background: 'rgba(240,151,8,.12)', border: '1px solid #F09708',
+                borderRadius: 5, padding: '3px 6px', color: '#F09708', outline: 'none',
+              }}
+            />
+          ) : (
+            <button
+              style={tabStyle(activeRoomId === r.id)}
+              onClick={() => onSelect(r.id)}
+              onDoubleClick={() => { setEditingId(r.id); setEditVal(r.name); }}
+              title={`${r.name} · ${r.datasetIds.length} datasets — double-click to rename`}
+            >
+              {r.name.length > 14 ? r.name.slice(0, 13) + '…' : r.name}
+              <span style={{
+                marginLeft: 2, fontSize: 9, opacity: .6,
+                background: 'rgba(255,255,255,.1)', borderRadius: 3, padding: '1px 3px',
+              }}>{r.datasetIds.length}</span>
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(r.id); }}
+            title={`Delete room "${r.name}"`}
+            style={{
+              border: 'none', background: 'none', cursor: 'pointer',
+              color: '#64748B', padding: '2px 2px', borderRadius: 3,
+              display: 'flex', alignItems: 'center',
+            }}
+          ><X size={9} /></button>
+        </div>
+      ))}
+
+      <button
+        onClick={onCreate}
+        title="Create new empty room"
+        style={{
+          ...tabStyle(false), flexShrink: 0,
+          color: '#64748B', background: 'none',
+        }}
+      ><Plus size={10} /></button>
     </div>
   );
 }

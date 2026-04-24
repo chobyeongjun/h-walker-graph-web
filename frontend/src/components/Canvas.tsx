@@ -23,7 +23,15 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Cell as CellModel } from '../store/page';
 
 export default function Canvas() {
-  const cells = usePage((s) => s.cells);
+  const allCells = usePage((s) => s.cells);
+  const activeRoomId = usePage((s) => s.activeRoomId);
+  const rooms = usePage((s) => s.rooms);
+  const setActiveRoom = usePage((s) => s.setActiveRoom);
+  const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
+  // In a room: show only that room's cells. In 거실: show all cells.
+  const cells = activeRoomId && activeRoom
+    ? allCells.filter((c) => activeRoom.cellIds.includes(c.id))
+    : allCells;
   const pageTitle = usePage((s) => s.pageTitle);
   const setPageTitle = usePage((s) => s.setPageTitle);
   const runAll = usePage((s) => s.runAll);
@@ -109,6 +117,7 @@ export default function Canvas() {
     }
   }
 
+  // Drag-and-drop reorder uses indices into the *visible* cells
   const workCells = cells.filter((c) => c.type !== 'llm');
   const liveCount = workCells.filter((c) =>
     (c.type === 'graph' && c.previewBlobUrl) ||
@@ -136,9 +145,17 @@ export default function Canvas() {
     <section className="canvas">
       <div className="page-head">
         <div className="page-crumbs">
-          <a>Project</a><span>/</span>
-          <a>Treadmill · 0.8 m/s</a><span>/</span>
-          <a>Pilot 03</a>
+          <a
+            style={{ cursor: 'pointer', color: activeRoomId ? '#94A3B8' : '#F09708' }}
+            onClick={() => setActiveRoom(null)}
+            title="거실 — global view of all cells"
+          >거실</a>
+          {activeRoom && (
+            <>
+              <span>/</span>
+              <a style={{ color: '#F09708' }}>{activeRoom.name}</a>
+            </>
+          )}
         </div>
         <div
           className="page-title"

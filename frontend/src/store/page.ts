@@ -86,6 +86,18 @@ export interface Dataset {
   belt_speed_ms?: number | null;
 }
 
+// ── Workspace Room (experimental workspace partition) ─────────────────
+// null activeRoomId = 거실 (all datasets + cells visible)
+// A room groups datasets uploaded from the same experiment session
+// and the analysis cells generated from them.
+export interface WorkspaceRoom {
+  id: string;
+  name: string;          // auto-derived from filename prefix; user-editable
+  datasetIds: string[];
+  cellIds: string[];
+  createdAt: number;
+}
+
 export type DrawerKind = null | 'history' | 'exports' | 'stats' | 'settings' | 'study';
 
 export interface HistoryEntry {
@@ -100,6 +112,8 @@ export interface HistoryEntry {
 interface PageState {
   cells: Cell[];
   datasets: Dataset[];
+  rooms: WorkspaceRoom[];
+  activeRoomId: string | null;
   studies: Study[];
   studyResults: Record<string, StudySummary>;
   currentPreset: string;
@@ -114,6 +128,13 @@ interface PageState {
   helpOpen: boolean;
   toast: { msg: string; id: number } | null;
   runAllBusy: boolean;
+
+  // Room management
+  createRoom: (name: string, datasetIds?: string[]) => string;
+  setActiveRoom: (id: string | null) => void;
+  deleteRoom: (id: string) => void;
+  renameRoom: (id: string, name: string) => void;
+  addDatasetToRoom: (roomId: string, dsId: string) => void;
 
   addCell: (c: Cell, at?: number) => void;
   updateCell: (id: string, patch: Partial<Cell>) => void;
@@ -171,6 +192,8 @@ export const usePage = create<PageState>()(
     (set, get) => ({
       cells: SEED_CELLS,
       datasets: SEED_DATASETS,
+      rooms: [],
+      activeRoomId: null,
       studies: [],
       studyResults: {},
       currentPreset: 'ieee',
@@ -185,6 +208,27 @@ export const usePage = create<PageState>()(
       helpOpen: false,
       toast: null,
       runAllBusy: false,
+
+      // ── Room actions ───────────────────────────────────────────────────
+      createRoom: (name, datasetIds = []) => {
+        const id = 'room_' + Date.now().toString(36);
+        const room: WorkspaceRoom = { id, name, datasetIds, cellIds: [], createdAt: Date.now() };
+        set((s) => ({ rooms: [...s.rooms, room] }));
+        return id;
+      },
+      setActiveRoom: (id) => set({ activeRoomId: id }),
+      deleteRoom: (id) => set((s) => ({
+        rooms: s.rooms.filter((r) => r.id !== id),
+        activeRoomId: s.activeRoomId === id ? null : s.activeRoomId,
+      })),
+      renameRoom: (id, name) => set((s) => ({
+        rooms: s.rooms.map((r) => r.id === id ? { ...r, name } : r),
+      })),
+      addDatasetToRoom: (roomId, dsId) => set((s) => ({
+        rooms: s.rooms.map((r) => r.id === roomId
+          ? { ...r, datasetIds: r.datasetIds.includes(dsId) ? r.datasetIds : [...r.datasetIds, dsId] }
+          : r),
+      })),
 
       logHistory: (entry) => set((s) => {
         const next: HistoryEntry = {
@@ -202,7 +246,12 @@ export const usePage = create<PageState>()(
         const cells = [...s.cells];
         if (at == null) cells.push(c);
         else cells.splice(at, 0, c);
-        return { cells };
+        // Auto-register cell in the active room
+        const rooms = s.activeRoomId
+          ? s.rooms.map((r) => r.id === s.activeRoomId
+              ? { ...r, cellIds: [...r.cellIds, c.id] } : r)
+          : s.rooms;
+        return { cells, rooms };
       }),
       updateCell: (id, patch) => set((s) => ({
         cells: s.cells.map((c) => (c.id === id ? { ...c, ...patch } : c)),
@@ -210,7 +259,10 @@ export const usePage = create<PageState>()(
       removeCell: (id) => set((s) => {
         const cell = s.cells.find((c) => c.id === id);
         if (cell?.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);
-        return { cells: s.cells.filter((c) => c.id !== id) };
+        return {
+          cells: s.cells.filter((c) => c.id !== id),
+          rooms: s.rooms.map((r) => ({ ...r, cellIds: r.cellIds.filter((cid) => cid !== id) })),
+        };
       }),
       duplicateCell: (id) => set((s) => {
         const idx = s.cells.findIndex((c) => c.id === id);
@@ -262,7 +314,10 @@ export const usePage = create<PageState>()(
       },
       removeDataset: (id) => {
         const d = get().datasets.find((x) => x.id === id);
-        set((s) => ({ datasets: s.datasets.filter((x) => x.id !== id) }));
+        set((s) => ({
+          datasets: s.datasets.filter((x) => x.id !== id),
+          rooms: s.rooms.map((r) => ({ ...r, datasetIds: r.datasetIds.filter((did) => did !== id) })),
+        }));
         if (d) get().logHistory({
           kind: 'remove', actor: 'you',
           label: `Removed dataset ${d.name}`,
@@ -385,7 +440,16 @@ export const usePage = create<PageState>()(
             });
           }
         }
-        set((s) => ({ cells: [...s.cells, ...newCells] }));
+        set((s) => {
+          const newIds = newCells.map((c) => c.id);
+          return {
+            cells: [...s.cells, ...newCells],
+            rooms: s.activeRoomId
+              ? s.rooms.map((r) => r.id === s.activeRoomId
+                  ? { ...r, cellIds: [...r.cellIds, ...newIds] } : r)
+              : s.rooms,
+          };
+        });
         get().logHistory({
           kind: 'apply', actor: 'you',
           label: `Applied ${newCells.length} recipe cells for ${ds.name}`,
@@ -574,7 +638,16 @@ export const usePage = create<PageState>()(
           );
         }
 
-        set((s) => ({ cells: [...s.cells, ...newCells] }));
+        set((s) => {
+          const newIds = newCells.map((c) => c.id);
+          return {
+            cells: [...s.cells, ...newCells],
+            rooms: s.activeRoomId
+              ? s.rooms.map((r) => r.id === s.activeRoomId
+                  ? { ...r, cellIds: [...r.cellIds, ...newIds] } : r)
+              : s.rooms,
+          };
+        });
         get().logHistory({
           kind: 'apply', actor: 'you',
           label: `Compared ${ds.length} datasets → ${newCells.length} cells`,
@@ -670,6 +743,8 @@ export const usePage = create<PageState>()(
           void _a; void _ae; void _an;
           return rest;
         }),
+        rooms: s.rooms,
+        activeRoomId: s.activeRoomId,
         currentPreset: s.currentPreset,
         globalPreset: s.globalPreset,
         pageTitle: s.pageTitle,

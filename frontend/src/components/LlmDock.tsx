@@ -55,15 +55,19 @@ export default function LlmDock() {
     // Claude can reason about anomalies (e.g. "why is the L peak
     // dropping after stride 12?") without a separate lookup round-trip.
     const datasetSummaries = datasets.slice(0, 6).map((d) => {
+      // Always include column names so Claude can reference them precisely
+      // (e.g. 'Analog A7', 'L_GCP') when calling detect_events / column_stats.
+      const columns = (d.cols || []).map((c) => c.name);
       const a = d.analysis;
       if (!a || !('mode' in a) || a.mode !== 'hwalker') {
-        return { id: d.id, name: d.name, kind: d.kind, group: d.condition };
+        return { id: d.id, name: d.name, kind: d.kind, group: d.condition, columns };
       }
       return {
         id: d.id,
         name: d.name,
         kind: d.kind,
         group: d.condition,
+        columns,
         n_samples: a.n_samples,
         duration_s: a.duration_s,
         sample_rate: a.sample_rate,
@@ -328,6 +332,65 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
       const name = String(input.name || 'Auto Study');
       store.discoverAndRunStudy(dir, name);
       return `Study processing started: ${name} (${dir})`;
+    }
+
+    case 'detect_events': {
+      if (!activeDsId) throw new Error('no active dataset — upload a CSV first');
+      const sigCol = String(input.signal_col || '');
+      if (!sigCol) throw new Error('detect_events requires signal_col');
+      const id = newId();
+      store.addCell({
+        id, type: 'compute',
+        metric: `events:${sigCol}`,
+        dsIds: [activeDsId],
+        loading: true,
+      });
+      const resp = await fetch('/api/compute/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_id: activeDsId,
+          signal_col: sigCol,
+          threshold: input.threshold ?? null,
+          min_duration_s: input.min_duration_s ?? 0.1,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        store.updateCell(id, { loading: false, error: err.detail || 'detect_events failed' });
+        throw new Error(err.detail || 'detect_events failed');
+      }
+      const data = await resp.json();
+      store.updateCell(id, { loading: false, computeData: data });
+      return `Event detection: ${data.meta?.n_events ?? '?'} events in "${sigCol}" (threshold ${data.meta?.threshold ?? '?'})`;
+    }
+
+    case 'column_stats': {
+      if (!activeDsId) throw new Error('no active dataset — upload a CSV first');
+      const cols: string[] = Array.isArray(input.columns)
+        ? input.columns.map(String)
+        : [String(input.columns || '')];
+      if (!cols.length || !cols[0]) throw new Error('column_stats requires columns list');
+      const id = newId();
+      store.addCell({
+        id, type: 'compute',
+        metric: `colstats:${cols.slice(0, 2).join(',')}`,
+        dsIds: [activeDsId],
+        loading: true,
+      });
+      const resp = await fetch('/api/compute/column_stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataset_id: activeDsId, columns: cols }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        store.updateCell(id, { loading: false, error: err.detail || 'column_stats failed' });
+        throw new Error(err.detail || 'column_stats failed');
+      }
+      const data = await resp.json();
+      store.updateCell(id, { loading: false, computeData: data });
+      return `Column stats: ${cols.join(', ')}`;
     }
 
     default:

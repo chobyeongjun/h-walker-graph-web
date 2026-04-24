@@ -207,6 +207,56 @@ TOOLS = [
             "required": ["directory", "name"],
         },
     },
+    {
+        "name": "detect_events",
+        "description": (
+            "Detect HIGH/LOW regions (trigger events) in any signal column. "
+            "Use whenever the user asks about: trigger signals, A7 boundaries, "
+            "sync pulses, ON/OFF 구간, motion-capture trigger windows, event start/end, "
+            "HIGH 구간 시간 추출, 각 구간의 지속 시간 등. "
+            "Returns a table of every detected region: start time, end time, duration. "
+            "signal_col must be an EXACT column name visible in context."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "signal_col": {
+                    "type": "string",
+                    "description": "Exact column name of the trigger/analog signal (e.g. 'Analog A7').",
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "Threshold for HIGH detection. Omit to use the signal mean automatically.",
+                },
+                "min_duration_s": {
+                    "type": "number",
+                    "description": "Minimum duration in seconds to count as a valid event (default 0.1 s).",
+                },
+            },
+            "required": ["signal_col"],
+        },
+    },
+    {
+        "name": "column_stats",
+        "description": (
+            "Get descriptive statistics (mean, std, min, max, quartiles, N) "
+            "for one or more columns in the active dataset. "
+            "Use when the user asks: '이 신호의 범위가 어때?', '평균값이 뭐야?', "
+            "'describe column X', 'what does Y look like?', 'X의 통계 보여줘'. "
+            "columns must be EXACT column names visible in context."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Exact column names to summarize (e.g. ['Analog A7', 'L_GCP']).",
+                },
+            },
+            "required": ["columns"],
+        },
+    },
 ]
 
 
@@ -214,11 +264,18 @@ SYSTEM = (
     "You are the agent inside H-Walker CORE, a gait-analysis workspace for "
     "cable-driven walking rehabilitation research. The user has an active "
     "dataset and some cells already on canvas.\n\n"
-    "When the user asks you to CREATE something (graph, table, stat, full "
-    "analysis), CALL THE RELEVANT TOOL — do not describe it in prose. Never "
-    "reply 'this template isn't supported' — every template in the "
-    "add_graph_cell schema is available; pick the best match.\n\n"
-    "Template hints for common requests:\n"
+    "CRITICAL RULES — follow without exception:\n"
+    "  1. NEVER write Python, shell, or any other code in your response. "
+    "     NEVER output code blocks (``` or `). If computation is needed, call a tool.\n"
+    "  2. When the user asks to CREATE, DETECT, ANALYZE, PLOT, or COMPUTE anything, "
+    "     CALL THE RELEVANT TOOL — do not describe it in prose.\n"
+    "  3. Never reply 'this isn't supported' — every tool in the schema is live.\n"
+    "  4. Reply in ≤3 sentences of prose. Never use markdown headers or bullet lists.\n\n"
+    "Tool selection guide:\n"
+    "  Trigger/event detection · A7 HIGH/LOW 경계 · sync pulse · ON/OFF 구간\n"
+    "  → detect_events (signal_col = exact column name, e.g. 'Analog A7')\n\n"
+    "  Column 기초 통계 · 신호 범위 · mean/std/min/max 확인\n"
+    "  → column_stats (columns = [list of exact column names])\n\n"
     "  L/R 서브플롯 · L vs R subplot · GCP 기반 좌우 비교 → force_lr_subplot\n"
     "  힘 평균곡선 · GRF waveform · mean ± SD         → force_avg\n"
     "  L vs R overlay (같은 축) · raw force           → force\n"
@@ -227,19 +284,15 @@ SYSTEM = (
     "  논문 전체 · 모든 figure 한번에                 → apply_recipe\n"
     "  조인트 각도 시계열                             → imu\n"
     "  관절 각도 평균±SD (사이클)                     → imu_avg\n"
-    "  ROM 바                                          → rom_bar\n"
-    "  stance/swing %                                  → stance_swing_bar\n"
-    "  대칭성 radar                                    → symmetry_radar\n"
-    "  디버깅 · raw 시계열 · 어디서 이상한가            → debug_ts\n"
-    "  연구 자동화 · 배치 분석 · 폴더 내 모든 파일 분석    → analyze_study\n\n"
-    "You now have access to advanced biomechanical metrics (using foot-mounted IMU):\n"
-    "  - Foot Pitch ROM: Range of motion of the foot instep during gait.\n"
-    "  - Force Bias: Mean tracking error (Act - Des). Positive means robot provides more force than target.\n\n"
-    "When the user asks a CONCEPTUAL or QUANTITATIVE question about existing "
-    "data, reply in ≤3 sentences with specific numbers if you can read them "
-    "from context. You MAY both call tools AND reply with a short confirmation "
-    "in the same turn. Korean in → Korean reply. English in → English reply. "
-    "Never fabricate numbers. Never use markdown headers."
+    "  ROM 바                                         → rom_bar\n"
+    "  stance/swing %                                 → stance_swing_bar\n"
+    "  대칭성 radar                                   → symmetry_radar\n"
+    "  디버깅 · raw 시계열 · 어디서 이상한가           → debug_ts\n"
+    "  배치 분석 · 폴더 내 모든 파일                  → analyze_study\n\n"
+    "When the user asks a factual question about already-visible numbers in context, "
+    "answer in ≤2 sentences using those exact numbers. "
+    "Korean in → Korean reply. English in → English reply. "
+    "Never fabricate numbers."
 )
 
 
@@ -263,6 +316,13 @@ def _context_block(ctx: ClaudeContext) -> str:
             sym = d.get('symmetry') or {}
             fat = d.get('fatigue') or {}
             tag = f" [{d.get('group')}]" if d.get('group') else ""
+            # Always show column names so Claude can reference them precisely
+            col_names: list[str] = d.get('columns') or []
+            col_str = ""
+            if col_names:
+                preview = col_names[:25]
+                suffix = f" … +{len(col_names)-25} more" if len(col_names) > 25 else ""
+                col_str = f"\n    Columns: {', '.join(preview)}{suffix}"
             if 'n_samples' in d:
                 lines.append(
                     f"  · {d.get('name', d.get('id'))}{tag}: "
@@ -277,9 +337,13 @@ def _context_block(ctx: ClaudeContext) -> str:
                     f"symmetry stride_T {sym.get('stride_time', 0):.1f}% "
                     f"force {sym.get('force', 0):.1f}%, "
                     f"fatigue L {fat.get('left_pct_change', 0):+.1f}% R {fat.get('right_pct_change', 0):+.1f}%"
+                    + col_str
                 )
             else:
-                lines.append(f"  · {d.get('name', d.get('id'))}{tag} (generic mode, no gait metrics)")
+                lines.append(
+                    f"  · {d.get('name', d.get('id'))}{tag} (generic CSV)"
+                    + col_str
+                )
     return "\n".join(lines)
 
 

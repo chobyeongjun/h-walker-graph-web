@@ -9,6 +9,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 import numpy as np
@@ -215,4 +216,135 @@ def column_stats(req: ColStatsRequest) -> dict[str, Any]:
         "rows": rows,
         "summary": {"mean": [None] * 9},
         "meta": {"columns": req.columns},
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# MoCap window detection
+# ─────────────────────────────────────────────────────────────
+
+_SYNC_PATTERNS = [
+    re.compile(r"^(analog[_ ]?)?a[_ ]?7$", re.I),
+    re.compile(r"^(analog[_ ]?)?sync", re.I),
+    re.compile(r"trigger", re.I),
+    re.compile(r"trig\b", re.I),
+]
+
+
+def _auto_sync_col(df: pd.DataFrame) -> Optional[str]:
+    """Find the trigger/sync column. Prefers sync_engine, falls back to regex."""
+    try:
+        from backend.services.sync_engine import find_sync_column
+        col = find_sync_column(df)
+        if col:
+            return col
+    except Exception:
+        pass
+    for col in df.columns:
+        for pat in _SYNC_PATTERNS:
+            if pat.search(str(col)):
+                return col
+    return None
+
+
+class MocapWindowsRequest(BaseModel):
+    dataset_id: str
+    sync_col: Optional[str] = None     # auto-detect if None
+    threshold: Optional[float] = None  # auto (signal mean) if None
+    min_duration_s: float = 1.0        # MoCap sessions are usually >1 s
+
+
+@router.post("/mocap_windows")
+def detect_mocap_windows(req: MocapWindowsRequest) -> dict[str, Any]:
+    """Detect Motion Capture windows using the A7/trigger signal.
+
+    Returns a table: 구간 | 시작(s) | 종료(s) | 지속(s) | [key channel means]
+    The meta field also contains per-window time ranges for subsequent
+    view_time_window calls.
+    """
+    df = _load_df(req.dataset_id)
+
+    sync_col = req.sync_col or _auto_sync_col(df)
+    if not sync_col:
+        avail = ", ".join(str(c) for c in df.columns[:25])
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"트리거/싱크 컬럼을 자동 감지할 수 없습니다. "
+                f"signal_col 파라미터로 직접 지정해주세요. "
+                f"사용 가능한 컬럼: {avail}"
+            ),
+        )
+
+    signal = df[sync_col].fillna(0).to_numpy(dtype=float)
+    fs = _infer_fs(df)
+    threshold = req.threshold if req.threshold is not None else float(np.mean(signal))
+    min_samples = max(1, int(req.min_duration_s * fs))
+
+    high = (signal > threshold).astype(np.int8)
+    edges = np.diff(high, prepend=0)
+    starts = np.where(edges == 1)[0]
+    ends = np.where(edges == -1)[0]
+    if len(ends) and len(starts) and ends[0] < starts[0]:
+        ends = ends[1:]
+    if len(starts) > len(ends):
+        ends = np.append(ends, len(signal) - 1)
+    n_pairs = min(len(starts), len(ends))
+    starts, ends = starts[:n_pairs], ends[:n_pairs]
+
+    # Key channels to summarise per window (label → list of candidate col names)
+    CHANNELS = [
+        ("L 힘 평균(N)",  ["L_ActForce_N", "L_Force", "L_GRF", "L_GCP"]),
+        ("R 힘 평균(N)",  ["R_ActForce_N", "R_Force", "R_GRF", "R_GCP"]),
+        ("L ROM(°)",      ["L_Pitch", "L_JointAngle", "L_Angle", "L_IMU"]),
+        ("R ROM(°)",      ["R_Pitch", "R_JointAngle", "R_Angle", "R_IMU"]),
+    ]
+
+    def _find(candidates: list[str]) -> Optional[str]:
+        for c in candidates:
+            if c in df.columns:
+                return c
+        return None
+
+    active_ch: list[tuple[str, str, bool]] = []  # (header, col, is_rom)
+    for label, cands in CHANNELS:
+        col = _find(cands)
+        if col:
+            active_ch.append((label, col, label.endswith("ROM(°)")))
+
+    col_headers = ["구간", "시작(s)", "종료(s)", "지속(s)"] + [h for h, _, _ in active_ch]
+    windows_meta: list[dict] = []
+    rows: list[list] = []
+    w_idx = 1
+    for s, e in zip(starts, ends):
+        if e - s < min_samples:
+            continue
+        start_s = round(float(s) / fs, 2)
+        end_s = round(float(e) / fs, 2)
+        dur = round(float(e - s) / fs, 2)
+        row: list = [w_idx, start_s, end_s, dur]
+        for _lbl, col, is_rom in active_ch:
+            seg = pd.to_numeric(df[col].iloc[s:e], errors="coerce").dropna()
+            if len(seg) == 0:
+                row.append(None)
+            elif is_rom:
+                row.append(round(float(seg.max() - seg.min()), 2))
+            else:
+                row.append(round(float(seg.mean()), 2))
+        rows.append(row)
+        windows_meta.append({"index": w_idx, "start_s": start_s, "end_s": end_s, "duration_s": dur})
+        w_idx += 1
+
+    return {
+        "label": f"MoCap 구간 · {sync_col} ({len(rows)}개 감지)",
+        "cols": col_headers,
+        "rows": rows,
+        "summary": {"mean": [None] * len(col_headers)},
+        "meta": {
+            "sync_col": sync_col,
+            "n_windows": len(rows),
+            "threshold": round(float(threshold), 6),
+            "sample_rate_hz": round(fs, 2),
+            "windows": windows_meta,
+        },
     }

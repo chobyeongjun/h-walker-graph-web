@@ -249,7 +249,7 @@ body.pub .plot .axis-title{fill:#111}
 
 /* LLM cell */
 .llm-prompt{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:10px 12px;
-  display:flex;align-items:flex-start;gap:10px;font:500 12.5px/1.5 'Pretendard',sans-serif;color:#E2E8F0}
+  display:flex;align-items:flex-start;gap:10px;font:500 12.5px/1.5 'Pretendard',sans-serif;color:#E2E8F0;user-select:text;cursor:text}
 .llm-prompt .quoteb{color:#A78BFA;font-weight:700;letter-spacing:.14em;font-size:10px;text-transform:uppercase;margin-top:3px;flex-shrink:0}
 .llm-prompt .refs{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .ref-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;
@@ -257,7 +257,7 @@ body.pub .plot .axis-title{fill:#111}
   font:600 10px/1 'JetBrains Mono',monospace;color:#00FFB2;letter-spacing:.02em;cursor:pointer}
 .ref-chip:hover{background:rgba(0,255,178,.2)}
 .llm-response{background:rgba(11,14,46,.4);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:12px 14px;
-  font:500 13px/1.65 'Pretendard',sans-serif;color:#E2E8F0}
+  font:500 13px/1.65 'Pretendard',sans-serif;color:#E2E8F0;user-select:text;cursor:text}
 .llm-response p{margin:0 0 8px}
 .llm-response p:last-child{margin:0}
 .llm-response b{color:#fff}

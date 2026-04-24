@@ -257,6 +257,48 @@ TOOLS = [
             "required": ["columns"],
         },
     },
+    {
+        "name": "detect_mocap_windows",
+        "description": (
+            "Detect Motion Capture (MoCap) recording windows from the trigger signal "
+            "(A7 or similar sync pulse). Use whenever the user asks: "
+            "'모션 캡처 구간', 'MoCap 구간 보여줘', '어느 구간에서 실험했어?', "
+            "'A7 HIGH 구간', 'trigger window', 'sync 구간', 'recording window'. "
+            "Returns a table of each MoCap window with start/end times and key signal means. "
+            "After calling this, the user can ask to view a specific window with view_time_window."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sync_col": {
+                    "type": "string",
+                    "description": "Trigger column name (e.g. 'Analog A7'). Omit to auto-detect.",
+                },
+                "min_duration_s": {
+                    "type": "number",
+                    "description": "Minimum window duration in seconds (default 1.0 s).",
+                },
+            },
+        },
+    },
+    {
+        "name": "view_time_window",
+        "description": (
+            "Render a graph of robot sensor data for a specific time window (seconds). "
+            "Use after detect_mocap_windows to visualize what happened during a specific "
+            "MoCap session. Shows force, angle, velocity stacked panels. "
+            "Call with the start/end times from the detect_mocap_windows table."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "time_start": {"type": "number", "description": "Start time in seconds."},
+                "time_end":   {"type": "number", "description": "End time in seconds."},
+                "title":      {"type": "string",  "description": "Optional figure title."},
+            },
+            "required": ["time_start", "time_end"],
+        },
+    },
 ]
 
 
@@ -264,13 +306,14 @@ SYSTEM = (
     "You are the agent inside H-Walker CORE, a gait-analysis workspace for "
     "cable-driven walking rehabilitation research. The user has an active "
     "dataset and some cells already on canvas.\n\n"
-    "CRITICAL RULES — follow without exception:\n"
-    "  1. NEVER write Python, shell, or any other code in your response. "
-    "     NEVER output code blocks (``` or `). If computation is needed, call a tool.\n"
-    "  2. When the user asks to CREATE, DETECT, ANALYZE, PLOT, or COMPUTE anything, "
-    "     CALL THE RELEVANT TOOL — do not describe it in prose.\n"
+    "CRITICAL RULES:\n"
+    "  1. When the user asks to CREATE, DETECT, ANALYZE, PLOT, or COMPUTE — "
+    "     CALL THE RELEVANT TOOL instead of describing it in prose.\n"
+    "  2. Only write Python/code when the user EXPLICITLY asks for runnable code "
+    "     or a script (e.g. '코드 줘', 'Python 코드', 'script'). "
+    "     In all other cases prefer tools.\n"
     "  3. Never reply 'this isn't supported' — every tool in the schema is live.\n"
-    "  4. Reply in ≤3 sentences of prose. Never use markdown headers or bullet lists.\n\n"
+    "  4. Reply in ≤3 sentences of prose. Never use markdown headers.\n\n"
     "Tool selection guide:\n"
     "  Trigger/event detection · A7 HIGH/LOW 경계 · sync pulse · ON/OFF 구간\n"
     "  → detect_events (signal_col = exact column name, e.g. 'Analog A7')\n\n"
@@ -288,7 +331,9 @@ SYSTEM = (
     "  stance/swing %                                 → stance_swing_bar\n"
     "  대칭성 radar                                   → symmetry_radar\n"
     "  디버깅 · raw 시계열 · 어디서 이상한가           → debug_ts\n"
-    "  배치 분석 · 폴더 내 모든 파일                  → analyze_study\n\n"
+    "  배치 분석 · 폴더 내 모든 파일                  → analyze_study\n"
+    "  MoCap 구간 · A7 trigger 구간 · 어디서 실험했나  → detect_mocap_windows\n"
+    "  특정 구간 그래프 · 1번 창 보여줘 · 25s~45s 구간  → view_time_window\n\n"
     "When the user asks a factual question about already-visible numbers in context, "
     "answer in ≤2 sentences using those exact numbers. "
     "Korean in → Korean reply. English in → English reply. "

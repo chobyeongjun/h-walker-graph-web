@@ -65,6 +65,9 @@ class RenderRequest(BaseModel):
     datasets: list[DatasetSeries] = []
     # Phase 2E: optional user-provided title.
     title: Optional[str] = None
+    # Time window for debug_ts / mocap_window (seconds, inclusive)
+    time_start: Optional[float] = None
+    time_end: Optional[float] = None
 
 
 def _suggest_filename(req: RenderRequest, P) -> str:
@@ -763,6 +766,15 @@ def _render_real_data(req: RenderRequest) -> tuple[bytes, str] | None:
         inch_w, inch_h = w_mm / 25.4, h_mm / 25.4
         fs = res.sample_rate
         t = _np.arange(len(df)) / fs
+
+        # Apply time window (for MoCap window view)
+        if req.time_start is not None or req.time_end is not None:
+            t0 = req.time_start if req.time_start is not None else 0.0
+            t1 = req.time_end if req.time_end is not None else float(t[-1])
+            s_idx = max(0, int(t0 * fs))
+            e_idx = min(len(df), int(t1 * fs) + 1)
+            df = df.iloc[s_idx:e_idx].reset_index(drop=True)
+            t = _np.arange(len(df)) / fs + t0  # keep absolute timestamps
 
         # Pick the signals that exist
         rows = []

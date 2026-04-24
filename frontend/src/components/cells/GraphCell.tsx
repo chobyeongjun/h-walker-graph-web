@@ -41,7 +41,7 @@ export default function GraphCell({ cell }: Props) {
     return () => clearTimeout(h);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cell.graph, cell.strideAvg, cell.title, globalPreset,
-      JSON.stringify(cell.series)]);
+      cell.timeStart, cell.timeEnd, JSON.stringify(cell.series)]);
 
   useEffect(() => {
     if (!cell.previewBlobUrl) { setSvgInline(null); return; }

@@ -40,6 +40,9 @@ export interface Cell {
   // graph renders as a multi-subject overlay with one colored trace per
   // entry. dsIds mirrors `series[].dsId` for backwards compat + filtering.
   series?: Array<{ dsId: string; label?: string; color?: string }>;
+  // MoCap window view — clip the rendered graph to this time range (seconds).
+  timeStart?: number;
+  timeEnd?: number;
   // Phase 3: cross-file stat cell — if set, overrides a_col/b_col mode.
   statDatasetsA?: Array<{ id: string; metric: string }>;
   statDatasetsB?: Array<{ id: string; metric: string }>;
@@ -476,6 +479,8 @@ export const usePage = create<PageState>()(
             datasets,
             stride_avg: !!cell.strideAvg,
             title: cell.title || '',
+            time_start: cell.timeStart,
+            time_end: cell.timeEnd,
           });
           // Revoke old preview URL
           if (cell.previewBlobUrl) URL.revokeObjectURL(cell.previewBlobUrl);

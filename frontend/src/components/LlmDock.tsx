@@ -393,6 +393,57 @@ async function dispatchTool(tu: ToolUseBlock, activeDsId: string | null): Promis
       return `Column stats: ${cols.join(', ')}`;
     }
 
+    case 'detect_mocap_windows': {
+      if (!activeDsId) throw new Error('no active dataset — upload a CSV first');
+      const id = newId();
+      store.addCell({
+        id, type: 'compute',
+        metric: `mocap:windows`,
+        dsIds: [activeDsId],
+        loading: true,
+      });
+      const mBody: Record<string, unknown> = { dataset_id: activeDsId };
+      if (input.sync_col) mBody.sync_col = String(input.sync_col);
+      if (input.min_duration_s != null) mBody.min_duration_s = Number(input.min_duration_s);
+      const mResp = await fetch('/api/compute/mocap_windows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mBody),
+      });
+      if (!mResp.ok) {
+        const err = await mResp.json().catch(() => ({ detail: mResp.statusText }));
+        store.updateCell(id, { loading: false, error: err.detail || 'mocap_windows failed' });
+        throw new Error(err.detail || 'mocap_windows failed');
+      }
+      const mData = await mResp.json();
+      store.updateCell(id, { loading: false, computeData: mData });
+      const n = mData.meta?.n_windows ?? '?';
+      const sc = mData.meta?.sync_col ?? '';
+      return `MoCap 구간 감지: ${n}개 구간 (${sc}) — 구간별 그래프는 "1번 구간 보여줘"로 요청하세요.`;
+    }
+
+    case 'view_time_window': {
+      if (!activeDsId) throw new Error('no active dataset — upload a CSV first');
+      const tStart = Number(input.time_start);
+      const tEnd = Number(input.time_end);
+      const dur = (tEnd - tStart).toFixed(1);
+      const wTitle = input.title
+        ? String(input.title)
+        : `MoCap 구간 · ${tStart.toFixed(1)}s – ${tEnd.toFixed(1)}s (${dur}s)`;
+      const id = newId();
+      store.addCell({
+        id, type: 'graph',
+        graph: 'debug_ts',
+        dsIds: [activeDsId],
+        title: wTitle,
+        timeStart: tStart,
+        timeEnd: tEnd,
+        loading: true,
+      });
+      store.runPreview(id);
+      return `시간 창 그래프 추가: ${wTitle}`;
+    }
+
     default:
       throw new Error(`unknown tool '${tu.name}'`);
   }

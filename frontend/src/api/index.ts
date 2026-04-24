@@ -198,6 +198,8 @@ export interface RenderGraphRequest {
   dataset_id?: string;   // single-dataset path (legacy)
   datasets?: Array<{ id: string; label?: string; color?: string }>;  // Phase 1 overlay
   title?: string;
+  time_start?: number;  // MoCap window clip (seconds)
+  time_end?: number;
 }
 
 export const renderGraph = async (req: RenderGraphRequest): Promise<Blob> => {

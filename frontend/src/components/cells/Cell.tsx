@@ -6,6 +6,48 @@ import LlmCell from './LlmCell';
 import { usePage } from '../../store/page';
 import { Copy, Trash2, GripVertical, Expand } from 'lucide-react';
 
+const GRAPH_LABEL: Record<string, string> = {
+  force:              '지면반력 (GRF)',
+  force_avg:          '평균 GRF (mean±SD)',
+  force_lr_subplot:   'L/R 지면반력 서브플롯',
+  asymmetry:          '좌우 비대칭',
+  peak_box:           '피크 박스플롯',
+  cop:                '압력 중심 (COP)',
+  trials:             'Trial 비교',
+  cv_bar:             '변동 계수 (CV)',
+  imu:                '관절 각도 시계열',
+  imu_avg:            '관절 각도 평균±SD',
+  cyclogram:          '사이클로그램',
+  stride_time_trend:  '보폭 시간 추이',
+  stance_swing_bar:   'Stance/Swing 비율',
+  rom_bar:            '관절 가동 범위 (ROM)',
+  symmetry_radar:     '대칭성 레이더',
+  debug_ts:           '원시 시계열 (전체)',
+  mocap_window:       'MoCap 구간 뷰',
+};
+
+const COMPUTE_LABEL_PREFIXES: Array<[string, string]> = [
+  ['events:',   '이벤트 감지 · '],
+  ['colstats:', '컬럼 통계 · '],
+  ['mocap:',    'MoCap 구간 · '],
+];
+
+function resolveTitle(cell: CellModel): string {
+  if (cell.title) return cell.title;
+  if (cell.type === 'graph') {
+    return GRAPH_LABEL[cell.graph || ''] ?? `그래프 · ${cell.graph}`;
+  }
+  if (cell.type === 'compute') {
+    const m = cell.metric || '';
+    for (const [prefix, label] of COMPUTE_LABEL_PREFIXES) {
+      if (m.startsWith(prefix)) return label + m.slice(prefix.length);
+    }
+    return `Compute · ${m}`;
+  }
+  if (cell.type === 'stat') return `통계 · ${cell.op}`;
+  return '어시스턴트';
+}
+
 interface Props {
   cell: CellModel;
   index: number;
@@ -22,11 +64,7 @@ export default function Cell({ cell, index, dragHandle }: Props) {
   const focusCell = usePage((s) => s.focusCell);
 
   const typeClass = `cell ${cell.type}`;
-  const displayTitle = cell.title
-    ?? (cell.type === 'graph' ? `Graph · ${cell.graph}`
-      : cell.type === 'stat' ? `Stat · ${cell.op}`
-      : cell.type === 'compute' ? `Compute · ${cell.metric}`
-      : 'Assistant');
+  const displayTitle = resolveTitle(cell);
 
   return (
     <div className={typeClass} id={`cell-${cell.id}`}>

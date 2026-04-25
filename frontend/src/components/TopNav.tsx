@@ -29,9 +29,9 @@ export default function TopNav() {
 
       <div className="nav-spacer" />
 
-      <div className="nav-pill">
+      <div className="nav-pill" title="Click-driven Library + per-sync Inspector. No LLM, no chat, no fake data.">
         <span className="dot" />
-        <span>Claude Haiku 4.5</span>
+        <span>Local engine</span>
         <small>ready</small>
       </div>
     </nav>

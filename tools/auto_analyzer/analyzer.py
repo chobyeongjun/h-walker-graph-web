@@ -136,44 +136,69 @@ def _fatigue_index(values: np.ndarray, pct: float = 0.1) -> float:
 
 
 def _detect_heel_strikes(df: pd.DataFrame, side: str, sample_rate: float) -> np.ndarray:
-    """Detect heel strike indices from Event column (rising edge) or GCP fallback."""
+    """Heel-strike indices for one side, in samples.
+
+    H-Walker firmware emits two per-side gait signals: `{side}_Event`
+    and `{side}_GCP`. Field experience (and docs/HANDOVER-2026-04-17.md
+    line 100) shows the **GCP sawtooth is the trustworthy per-side
+    cue** — it ramps 0 → 1+ exactly during that side's stance phase
+    and stays flat during swing. The Event column, in contrast, varies
+    by firmware build: on some loadcell builds it pulses on every
+    detected heel strike of either foot, which makes consecutive
+    rising edges measure step time, not stride time, and mangles the
+    downstream cadence + stance % calculations.
+
+    Order of preference (changed 2026-04-25):
+      1. `{side}_GCP` rising edges (active segment starts) — primary.
+      2. `{side}_Event` rising edges — fallback when GCP is missing
+         or flatlined; we also drop pairs of edges < 0.4 s apart so a
+         step-pulsing Event column doesn't collapse into half-strides.
+    """
     event_col = f'{side}_Event'
     gcp_col = f'{side}_GCP'
 
-    hs_idx = np.array([], dtype=int)
+    # ---------- Primary: GCP active-segment starts ----------
+    if gcp_col in df.columns:
+        gcp = df[gcp_col].to_numpy(dtype=np.float64)
+        finite = np.isfinite(gcp)
+        if finite.sum() >= 10:
+            gcp_range = float(np.ptp(gcp[finite]))
+            if gcp_range >= 0.3:
+                # Normalize so threshold logic doesn't depend on the
+                # raw firmware scale (some builds emit 0..1, others 0..100).
+                gcp_max = float(np.nanmax(gcp))
+                if gcp_max > 10:
+                    gcp = gcp / 100.0
+                elif gcp_max > 1.5:
+                    gcp = gcp / gcp_max
+                active = (gcp > 0.01).astype(np.int8)
+                edges = np.diff(active, prepend=0)
+                hs_idx = np.where(edges == 1)[0]
+                # Refractory: drop a duplicate start within 0.3 s of the
+                # previous one (debounce GCP noise at lift-off / re-strike).
+                if hs_idx.size > 1:
+                    keep = np.concatenate([[True],
+                                           np.diff(hs_idx) > max(20, int(sample_rate * 0.3))])
+                    hs_idx = hs_idx[keep]
+                if hs_idx.size >= 2:
+                    return hs_idx
 
-    # Primary: Event rising edge
+    # ---------- Fallback: Event rising edges ----------
     if event_col in df.columns:
-        events = df[event_col].values.astype(np.float64)
-        hs_idx = np.where(np.diff(events) > 0.5)[0] + 1
+        events = df[event_col].to_numpy(dtype=np.float64)
+        raw = np.where(np.diff(events) > 0.5)[0] + 1
+        if raw.size >= 2:
+            # If consecutive events are tighter than a physiologically
+            # plausible stride (~0.7 s for slow walking) we are almost
+            # certainly looking at a per-step Event signal, not
+            # per-stride. Keep only every other edge.
+            min_stride_samples = max(int(sample_rate * 0.7), 10)
+            gaps = np.diff(raw)
+            if np.median(gaps) < min_stride_samples:
+                raw = raw[::2]
+            return raw
 
-    if len(hs_idx) >= 2:
-        return hs_idx
-
-    # Fallback: GCP sawtooth drop
-    if gcp_col not in df.columns:
-        return np.array([], dtype=int)
-
-    gcp = df[gcp_col].values.astype(np.float64)
-    gcp_range = np.ptp(gcp[np.isfinite(gcp)]) if np.any(np.isfinite(gcp)) else 0
-    if gcp_range < 0.3:
-        return np.array([], dtype=int)
-
-    gcp_max = np.nanmax(gcp)
-    if gcp_max > 10:
-        gcp = gcp / 100.0
-    elif gcp_max > 1.5:
-        gcp = gcp / gcp_max
-
-    hs_threshold = -max(0.1, np.ptp(gcp[np.isfinite(gcp)]) * 0.15)
-    diffs = np.diff(gcp)
-    raw_hs = np.where(diffs < hs_threshold)[0] + 1
-
-    if len(raw_hs) > 1:
-        gaps = np.diff(raw_hs)
-        keep = np.concatenate([[True], gaps > max(20, sample_rate * 0.3)])
-        return raw_hs[keep]
-    return raw_hs
+    return np.array([], dtype=int)
 
 
 def _filter_strides_iqr(stride_times: np.ndarray, multiplier: float = 2.0
@@ -410,13 +435,28 @@ def _compute_force_profiles(df: pd.DataFrame, side: str,
 def _compute_stance_swing(df: pd.DataFrame, side: str,
                            hs_indices: np.ndarray, valid_mask: np.ndarray
                            ) -> tuple[list[float], list[float]]:
-    """Compute stance and swing percentages per stride."""
+    """Compute stance / swing % of each stride.
+
+    Definition (per H-Walker firmware spec — see HANDOVER-2026-04-17):
+      `{side}_GCP` ramps 0 → 1+ ONLY during that side's stance phase
+      and is 0 (or NaN) during swing. So the stance fraction per
+      stride = fraction of samples where GCP > 0.01.
+
+    Earlier code preferred `{side}_Phase` (n_stance = sum(phase < 0.5))
+    but the firmware's Phase encoding turned out to be inconsistent
+    across builds — some emit 0=stance, others 0=swing — and the
+    fallback `gcp < 0.6` (i.e. "first 60 % of the cycle is stance")
+    was a hard-coded biomechanical assumption that has nothing to do
+    with the actual signal. Both modes produced ~50/50 splits when
+    the truth was 60/40. This routine now uses the GCP active mask
+    only and reports nothing for sides where GCP is missing.
+    """
     gcp_col = f'{side}_GCP'
-    phase_col = f'{side}_Phase'
+    if gcp_col not in df.columns:
+        return [], []
+    gcp_full = df[gcp_col].values.astype(np.float64)
 
-    gcp = df[gcp_col].values.astype(np.float64) if gcp_col in df.columns else None
     stance_ratios, swing_ratios = [], []
-
     n_strides = len(valid_mask)
     for i in range(n_strides):
         if not valid_mask[i]:
@@ -424,17 +464,14 @@ def _compute_stance_swing(df: pd.DataFrame, side: str,
         s, e = hs_indices[i], hs_indices[i + 1]
         if e - s < 5:
             continue
-
-        if phase_col in df.columns and df[phase_col].nunique() > 1:
-            phase_data = df[phase_col].values[s:e].astype(np.float64)
-            n_stance = np.sum(phase_data < 0.5)
-        elif gcp is not None:
-            stride_gcp = gcp[s:e]
-            n_stance = np.sum(stride_gcp < 0.6)
-        else:
+        stride_gcp = gcp_full[s:e]
+        # Ignore NaN samples in the count
+        finite = np.isfinite(stride_gcp)
+        if finite.sum() < 5:
             continue
-
-        total = e - s
+        active = stride_gcp[finite] > 0.01
+        n_stance = int(np.sum(active))
+        total = int(np.sum(finite))
         stance_ratios.append(n_stance / total * 100)
         swing_ratios.append((total - n_stance) / total * 100)
 

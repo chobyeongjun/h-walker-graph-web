@@ -15,21 +15,28 @@ export interface GraphTemplate {
   xTicks: string[];
 }
 
+// IMPORTANT — H-Walker is a cable-driven assist robot. The columns
+// L_ActForce_N / R_ActForce_N are the **loadcell force** at the cable,
+// i.e. the assistive force the robot applies to each leg. They are
+// NOT ground reaction force (GRF). Real GRF would come from a
+// treadmill force-plate channel and is not part of these templates.
+// Labels below say "Loadcell assist force" so users don't mis-cite
+// these traces as GRF in publications.
 export const GRAPH_TPLS: Record<string, GraphTemplate> = {
-  // ── Force / kinetic
+  // ── Cable / loadcell kinetics
   force: {
-    ey: 'Force · L vs R', title: 'Ground reaction force',
-    yUnit: 'Force (N)', xUnit: 'Gait cycle (%)',
+    ey: 'Loadcell · L vs R', title: 'Loadcell assist force (cable tension)',
+    yUnit: 'Cable force (N)', xUnit: 'Gait cycle (%)',
     yTicks: ['60', '45', '30', '15', '0'], xTicks: ['0', '25', '50', '75', '100'],
   },
   force_avg: {
-    ey: 'Force · mean ± SD', title: 'GRF stride-averaged',
-    yUnit: 'Vertical GRF (N)', xUnit: 'Gait cycle (%)',
+    ey: 'Loadcell · mean ± SD', title: 'Loadcell force, stride-averaged',
+    yUnit: 'Cable force (N)', xUnit: 'Gait cycle (%)',
     yTicks: ['60', '45', '30', '15', '0'], xTicks: ['0', '25', '50', '75', '100'],
   },
   force_lr_subplot: {
-    ey: 'Force · L / R subplots', title: 'GCP-normalized force per leg',
-    yUnit: 'Force (N)', xUnit: 'Gait cycle (%)',
+    ey: 'Loadcell · L / R subplots', title: 'Loadcell force per leg (GCP-normalized)',
+    yUnit: 'Cable force (N)', xUnit: 'Gait cycle (%)',
     yTicks: ['60', '45', '30', '15', '0'], xTicks: ['0', '25', '50', '75', '100'],
   },
   asymmetry: {

@@ -151,7 +151,7 @@ export default function Library() {
         color: '#F09708', letterSpacing: '.18em', textTransform: 'uppercase',
       }}>
         <BookOpen size={14} />
-        <span>Library · 책장</span>
+        <span>Library</span>
       </header>
 
       <div style={{

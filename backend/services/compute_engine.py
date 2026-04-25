@@ -597,6 +597,134 @@ def symmetry_summary(df: pd.DataFrame, res: AnalysisResult,
 # ============================================================
 
 
+# =====================================================================
+# Generic motor / control-channel tracking metrics
+#
+# H-Walker firmware logs paired desired-vs-actual columns for several
+# subsystems beyond force. Treat them with one shape so the user can
+# inspect every controller channel without bespoke math:
+#
+#   velocity_tracking  → L/R_DesVel_mps  vs  L/R_ActVel_mps
+#   position_tracking  → L/R_DesPos_deg  vs  L/R_ActPos_deg
+#   current_tracking   → L/R_DesCurr_A   vs  L/R_ActCurr_A
+#
+# Output is a 1-row whole-trial summary: RMSE / MAE / peak |error| /
+# mean |error| / R² for each side. Per-stride breakdowns are still
+# available via per_stride() for force, and the Inspector card lets
+# the user zoom into any column visually.
+# =====================================================================
+
+def _tracking_summary(df, side_des: str, side_act: str) -> dict[str, float]:
+    if side_des not in df.columns or side_act not in df.columns:
+        return {}
+    d = df[side_des].to_numpy(dtype=np.float64)
+    a = df[side_act].to_numpy(dtype=np.float64)
+    mask = np.isfinite(d) & np.isfinite(a)
+    if mask.sum() < 10:
+        return {}
+    d, a = d[mask], a[mask]
+    err = a - d
+    abs_err = np.abs(err)
+    rmse = float(np.sqrt(np.mean(err ** 2)))
+    mae = float(np.mean(abs_err))
+    peak = float(np.max(abs_err))
+    # R² of actual vs desired (1.0 = perfect tracking)
+    var_d = float(np.var(d))
+    r2 = float(1.0 - np.var(err) / var_d) if var_d > 1e-12 else 0.0
+    return {"rmse": rmse, "mae": mae, "peak": peak, "r2": r2,
+            "n": int(len(d))}
+
+
+def _tracking_metric(df, _res, des_suffix: str, act_suffix: str,
+                     unit: str, label: str) -> dict:
+    rows: list[list[str]] = []
+    cols = ["side", "n samples", f"RMSE ({unit})", f"MAE ({unit})",
+            f"peak |err| ({unit})", "R²"]
+    for side in ("L", "R"):
+        s = _tracking_summary(df, f"{side}_{des_suffix}", f"{side}_{act_suffix}")
+        if not s:
+            rows.append([side, "—", "—", "—", "—", "—"])
+            continue
+        rows.append([
+            side, str(s["n"]),
+            f"{s['rmse']:.3f}", f"{s['mae']:.3f}",
+            f"{s['peak']:.3f}", f"{s['r2']:.3f}",
+        ])
+    return {
+        "label": label,
+        "cols": cols,
+        "rows": rows,
+        "summary": {"mean": [
+            f"L→R RMSE compare: {rows[0][2]} vs {rows[1][2]} {unit}",
+        ]},
+        "meta": {
+            "des_columns": [f"L_{des_suffix}", f"R_{des_suffix}"],
+            "act_columns": [f"L_{act_suffix}", f"R_{act_suffix}"],
+        },
+    }
+
+
+def velocity_tracking(df, res, **_kw):
+    return _tracking_metric(df, res, "DesVel_mps", "ActVel_mps", "m/s",
+                            "Motor velocity tracking · whole-trial")
+
+
+def position_tracking(df, res, **_kw):
+    return _tracking_metric(df, res, "DesPos_deg", "ActPos_deg", "°",
+                            "Motor position tracking · whole-trial")
+
+
+def current_tracking(df, res, **_kw):
+    return _tracking_metric(df, res, "DesCurr_A", "ActCurr_A", "A",
+                            "Motor current tracking · whole-trial")
+
+
+def feedforward_summary(df, _res, **_kw):
+    """Whole-trial mean ± SD of the feedforward channels.
+
+    Reports both motion-FF and treadmill-FF when present, and the
+    composite gain knobs (TFF_Gain, FF_Gain_F) so a user calibrating
+    the controller can see at a glance what the live values are.
+    """
+    items: list[tuple[str, str]] = []
+    candidates = [
+        ("L_MotionFF_mps",    "m/s"),
+        ("R_MotionFF_mps",    "m/s"),
+        ("L_TreadmillFF_mps", "m/s"),
+        ("R_TreadmillFF_mps", "m/s"),
+        ("L_AdmVel_mps",      "m/s"),
+        ("R_AdmVel_mps",      "m/s"),
+        ("TFF_Gain",          ""),
+        ("FF_Gain_F",         ""),
+    ]
+    rows: list[list[str]] = []
+    for col, unit in candidates:
+        if col not in df.columns:
+            continue
+        x = df[col].to_numpy(dtype=np.float64)
+        x = x[np.isfinite(x)]
+        if x.size < 5:
+            continue
+        rows.append([col, _fmt_mean_std(x, digits=3),
+                     f"{float(np.min(x)):.3f}",
+                     f"{float(np.max(x)):.3f}",
+                     unit])
+        items.append((col, unit))
+    if not rows:
+        return {
+            "label": "Feedforward channels (none present in this CSV)",
+            "cols": ["channel", "mean ± SD", "min", "max", "unit"],
+            "rows": [], "summary": {"mean": []},
+        }
+    return {
+        "label": "Feedforward channels · whole-trial summary",
+        "cols": ["channel", "mean ± SD", "min", "max", "unit"],
+        "rows": rows,
+        "summary": {"mean": [f"{len(rows)} channels populated"]},
+        "meta": {"channels": [c for c, _ in items]},
+    }
+
+
 METRIC_REGISTRY = {
     "per_stride":        per_stride,
     "impulse":           impulse,
@@ -610,6 +738,11 @@ METRIC_REGISTRY = {
     "swing_time":        swing_time,
     "fatigue_index":     fatigue_index,
     "symmetry_summary":  symmetry_summary,
+    # Phase 2J: motor / control-channel tracking
+    "velocity_tracking": velocity_tracking,
+    "position_tracking": position_tracking,
+    "current_tracking":  current_tracking,
+    "feedforward":       feedforward_summary,
 }
 
 

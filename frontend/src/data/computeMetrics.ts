@@ -34,4 +34,13 @@ export const COMPUTE_METRICS: Record<string, ComputeMetric> = {
                       cols: ['side', 'Δ%', 'interpretation'] },
   symmetry_summary: { label: 'Symmetry summary (% asymmetry · 0 = perfect)',
                       cols: ['metric', 'Δ (%)'] },
+  // Motor / control-channel tracking (whole-trial RMSE / MAE / peak / R²)
+  velocity_tracking: { label: 'Motor velocity tracking · L vs R (whole trial)',
+                       cols: ['side', 'n samples', 'RMSE (m/s)', 'MAE (m/s)', 'peak |err| (m/s)', 'R²'] },
+  position_tracking: { label: 'Motor position tracking · L vs R (whole trial)',
+                       cols: ['side', 'n samples', 'RMSE (°)', 'MAE (°)', 'peak |err| (°)', 'R²'] },
+  current_tracking:  { label: 'Motor current tracking · L vs R (whole trial)',
+                       cols: ['side', 'n samples', 'RMSE (A)', 'MAE (A)', 'peak |err| (A)', 'R²'] },
+  feedforward:       { label: 'Feedforward channels · whole-trial summary',
+                       cols: ['channel', 'mean ± SD', 'min', 'max', 'unit'] },
 };

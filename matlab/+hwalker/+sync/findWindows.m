@@ -60,19 +60,23 @@ function cycles = findWindows(T, minDuration_s)
     if numel(falling) < 2, return; end
 
     % Build cycle list
+    % Spec: "falling edge 후 rising edge 부터 다시 falling edge 까지가 1 sync"
+    % → t_start = first high sample after falling(i), t_end = t(falling(i+1))
     n = numel(falling) - 1;
     buf = zeros(n, 2);
     k = 0;
     for i = 1:n
         s = falling(i);
         e = falling(i + 1);
-        % Require at least one rising edge (high sample) between s and e-1
-        if any(high(s:e-1))
-            dur = t(e) - t(s);
-            if dur >= minDuration_s
-                k = k + 1;
-                buf(k, :) = [t(s), t(e)];
-            end
+        % Find the first rising edge (first high sample) in [s, e-1]
+        riseSearch = find(high(s:e-1), 1, 'first');
+        if isempty(riseSearch), continue; end  % no rising edge → skip
+        riseIdx = s + riseSearch - 1;
+        t_start = t(riseIdx);
+        dur = t(e) - t_start;
+        if dur >= minDuration_s
+            k = k + 1;
+            buf(k, :) = [t_start, t(e)];
         end
     end
     cycles = buf(1:k, :);

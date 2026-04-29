@@ -107,5 +107,41 @@ classdef IOTest < matlab.unittest.TestCase
             tc.verifyLessThan(fi, 0);
         end
 
+        % ---------- pairedTest ----------
+
+        function testPairedTest_Identical(tc)
+            a = (1:20)';
+            r = hwalker.stats.pairedTest(a, a);
+            tc.verifyEqual(r.diff_mean, 0.0, 'AbsTol', 1e-10);
+            tc.verifyEqual(r.cohens_d,  0.0, 'AbsTol', 1e-10);
+        end
+
+        function testPairedTest_KnownDiff(tc)
+            % b = a + 2 → diff_mean = 2, d = 2/0 = Inf handled → just check mean
+            a = ones(20, 1);
+            b = ones(20, 1) * 3;
+            r = hwalker.stats.pairedTest(a, b);
+            tc.verifyEqual(r.diff_mean, 2.0, 'AbsTol', 1e-10);
+            tc.verifyEqual(r.n, 20);
+        end
+
+        function testPairedTest_NaNDropped(tc)
+            a = [1; 2; NaN; 4];
+            b = [2; 3; 4;   5];
+            r = hwalker.stats.pairedTest(a, b);
+            tc.verifyEqual(r.n, 3);   % NaN pair dropped
+        end
+
+        % ---------- effectSize ----------
+
+        function testEffectSize_SameGroups(tc)
+            a = randn(30,1);
+            tc.verifyEqual(hwalker.stats.effectSize(a, a), 0.0, 'AbsTol', 1e-10);
+        end
+
+        function testEffectSize_TooFew(tc)
+            tc.verifyTrue(isnan(hwalker.stats.effectSize(1, 2)));
+        end
+
     end
 end

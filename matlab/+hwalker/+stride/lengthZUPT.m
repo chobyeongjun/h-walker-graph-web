@@ -41,12 +41,13 @@ function lengths = lengthZUPT(T, side, hsIdx, validMask, fs)
     vyC = zeros(n, 1);
     ox = 0; oy = 0;
     for j = 1:n
-        vxC(j) = vx(j) - ox;
-        vyC(j) = vy(j) - oy;
+        % Update offset FIRST so corrected velocity = 0 during ZUPT (foot flat)
         if isZUPT(j)
             ox = vx(j);
             oy = vy(j);
         end
+        vxC(j) = vx(j) - ox;
+        vyC(j) = vy(j) - oy;
     end
 
     % Integrate corrected velocity → position

@@ -54,6 +54,7 @@ function result = trackingError(T, side, hsIdx, validMask)
         result.mae       = mean(abs(allErrors));
         result.peakError = max(abs(allErrors));
     end
-    result.rmsePerStride = rmseList(~isnan(rmseList));
-    result.maePerStride  = maeList(~isnan(maeList));
+    % Keep NaN-aligned arrays (length = nStrides, NaN for skipped strides)
+    result.rmsePerStride = rmseList;
+    result.maePerStride  = maeList;
 end

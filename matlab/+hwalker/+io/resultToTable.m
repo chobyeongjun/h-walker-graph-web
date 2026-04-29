@@ -18,11 +18,13 @@ function T = resultToTable(result)
         sr = result.(sf);
         if sr.nStrides == 0, continue; end
 
+        % strideTimes is NaN-aligned (length = nStrides_raw); only export valid rows
         n = numel(sr.strideTimes);
         for i = 1:n
+            if ~sr.validMask(i), continue; end
             row.filename      = result.filename;
             row.side          = slb;
-            row.strideIdx     = i;
+            row.strideIdx     = i;   % raw index (preserves original stride numbering)
             row.strideTimeS   = sr.strideTimes(i);
 
             if isfield(sr,'strideLengths') && i <= numel(sr.strideLengths)

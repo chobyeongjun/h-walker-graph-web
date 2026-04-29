@@ -7,7 +7,8 @@ function Tw = extractWindow(T, t_start, t_end)
 % All time columns in the sliced table are rebased so t_start → 0.
 
     t    = hwalker.io.timeAxis(T);
-    mask = t >= t_start & t <= t_end;
+    % Half-open interval: include t_start, exclude t_end (prevents overlap between cycles)
+    mask = t >= t_start & t < t_end;
     Tw   = T(mask, :);
 
     if isempty(Tw), return; end

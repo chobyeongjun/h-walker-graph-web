@@ -81,8 +81,8 @@ matlab/
 │   │   ├── parseFilename.m     9-token 파싱 (source/subject/cond/trial)
 │   │   └── resultToTable.m     결과 struct → per-stride table
 │   ├── +sync/
-│   │   ├── findWindows.m       sync 사이클 검출 [t_start, t_end]
-│   │   └── extractWindow.m     시간 구간 슬라이싱 + rebase
+│   │   ├── findWindows.m       sync 사이클 검출 [t_rising, t_next_falling]
+│   │   └── extractWindow.m     시간 구간 슬라이싱 [t_start, t_end) + rebase
 │   ├── +stride/
 │   │   ├── detectHS.m          GCP rising edge (primary) / Event fallback
 │   │   ├── filterIQR.m         IQR 이상치 필터 [0.3s, 5.0s]
@@ -94,17 +94,24 @@ matlab/
 │   │   └── normalizedProfile.m 101포인트 GCP-정규화 force profile
 │   ├── +stats/
 │   │   ├── symmetryIndex.m     |L-R| / mean(L,R) × 100
-│   │   └── fatigueIndex.m      first 10% vs last 10% % change
+│   │   ├── fatigueIndex.m      first 10% vs last 10% % change
+│   │   ├── pairedTest.m     ★ paired t-test + Wilcoxon + Cohen's d
+│   │   ├── effectSize.m     ★ independent-samples Cohen's d
+│   │   ├── normalityTest.m  ★ Lilliefors normality test
+│   │   └── summaryTable.m   ★ mean±SD, CI, CV 요약 table 생성
 │   └── +plot/
 │       ├── journalPreset.m     IEEE/Nature/APA/Elsevier/MDPI/JNER 스펙
 │       ├── applyPreset.m       figure 크기/폰트/선굵기 적용
 │       ├── exportFigure.m      exportgraphics 래퍼 (PDF/PNG/TIFF/EPS)
 │       ├── forceTracking.m     Des vs Act + ±1SD envelope
-│       └── strideTrend.m       stride-by-stride 추이 + mean line
+│       ├── strideTrend.m       stride-by-stride 추이 + mean line
+│       ├── metricBar.m      ★ 조건 비교 grouped bar + 오차막대
+│       ├── metricBox.m      ★ 조건 비교 boxplot/boxchart
+│       └── multiConditionForce.m ★ 여러 조건 force profile 중첩
 └── tests/
     ├── runAllTests.m        ← `runAllTests()` 한 줄로 전체 실행
     ├── SyncTest.m           sync 검출 7개 회귀
-    ├── IOTest.m             IO + stats 14개 회귀
+    ├── IOTest.m             IO + stats 20개 회귀
     ├── StrideTest.m         stride 검출/ZUPT/stance 10개 회귀
     └── ForceTest.m          force tracking/profile 7개 회귀
 ```
@@ -124,12 +131,81 @@ matlab/
 
 ---
 
+---
+
+## 논문 작성 워크플로우
+
+### Figure → 함수 매핑
+
+| 논문 Figure 유형 | 호출 함수 | 출력 |
+|---|---|---|
+| Force tracking (Des vs Act + ±SD) | `plot.forceTracking` | Figure |
+| Stride-by-stride 추이 | `plot.strideTrend` | Figure |
+| 조건 비교 bar chart | `plot.metricBar` | Figure |
+| 조건 비교 boxplot | `plot.metricBox` | Figure |
+| 다중 조건 force profile 중첩 | `plot.multiConditionForce` | Figure |
+| 대칭성 지수 요약 | `stats.summaryTable` | Table |
+| 피로 지수 요약 | `stats.summaryTable` | Table |
+| paired t-test / Wilcoxon | `stats.pairedTest` | 구조체 |
+| Cohen's d (효과 크기) | `stats.effectSize` | scalar |
+| 정규성 검정 | `stats.normalityTest` | 구조체 |
+
+### 최소 논문 분석 예시
+
+```matlab
+addpath('/path/to/h-walker-graph-web/matlab');
+
+% 1) 두 조건 분석 (폴더별)
+preR  = hwalker.analyzeFile('Robot_S01_slow_T01.csv');
+postR = hwalker.analyzeFile('Robot_S01_fast_T01.csv');
+
+% 2) 정규성 검정
+hwalker.stats.normalityTest(preR.left.strideTimes(isfinite(preR.left.strideTimes)))
+
+% 3) 대응 비교 (stride time: slow vs fast)
+r = hwalker.stats.pairedTest( ...
+    preR.left.strideTimes(isfinite(preR.left.strideTimes)), ...
+    postR.left.strideTimes(isfinite(postR.left.strideTimes)));
+fprintf('p=%.3f, d=%.2f\n', r.p_ttest, r.cohens_d);
+
+% 4) Figure 2: force tracking
+preset = hwalker.plot.journalPreset('IEEE');
+fig2 = hwalker.plot.forceTracking( ...
+    hwalker.io.loadCSV(preR.filepath), 'L', ...
+    preR.left.hsIndices, preR.left.validMask, preset, 2);
+hwalker.plot.exportFigure(fig2, 'Fig2_force.pdf', preset);
+
+% 5) Figure 3: stride time bar (slow vs fast, L vs R)
+preMeans  = [preR.left.strideTimeMean,  preR.right.strideTimeMean];
+postMeans = [postR.left.strideTimeMean, postR.right.strideTimeMean];
+preStds   = [preR.left.strideTimeStd,   preR.right.strideTimeStd];
+postStds  = [postR.left.strideTimeStd,  postR.right.strideTimeStd];
+fig3 = hwalker.plot.metricBar( ...
+    [preMeans; postMeans], [preStds; postStds], ...
+    {'Slow','Fast'}, {'L','R'}, 'Stride Time (s)', preset, 3);
+hwalker.plot.exportFigure(fig3, 'Fig3_stride_bar.pdf', preset);
+
+% 6) Figure 4: boxplot 비교
+fig4 = hwalker.plot.metricBox( ...
+    {preR.left.strideTimes(isfinite(preR.left.strideTimes)), ...
+     postR.left.strideTimes(isfinite(postR.left.strideTimes))}, ...
+    {'Slow','Fast'}, 'Stride Time (s)', preset, 4);
+hwalker.plot.exportFigure(fig4, 'Fig4_stride_box.pdf', preset);
+
+% 7) Figure 5: 다중 조건 force profile 중첩
+fig5 = hwalker.plot.multiConditionForce( ...
+    {preR.leftProfile, postR.leftProfile}, {'Slow','Fast'}, 'L', preset, 5);
+hwalker.plot.exportFigure(fig5, 'Fig5_force_conditions.pdf', preset);
+```
+
+---
+
 ## 테스트 실행
 
 ```matlab
 addpath('matlab');
 runAllTests()
-% === 38/38 passed ===
+% === 44/44 passed ===
 ```
 
 ---

@@ -58,17 +58,22 @@ function result = analyzeFile(filepath)
 
         % --- Stride times ---
         strideTimes_raw = double(diff(hsIdx)) / fs;
-        [strideTimes, validMask] = hwalker.stride.filterIQR(strideTimes_raw);
+        [strideTimes_valid, validMask] = hwalker.stride.filterIQR(strideTimes_raw);
 
-        sr.nStrides       = numel(strideTimes);
+        % NaN-aligned stride times: same length as strideTimes_raw so all
+        % per-stride arrays (stancePct, strideLengths, forceRMSE) share index i.
+        strideTimes_aligned = nan(numel(strideTimes_raw), 1);
+        strideTimes_aligned(validMask) = strideTimes_valid;
+
+        sr.nStrides       = numel(strideTimes_valid);   % valid stride count
         sr.strideTimesRaw = strideTimes_raw;
-        sr.strideTimes    = strideTimes;
+        sr.strideTimes    = strideTimes_aligned;         % NaN-aligned
         sr.hsIndices      = hsIdx;
         sr.validMask      = validMask;
 
-        if ~isempty(strideTimes)
-            sr.strideTimeMean = mean(strideTimes);
-            sr.strideTimeStd  = std(strideTimes);
+        if ~isempty(strideTimes_valid)
+            sr.strideTimeMean = mean(strideTimes_valid);
+            sr.strideTimeStd  = std(strideTimes_valid);
             sr.strideTimeCV   = sr.strideTimeStd / sr.strideTimeMean * 100;
             % cadence [steps/min]: one stride = 2 steps (L + R)
             % cadence = 60/T * 2  — do NOT drop the *2
@@ -135,17 +140,11 @@ function result = analyzeFile(filepath)
         result.forceSymmetry = -1;
     end
 
-    % --- Fatigue ---
-    if numel(l.strideTimes) >= 10
-        result.leftFatigue  = hwalker.stats.fatigueIndex(l.strideTimes);
-    else
-        result.leftFatigue  = 0;
-    end
-    if numel(r.strideTimes) >= 10
-        result.rightFatigue = hwalker.stats.fatigueIndex(r.strideTimes);
-    else
-        result.rightFatigue = 0;
-    end
+    % --- Fatigue (strip NaN from aligned arrays before computing) ---
+    lTimes = l.strideTimes(isfinite(l.strideTimes));
+    rTimes = r.strideTimes(isfinite(r.strideTimes));
+    result.leftFatigue  = hwalker.stats.fatigueIndex(lTimes);
+    result.rightFatigue = hwalker.stats.fatigueIndex(rTimes);
 end
 
 

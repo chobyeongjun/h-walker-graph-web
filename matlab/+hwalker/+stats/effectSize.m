@@ -22,7 +22,7 @@ function d = effectSize(a, b)
     % Pooled SD
     sp = sqrt(((nA - 1)*sA^2 + (nB - 1)*sB^2) / (nA + nB - 2));
     if sp < 1e-12
-        d = 0;
+        d = NaN;  % groups identical → effect size undefined, not zero
         return
     end
 

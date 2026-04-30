@@ -33,11 +33,11 @@ function fig = metricBar(means, stds, groupLabels, seriesLabels, metricName, pre
     ax = axes(fig);
     b  = bar(ax, means, 'grouped');
 
-    % Apply series colors from preset
+    % Apply series colors from preset (colors is Nx3 matrix, not cell)
     nSeries = size(means, 2);
     colors  = preset.colors;
-    for si = 1:min(nSeries, numel(colors))
-        b(si).FaceColor = colors{si};
+    for si = 1:min(nSeries, size(colors, 1))
+        b(si).FaceColor = colors(si, :);
         b(si).EdgeColor = 'none';
     end
 
@@ -68,5 +68,5 @@ function fig = metricBar(means, stds, groupLabels, seriesLabels, metricName, pre
             'FontName', preset.font, 'FontSize', preset.bodyPt - 1);
     end
 
-    hwalker.plot.applyPreset(fig, preset);
+    hwalker.plot.applyPreset(fig, ax, preset);
 end

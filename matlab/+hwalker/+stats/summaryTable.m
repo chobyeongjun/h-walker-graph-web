@@ -63,10 +63,10 @@ function T = summaryTable(results, field, varargin)
         cv = s / abs(m) * 100;
     end
 
-    % Confidence interval (t-distribution)
+    % Confidence interval (t-distribution): use ci level directly
     ci_lo = NaN;  ci_hi = NaN;
     if nv >= 2 && exist('tinv', 'file')
-        t_crit = tinv(1 - alpha/2, nv - 1);
+        t_crit = tinv((1 + ci) / 2, nv - 1);  % ci=0.95 → tinv(0.975, df)
         se     = s / sqrt(nv);
         ci_lo  = m - t_crit * se;
         ci_hi  = m + t_crit * se;

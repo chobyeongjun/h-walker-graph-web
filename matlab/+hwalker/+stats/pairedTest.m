@@ -50,9 +50,9 @@ function result = pairedTest(a, b)
         result.cohens_d = 0;
     end
 
-    % Paired t-test
+    % Paired t-test: ttest(b, a) tests b-a, consistent with diff_mean = mean(b-a)
     if exist('ttest', 'file') || exist('ttest', 'builtin')
-        [h, p, ~, stats] = ttest(a, b);
+        [h, p, ~, stats] = ttest(b, a);
         result.h_ttest = h;
         result.p_ttest = p;
         if isstruct(stats) && isfield(stats, 'tstat')
@@ -60,9 +60,9 @@ function result = pairedTest(a, b)
         end
     end
 
-    % Wilcoxon signed-rank test
+    % Wilcoxon signed-rank test: signrank(b, a) tests b-a
     if exist('signrank', 'file') || exist('signrank', 'builtin')
-        [p, h] = signrank(a, b);
+        [p, h] = signrank(b, a);
         result.p_wilcoxon = p;
         result.h_wilcoxon = h;
     end

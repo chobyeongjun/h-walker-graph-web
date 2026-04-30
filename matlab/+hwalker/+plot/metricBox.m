@@ -38,10 +38,11 @@ function fig = metricBox(data, labels, metricName, preset, figNum)
     end
 
     % Use boxchart (R2020b+) with fallback to boxplot
+    % colors is Nx3 matrix — use row indexing, not cell {}
     if exist('boxchart', 'file') || exist('boxchart', 'builtin')
         bc = boxchart(ax, grpIdx, allVals);
-        bc.BoxFaceColor  = colors{1};
-        bc.MarkerColor   = colors{1};
+        bc.BoxFaceColor  = colors(1, :);
+        bc.MarkerColor   = colors(1, :);
         bc.LineWidth     = preset.strokePt;
         ax.XTick      = 1:nGroups;
         ax.XTickLabel = labels;
@@ -52,5 +53,5 @@ function fig = metricBox(data, labels, metricName, preset, figNum)
 
     ylabel(ax, metricName, 'FontName', preset.font, 'FontSize', preset.bodyPt);
 
-    hwalker.plot.applyPreset(fig, preset);
+    hwalker.plot.applyPreset(fig, ax, preset);
 end

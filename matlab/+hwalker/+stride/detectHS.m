@@ -37,6 +37,10 @@ function hsIdx = detectHS(T, side, fs)
                 active = gcp > 0.01;
                 d      = diff(int8(active));
                 rising = find(d == 1) + 1;  % 1-based: first active sample
+                % If recording starts mid-stance, prepend index 1 as first HS
+                if active(1)
+                    rising = [1; rising(:)];
+                end
 
                 % Refractory: drop a start within 0.3 s of the previous one
                 if numel(rising) > 1

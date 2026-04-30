@@ -21,24 +21,26 @@ function fig = multiConditionForce(profiles, condLabels, side, preset, figNum)
 
     if nargin < 5, figNum = 1; end
 
-    x = linspace(0, 100, 101);  % GCP-normalized 0–100%
-
     fig = figure(figNum);
     clf(fig);
     ax = axes(fig);
     hold(ax, 'on');
 
+    % colors is Nx3 matrix — use row indexing
     colors = preset.colors;
     nCond  = numel(profiles);
 
     for ci = 1:nCond
         fp  = profiles{ci};
-        clr = colors{mod(ci-1, numel(colors)) + 1};
+        clr = colors(mod(ci-1, size(colors, 1)) + 1, :);
 
         if isempty(fp.act.mean), continue; end
 
         m = fp.act.mean(:)';
         s = fp.act.std(:)';
+
+        % x-axis derived from actual profile length (not hardcoded 101)
+        x = linspace(0, 100, numel(m));
 
         % ±1 SD shaded envelope
         patch(ax, [x, fliplr(x)], [m+s, fliplr(m-s)], clr, ...
@@ -57,5 +59,5 @@ function fig = multiConditionForce(profiles, condLabels, side, preset, figNum)
         'FontName', preset.font, 'FontSize', preset.bodyPt);
     legend(ax, 'Location', 'best', 'FontName', preset.font, 'FontSize', preset.bodyPt - 1);
 
-    hwalker.plot.applyPreset(fig, preset);
+    hwalker.plot.applyPreset(fig, ax, preset);
 end

@@ -61,8 +61,16 @@ function lengths = lengthZUPT(T, side, hsIdx, validMask, fs)
         s = double(hsIdx(i));
         e = double(hsIdx(i + 1));
         if e - s < 10, continue; end
-        dx = px(e) - px(s);
-        dy = py(e) - py(s);
+        % Stride covers samples s:e-1; cumsum offset: px(k)=sum(v(1:k))*dt
+        % so sum(v(s:e-1))*dt = px(e-1) - px(s-1)
+        s1 = max(s - 1, 0);
+        if s1 == 0
+            dx = px(e - 1);
+            dy = py(e - 1);
+        else
+            dx = px(e - 1) - px(s1);
+            dy = py(e - 1) - py(s1);
+        end
         lengths(i) = sqrt(dx^2 + dy^2);
     end
 

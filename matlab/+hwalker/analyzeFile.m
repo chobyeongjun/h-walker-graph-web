@@ -2,6 +2,10 @@ function result = analyzeFile(filepath)
 % hwalker.analyzeFile  Full analysis pipeline for one H-Walker CSV.
 %
 %   result = hwalker.analyzeFile('/path/to/20260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
+%   result = hwalker.analyzeFile(T)   % T = table from loadCSV or extractWindow
+%
+% Accepts a file path string OR a pre-loaded/pre-sliced table.
+% Use the table form after hwalker.sync.extractWindow to analyze per-sync windows.
 %
 % Computes per-side:
 %   stride times, GCP-based heel strikes, ZUPT stride lengths,
@@ -22,16 +26,22 @@ function result = analyzeFile(filepath)
 %   stancePct, swingPct, stancePctMean, stancePctStd, swingPctMean, swingPctStd
 %   strideLengths, strideLengthMean, strideLengthStd
 
-    T  = hwalker.io.loadCSV(filepath);
-    fs = hwalker.io.estimateSampleRate(T);
-    if fs <= 0
-        error('hwalker:badSampleRate', ...
-            'Cannot estimate sample rate for: %s', filepath);
+    % Accept filepath string OR pre-loaded table (e.g. from extractWindow)
+    if istable(filepath)
+        T = filepath;
+        result.filename = '';
+        result.filepath = '';
+    else
+        T = hwalker.io.loadCSV(filepath);
+        [~, fname, ext] = fileparts(filepath);
+        result.filename = [fname ext];
+        result.filepath = filepath;
     end
 
-    [~, fname, ext] = fileparts(filepath);
-    result.filename   = [fname ext];
-    result.filepath   = filepath;
+    fs = hwalker.io.estimateSampleRate(T);
+    if fs <= 0
+        error('hwalker:badSampleRate', 'Cannot estimate sample rate.');
+    end
     result.nSamples   = height(T);
     result.durationS  = height(T) / fs;
     result.sampleRate = fs;

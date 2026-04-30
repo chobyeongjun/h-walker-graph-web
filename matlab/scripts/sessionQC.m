@@ -2,7 +2,7 @@ function sessionQC(folderOrFile, varargin)
 % sessionQC  End-of-session data quality check.
 %
 %   sessionQC('/path/to/session/folder')
-%   sessionQC('/path/to/20260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
+%   sessionQC('/path/to/260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
 %   sessionQC(folder, 'syncIdx', 1)      % check specific sync window only
 %   sessionQC(folder, 'save', true)      % save PNG to folder
 %

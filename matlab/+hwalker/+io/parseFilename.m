@@ -4,17 +4,17 @@ function info = parseFilename(filename)
 % Canonical formats:
 %
 %   Treadmill:
-%     20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv
-%     → date=20260430, source=Robot, subject=CBJ,
+%     260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv
+%     → date=260430, source=Robot, subject=CBJ,
 %       modality=TD, incline=level, speed=3.0,
 %       device=walker, attachment=high, angle=30
 %
 %   Overground:
-%     20260430_Robot_CBJ_OG_walker_low_0.csv
+%     260430_Robot_CBJ_OG_walker_low_0.csv
 %     → modality=OG, device=walker, attachment=low, angle=0
 %
 % Result struct fields:
-%   .date        'YYYYMMDD' string  ('' if absent)
+%   .date        'YYMMDD' string  ('' if absent)
 %   .source      'Robot' / 'Loadcell' / 'Motion'
 %   .subject     e.g. 'CBJ'
 %   .modality    'TD' (treadmill) | 'OG' (overground) | ''
@@ -46,8 +46,8 @@ function info = parseFilename(filename)
 
     idx = 1;
 
-    % --- Date token: 8-digit YYYYMMDD ---
-    if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d{8}$', 'once'))
+    % --- Date token: 6-digit YYMMDD ---
+    if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d{6}$', 'once'))
         info.date = parts{idx};
         idx = idx + 1;
     end

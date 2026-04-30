@@ -1,7 +1,7 @@
 function results = analyzeFile(filepath_or_table, varargin)
 % hwalker.analyzeFile  Full analysis pipeline for one H-Walker CSV.
 %
-%   results = hwalker.analyzeFile('/path/to/20260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
+%   results = hwalker.analyzeFile('/path/to/260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
 %   results = hwalker.analyzeFile(T)                      % pre-loaded table
 %   results = hwalker.analyzeFile(T, 'label','sync1_run') % table + custom label
 %

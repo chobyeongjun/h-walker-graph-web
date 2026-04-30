@@ -35,8 +35,8 @@ classdef IOTest < matlab.unittest.TestCase
 
         function testParse_Walker(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
-            tc.verifyEqual(info.date,          '20260430');
+                '260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
+            tc.verifyEqual(info.date,          '260430');
             tc.verifyEqual(info.modality,      'TD');
             tc.verifyEqual(info.speed,         3.0, 'AbsTol', 1e-9);
             tc.verifyEqual(info.device,        'walker');
@@ -47,7 +47,7 @@ classdef IOTest < matlab.unittest.TestCase
 
         function testParse_NoassistWB(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_TD_level_3_0_noassist_wb.csv');
+                '260430_Robot_CBJ_TD_level_3_0_noassist_wb.csv');
             tc.verifyEqual(info.device,        'noassist');
             tc.verifyEqual(info.weightbearing, 'wb');
             tc.verifyEmpty(info.attachment);
@@ -56,7 +56,7 @@ classdef IOTest < matlab.unittest.TestCase
 
         function testParse_NoassistNWB(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_OG_noassist_nwb.csv');
+                '260430_Robot_CBJ_OG_noassist_nwb.csv');
             tc.verifyEqual(info.modality,      'OG');
             tc.verifyEqual(info.device,        'noassist');
             tc.verifyEqual(info.weightbearing, 'nwb');
@@ -65,7 +65,7 @@ classdef IOTest < matlab.unittest.TestCase
         function testParse_AllAttachments(tc)
             for att = {'high','middle','low'}
                 for ang = {0, 30}
-                    fname = sprintf('20260430_Robot_CBJ_TD_level_3_0_walker_%s_%d.csv', att{1}, ang{1});
+                    fname = sprintf('260430_Robot_CBJ_TD_level_3_0_walker_%s_%d.csv', att{1}, ang{1});
                     info  = hwalker.io.parseFilename(fname);
                     tc.verifyEqual(info.attachment, att{1});
                     tc.verifyEqual(info.angle, ang{1});
@@ -76,20 +76,20 @@ classdef IOTest < matlab.unittest.TestCase
         function testParse_InvalidAngleIgnored(tc)
             % angle 45 is not a valid condition → angle stays NaN
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_TD_level_3_0_walker_high_45.csv');
+                '260430_Robot_CBJ_TD_level_3_0_walker_high_45.csv');
             tc.verifyTrue(isnan(info.angle));
         end
 
         function testParse_TrialPresent(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_TD_level_3_0_walker_high_30_T02.csv');
+                '260430_Robot_CBJ_TD_level_3_0_walker_high_30_T02.csv');
             tc.verifyEqual(info.trial, 2);
             tc.verifyEqual(info.attachment, 'high');
         end
 
         function testParse_TrialAbsent(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
+                '260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
             tc.verifyTrue(isnan(info.trial));
         end
 

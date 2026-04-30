@@ -1,7 +1,7 @@
 function T = loadCSV(filepath)
 % hwalker.io.loadCSV  Load an H-Walker firmware CSV into a table.
 %
-%   T = hwalker.io.loadCSV('/path/to/20260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
+%   T = hwalker.io.loadCSV('/path/to/260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
 %
 % Handles:
 %   - UTF-8 BOM (readtable auto-strips in R2020b+)

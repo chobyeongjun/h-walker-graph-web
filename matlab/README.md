@@ -1,231 +1,107 @@
 # H-Walker MATLAB Toolbox
 
-H-Walker 실험 CSV → 보행 지표 분석 → 저널 Figure Export 원툴 패키지.
+H-Walker 로봇 실험 CSV → 보행 지표 분석 → 저널 Figure 출력.
 
-## 설치 (한 번만)
+---
 
-```matlab
-addpath('/path/to/h-walker-graph-web/matlab');
+## 설치
+
+**1. 이 폴더를 받는다**
+
+```
+git clone https://github.com/arlab-hwalker/h-walker-graph-web
 ```
 
-또는 MATLAB 시작 시 자동 실행되도록 `startup.m`에 추가.
+또는 `matlab/` 폴더만 복사해도 됩니다.
+
+**2. MATLAB에서 install.m 실행 (한 번만)**
+
+```matlab
+cd /path/to/matlab
+install
+```
+
+startup.m에 경로를 자동 추가합니다. MATLAB 재시작 후 영구 적용됩니다.
+
+**필요 툴박스**: Statistics and Machine Learning Toolbox
 
 ---
 
 ## 빠른 시작
 
-### 1. 폴더 하나로 전체 분석
-
 ```matlab
-% UI에서 데이터 폴더 선택 → Robot-type CSV 자동 발견 → 분석 → 저장
-results = hwalker.analyzeFolder();
+% 분석
+results = hwalker.analyzeFile('260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv');
 
-% 또는 경로 직접 지정
-results = hwalker.analyzeFolder('/data/Pilot03');
+% 기본 지표 확인
+results(1).right.nStrides        % 오른쪽 stride 수
+results(1).right.strideTimeMean  % 평균 stride time (s)
+results(1).right.cadence         % cadence (steps/min)
+results(1).rightForce.rmse       % force tracking RMSE (N)
+results(1).strideTimeSymmetry    % 좌우 대칭 지수 (%)
+
+% Force profile 시각화
+hwalker.plot.forceQC(results(1), 'R')
+
+% 논문 Figure 저장
+preset = hwalker.plot.journalPreset('JNER');
+fig = hwalker.plot.forceQC(results(1), 'R', 'JNER');
+hwalker.plot.exportFigure(fig, 'Fig1_force.pdf', preset);
 ```
 
-출력: `<folder>/analysis_output/` 에 `*_strides.csv` + `*_result.mat`
-
-### 2. 단일 파일 분석
-
-```matlab
-r = hwalker.analyzeFile('/data/Robot_S01_walk_T01.csv');
-
-r.left.nStrides          % 왼쪽 보행 수
-r.left.strideTimeMean    % 평균 보행 주기 (s)
-r.left.cadence           % 케이던스 (steps/min)
-r.left.stancePctMean     % 평균 stance % (GCP 기반)
-r.leftForce.rmse         % force tracking RMSE (N)
-r.strideTimeSymmetry     % 좌우 비대칭 지수 (%)
-```
-
-### 3. 저널 Figure 생성 + 저장
-
-```matlab
-T      = hwalker.io.loadCSV(r.filepath);
-preset = hwalker.plot.journalPreset('IEEE');    % IEEE 1열: 88.9mm, 600dpi
-
-% Force tracking figure
-fig = hwalker.plot.forceTracking(T, 'L', ...
-    r.left.hsIndices, r.left.validMask, preset, 1);
-hwalker.plot.exportFigure(fig, 'Fig1_force.pdf', preset);  % vector PDF
-
-% Stride trend figure (PNG, Nature 2열)
-preset2 = hwalker.plot.journalPreset('Nature');
-fig2 = hwalker.plot.strideTrend(r, 'strideTime', preset2, 2);
-hwalker.plot.exportFigure(fig2, 'Fig2_trend.png', preset2);
-```
-
-### 4. Sync window 추출 (per-sync inspector)
-
-```matlab
-cycles = hwalker.sync.findWindows(T);       % Nx2 [t_start, t_end] seconds
-Tw1    = hwalker.sync.extractWindow(T, cycles(1,1), cycles(1,2));
-% Tw1 = sync #1 구간만 잘라낸 table, 시간축 0부터 rebase됨
-```
+Sync 신호가 있는 파일은 자동으로 sync 구간마다 분석합니다.  
+결과가 여러 개면 `results(1)`, `results(2)` ... 로 접근합니다.
 
 ---
 
-## 패키지 구조
+## CSV 컬럼 규칙
 
-```
-matlab/
-├── +hwalker/
-│   ├── analyzeFolder.m      ← 진입점: 폴더 → 전체 분석
-│   ├── analyzeFile.m        ← 단일 파일 분석
-│   ├── +io/
-│   │   ├── loadCSV.m           BOM/중복헤더/units행 자동 처리
-│   │   ├── timeAxis.m          초 단위 시간축 반환
-│   │   ├── estimateSampleRate.m Time_ms→Hz, fallback 111Hz
-│   │   ├── detectSourceKind.m  Robot/Loadcell/Motion/Unknown
-│   │   ├── parseFilename.m     9-token 파싱 (source/subject/cond/trial)
-│   │   └── resultToTable.m     결과 struct → per-stride table
-│   ├── +sync/
-│   │   ├── findWindows.m       sync 사이클 검출 [t_rising, t_next_falling]
-│   │   └── extractWindow.m     시간 구간 슬라이싱 [t_start, t_end) + rebase
-│   ├── +stride/
-│   │   ├── detectHS.m          GCP rising edge (primary) / Event fallback
-│   │   ├── filterIQR.m         IQR 이상치 필터 [0.3s, 5.0s]
-│   │   ├── detectZUPT.m        자이로 크기 < 50 deg/s → ZUPT mask
-│   │   ├── lengthZUPT.m        ZUPT 속도 적분 → 보폭 (m)
-│   │   └── stanceSwing.m       GCP active fraction → stance/swing %
-│   ├── +force/
-│   │   ├── trackingError.m     Des vs Act → RMSE/MAE/peak per stride
-│   │   └── normalizedProfile.m 101포인트 GCP-정규화 force profile
-│   ├── +stats/
-│   │   ├── symmetryIndex.m     |L-R| / mean(L,R) × 100
-│   │   ├── fatigueIndex.m      first 10% vs last 10% % change
-│   │   ├── pairedTest.m     ★ paired t-test + Wilcoxon + Cohen's d
-│   │   ├── effectSize.m     ★ independent-samples Cohen's d
-│   │   ├── normalityTest.m  ★ Lilliefors normality test
-│   │   └── summaryTable.m   ★ mean±SD, CI, CV 요약 table 생성
-│   └── +plot/
-│       ├── journalPreset.m     IEEE/Nature/APA/Elsevier/MDPI/JNER 스펙
-│       ├── applyPreset.m       figure 크기/폰트/선굵기 적용
-│       ├── exportFigure.m      exportgraphics 래퍼 (PDF/PNG/TIFF/EPS)
-│       ├── forceTracking.m     Des vs Act + ±1SD envelope
-│       ├── strideTrend.m       stride-by-stride 추이 + mean line
-│       ├── metricBar.m      ★ 조건 비교 grouped bar + 오차막대
-│       ├── metricBox.m      ★ 조건 비교 boxplot/boxchart
-│       └── multiConditionForce.m ★ 여러 조건 force profile 중첩
-└── tests/
-    ├── runAllTests.m        ← `runAllTests()` 한 줄로 전체 실행
-    ├── SyncTest.m           sync 검출 7개 회귀
-    ├── IOTest.m             IO + stats 20개 회귀
-    ├── StrideTest.m         stride 검출/ZUPT/stance 10개 회귀
-    └── ForceTest.m          force tracking/profile 7개 회귀
-```
+H-Walker 펌웨어 출력 그대로 사용합니다.
+
+| 컬럼 | 내용 |
+|---|---|
+| `Time_ms` | 타임스탬프 (ms) |
+| `L_GCP` / `R_GCP` | 케이블 변위 (heel strike 검출용) |
+| `L_ActForce_N` / `R_ActForce_N` | 실제 케이블 장력 (N) |
+| `L_DesForce_N` / `R_DesForce_N` | 목표 케이블 장력 (N) |
+| `L_Ax` / `L_Ay` | Global Velocity X/Y (m/s) — ZUPT 보폭 계산용 |
+| `Sync` 또는 `A7` | 동기화 신호 (0/1) |
 
 ---
 
-## 저널 스펙 (검증 완료)
+## 주요 함수
 
-| 저널     | 1열 mm | 2열 mm | 폰트              | pt | 선굵기 | DPI  | 팔레트   |
-|----------|--------|--------|-------------------|----|--------|------|----------|
-| IEEE     | 88.9   | 181    | Times New Roman   | 8  | 1.0    | 600  | grayscale|
-| Nature   | 89     | 183    | Helvetica         | 7  | 0.5    | 300  | Wong     |
-| APA      | 85     | 174    | Arial             | 10 | 0.75   | 300  | grayscale|
-| Elsevier | 90     | 190    | Arial             | 8  | 0.5    | 300  | default  |
-| MDPI     | 85     | 170    | Palatino Linotype | 8  | 0.75   | 1000 | default  |
-| JNER     | 85     | 170    | Arial             | 8  | 0.75   | 300  | Wong     |
+| 함수 | 용도 |
+|---|---|
+| `hwalker.analyzeFile(path)` | 파일 분석, sync 자동 분할 |
+| `hwalker.plot.forceQC(result, side)` | Desired vs Actual force profile |
+| `hwalker.plot.forceTracking(T, side, hs, mask, preset)` | Force tracking figure |
+| `hwalker.plot.strideTrend(result, metric, preset)` | Stride-by-stride 추이 |
+| `hwalker.plot.metricBar(means, stds, conds, sides, label, preset)` | 조건 비교 bar |
+| `hwalker.plot.metricBox(data, conds, label, preset)` | 조건 비교 boxplot |
+| `hwalker.plot.exportFigure(fig, filename, preset)` | PDF/PNG/TIFF 저장 |
+| `hwalker.stats.pairedTest(a, b)` | paired t-test + Wilcoxon + Cohen's d |
+| `hwalker.stats.symmetryIndex(l, r)` | 좌우 대칭 지수 |
+| `hwalker.stats.fatigueIndex(times)` | 피로 지수 |
+| `hwalker.sync.findWindows(T)` | Sync 구간 검출 |
+
+저널 프리셋: `'IEEE'` `'Nature'` `'APA'` `'Elsevier'` `'MDPI'` `'JNER'`
 
 ---
 
----
-
-## 논문 작성 워크플로우
-
-### Figure → 함수 매핑
-
-| 논문 Figure 유형 | 호출 함수 | 출력 |
-|---|---|---|
-| Force tracking (Des vs Act + ±SD) | `plot.forceTracking` | Figure |
-| Stride-by-stride 추이 | `plot.strideTrend` | Figure |
-| 조건 비교 bar chart | `plot.metricBar` | Figure |
-| 조건 비교 boxplot | `plot.metricBox` | Figure |
-| 다중 조건 force profile 중첩 | `plot.multiConditionForce` | Figure |
-| 대칭성 지수 요약 | `stats.summaryTable` | Table |
-| 피로 지수 요약 | `stats.summaryTable` | Table |
-| paired t-test / Wilcoxon | `stats.pairedTest` | 구조체 |
-| Cohen's d (효과 크기) | `stats.effectSize` | scalar |
-| 정규성 검정 | `stats.normalityTest` | 구조체 |
-
-### 최소 논문 분석 예시
+## 테스트
 
 ```matlab
-addpath('/path/to/h-walker-graph-web/matlab');
-
-% 1) 두 조건 분석 (폴더별)
-preR  = hwalker.analyzeFile('Robot_S01_slow_T01.csv');
-postR = hwalker.analyzeFile('Robot_S01_fast_T01.csv');
-
-% 2) 정규성 검정
-hwalker.stats.normalityTest(preR.left.strideTimes(isfinite(preR.left.strideTimes)))
-
-% 3) 대응 비교 (stride time: slow vs fast)
-r = hwalker.stats.pairedTest( ...
-    preR.left.strideTimes(isfinite(preR.left.strideTimes)), ...
-    postR.left.strideTimes(isfinite(postR.left.strideTimes)));
-fprintf('p=%.3f, d=%.2f\n', r.p_ttest, r.cohens_d);
-
-% 4) Figure 2: force tracking
-preset = hwalker.plot.journalPreset('IEEE');
-fig2 = hwalker.plot.forceTracking( ...
-    hwalker.io.loadCSV(preR.filepath), 'L', ...
-    preR.left.hsIndices, preR.left.validMask, preset, 2);
-hwalker.plot.exportFigure(fig2, 'Fig2_force.pdf', preset);
-
-% 5) Figure 3: stride time bar (slow vs fast, L vs R)
-preMeans  = [preR.left.strideTimeMean,  preR.right.strideTimeMean];
-postMeans = [postR.left.strideTimeMean, postR.right.strideTimeMean];
-preStds   = [preR.left.strideTimeStd,   preR.right.strideTimeStd];
-postStds  = [postR.left.strideTimeStd,  postR.right.strideTimeStd];
-fig3 = hwalker.plot.metricBar( ...
-    [preMeans; postMeans], [preStds; postStds], ...
-    {'Slow','Fast'}, {'L','R'}, 'Stride Time (s)', preset, 3);
-hwalker.plot.exportFigure(fig3, 'Fig3_stride_bar.pdf', preset);
-
-% 6) Figure 4: boxplot 비교
-fig4 = hwalker.plot.metricBox( ...
-    {preR.left.strideTimes(isfinite(preR.left.strideTimes)), ...
-     postR.left.strideTimes(isfinite(postR.left.strideTimes))}, ...
-    {'Slow','Fast'}, 'Stride Time (s)', preset, 4);
-hwalker.plot.exportFigure(fig4, 'Fig4_stride_box.pdf', preset);
-
-% 7) Figure 5: 다중 조건 force profile 중첩
-fig5 = hwalker.plot.multiConditionForce( ...
-    {preR.leftProfile, postR.leftProfile}, {'Slow','Fast'}, 'L', preset, 5);
-hwalker.plot.exportFigure(fig5, 'Fig5_force_conditions.pdf', preset);
-```
-
----
-
-## 테스트 실행
-
-```matlab
-addpath('matlab');
-runAllTests()
+cd matlab
+runAllTests
 % === 44/44 passed ===
 ```
 
 ---
 
-## 알고리즘 노트
+## 알고리즘 요약
 
-### GCP 기반 Heel Strike 검출
-GCP 컬럼 sawtooth가 0→1+ 로 올라가는 순간(rising edge) = heel strike.
-`Event` 컬럼 fallback: median gap < 0.7 s (step signal) 이면 every-other edge만 취함.
-
-### ZUPT 속도 적분
-`L_Ax`/`L_Ay` = EBIMU soa5 Global Velocity (m/s) — 가속도 아님.  
-자이로 크기 < 50 deg/s 구간 = mid-stance (ZUPT).  
-offset 누적 방식 (hard-zero 아님): 마지막 ZUPT frame의 raw velocity를 offset으로 저장, 이후 모든 frame에서 뺌.
-
-### Cadence
-`cadence = 60 / strideTime * 2`  
-한 stride = 같은 쪽 발의 연속 heel strike 사이 = 2 steps (L + R).  
-`* 2` 빼면 값이 절반이 됨 — 절대 생략하지 말 것.
-
-### Sync 사이클
-"falling edge 후 rising edge 부터 다시 falling edge 까지가 1 sync."  
-`findWindows` 반환값: `[t_falling_i, t_falling_{i+1}]`.
+- **Heel strike**: GCP sawtooth rising edge
+- **Stride length**: ZUPT 속도 적분 (`L_Ax`/`L_Ay` = Global Velocity, 가속도 아님)
+- **Sync**: falling→rising→falling = 1 cycle, 50ms 디바운스 적용
+- **Cadence**: `60 / strideTime × 2` (1 stride = 2 steps)

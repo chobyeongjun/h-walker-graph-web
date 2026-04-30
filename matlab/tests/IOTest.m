@@ -33,35 +33,41 @@ classdef IOTest < matlab.unittest.TestCase
 
         % ---------- parseFilename ----------
 
-        function testParse_Treadmill_Full(tc)
+        function testParse_Walker(tc)
             info = hwalker.io.parseFilename( ...
                 '20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
-            tc.verifyEqual(info.date,       '20260430');
-            tc.verifyEqual(info.source,     'Robot');
-            tc.verifyEqual(info.subject,    'CBJ');
-            tc.verifyEqual(info.modality,   'TD');
-            tc.verifyEqual(info.incline,    'level');
-            tc.verifyEqual(info.speed,      3.0, 'AbsTol', 1e-9);
-            tc.verifyEqual(info.device,     'walker');
-            tc.verifyEqual(info.attachment, 'high');
-            tc.verifyEqual(info.angle,      30);
+            tc.verifyEqual(info.date,          '20260430');
+            tc.verifyEqual(info.modality,      'TD');
+            tc.verifyEqual(info.speed,         3.0, 'AbsTol', 1e-9);
+            tc.verifyEqual(info.device,        'walker');
+            tc.verifyEqual(info.attachment,    'high');
+            tc.verifyEqual(info.angle,         30);
+            tc.verifyEmpty(info.weightbearing);
         end
 
-        function testParse_Overground(tc)
+        function testParse_NoassistWB(tc)
             info = hwalker.io.parseFilename( ...
-                '20260430_Robot_CBJ_OG_walker_low_0.csv');
-            tc.verifyEqual(info.modality,   'OG');
-            tc.verifyEqual(info.attachment, 'low');
-            tc.verifyEqual(info.angle,      0);
-            tc.verifyTrue(isnan(info.speed));
+                '20260430_Robot_CBJ_TD_level_3_0_noassist_wb.csv');
+            tc.verifyEqual(info.device,        'noassist');
+            tc.verifyEqual(info.weightbearing, 'wb');
+            tc.verifyEmpty(info.attachment);
+            tc.verifyTrue(isnan(info.angle));
+        end
+
+        function testParse_NoassistNWB(tc)
+            info = hwalker.io.parseFilename( ...
+                '20260430_Robot_CBJ_OG_noassist_nwb.csv');
+            tc.verifyEqual(info.modality,      'OG');
+            tc.verifyEqual(info.device,        'noassist');
+            tc.verifyEqual(info.weightbearing, 'nwb');
         end
 
         function testParse_AllAttachments(tc)
             for att = {'high','middle','low'}
                 info = hwalker.io.parseFilename( ...
-                    ['20260430_Robot_CBJ_TD_level_3_0_walker_' att{1} '_30.csv']);
+                    ['20260430_Robot_CBJ_TD_level_3_0_walker_' att{1} '_0.csv']);
                 tc.verifyEqual(info.attachment, att{1});
-                tc.verifyEqual(info.angle, 30);
+                tc.verifyEqual(info.angle, 0);
             end
         end
 

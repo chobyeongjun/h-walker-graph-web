@@ -26,16 +26,17 @@ function info = parseFilename(filename)
 %   .raw         full stem without extension
 
     [~, stem] = fileparts(filename);
-    info.raw        = stem;
-    info.date       = '';
-    info.source     = '';
-    info.subject    = '';
-    info.modality   = '';
-    info.incline    = '';
-    info.speed      = NaN;
-    info.device     = '';
-    info.attachment = '';
-    info.angle      = NaN;
+    info.raw           = stem;
+    info.date          = '';
+    info.source        = '';
+    info.subject       = '';
+    info.modality      = '';
+    info.incline       = '';
+    info.speed         = NaN;
+    info.device        = '';    % 'walker' | 'noassist'
+    info.attachment    = '';    % 'high' | 'middle' | 'low'  (walker only)
+    info.angle         = NaN;   % 0 | 30  (walker only)
+    info.weightbearing = '';    % 'wb' | 'nwb'  (noassist only)
 
     parts = strsplit(stem, '_');
     if isempty(parts), return; end
@@ -90,18 +91,37 @@ function info = parseFilename(filename)
     end
 
     % --- Experimental condition tokens (TD and OG) ---
-    % walker_high_30 / walker_middle_0 / walker_low_30
+    %
+    % walker conditions (weight bearing implicit):
+    %   walker_high_0 / walker_high_30
+    %   walker_middle_0 / walker_middle_30
+    %   walker_low_0  / walker_low_30
+    %
+    % noassist conditions:
+    %   noassist_wb / noassist_nwb
+
     if idx <= numel(parts) && strcmp(parts{idx}, 'walker')
         info.device = 'walker';
         idx = idx + 1;
-    end
 
-    if idx <= numel(parts) && ismember(parts{idx}, {'high','middle','low'})
-        info.attachment = parts{idx};
+        % attachment: high / middle / low
+        if idx <= numel(parts) && ismember(parts{idx}, {'high','middle','low'})
+            info.attachment = parts{idx};
+            idx = idx + 1;
+        end
+
+        % angle: 0 or 30
+        if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d+$', 'once'))
+            info.angle = str2double(parts{idx});
+        end
+
+    elseif idx <= numel(parts) && strcmp(parts{idx}, 'noassist')
+        info.device = 'noassist';
         idx = idx + 1;
-    end
 
-    if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d+$', 'once'))
-        info.angle = str2double(parts{idx});
+        % weight bearing: wb / nwb
+        if idx <= numel(parts) && ismember(parts{idx}, {'wb','nwb'})
+            info.weightbearing = parts{idx};
+        end
     end
 end

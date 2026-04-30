@@ -78,8 +78,14 @@ function info = parseFilename(filename)
 
     % --- TD-specific tokens: incline + speed ---
     if strcmp(info.modality, 'TD')
-        % Incline: non-numeric word (level, incline, decline, …)
-        if idx <= numel(parts) && isempty(regexp(parts{idx}, '^\d', 'once'))
+        % Incline condition
+        knownInclines = {'level','incline','decline','stair_up','stair_down'};
+        % stair_up / stair_down span two underscore tokens → rejoin
+        if idx + 1 <= numel(parts) && ...
+           ismember([parts{idx} '_' parts{idx+1}], knownInclines)
+            info.incline = [parts{idx} '_' parts{idx+1}];
+            idx = idx + 2;
+        elseif idx <= numel(parts) && ismember(parts{idx}, knownInclines)
             info.incline = parts{idx};
             idx = idx + 1;
         end

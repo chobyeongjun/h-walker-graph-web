@@ -4,31 +4,38 @@ function info = parseFilename(filename)
 % Canonical formats:
 %
 %   Treadmill:
-%     20260430_Robot_CBJ_TD_level_3_0.csv
+%     20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv
 %     → date=20260430, source=Robot, subject=CBJ,
-%       modality=TD, incline=level, speed=3.0
+%       modality=TD, incline=level, speed=3.0,
+%       device=walker, attachment=high, angle=30
 %
 %   Overground:
-%     20260430_Robot_CBJ_OG.csv
-%     → date=20260430, source=Robot, subject=CBJ, modality=OG
+%     20260430_Robot_CBJ_OG_walker_low_0.csv
+%     → modality=OG, device=walker, attachment=low, angle=0
 %
 % Result struct fields:
-%   .date      'YYYYMMDD' string  ('' if absent)
-%   .source    'Robot' / 'Loadcell' / 'Motion'  ('' if absent)
-%   .subject   e.g. 'CBJ', 'S01'
-%   .modality  'TD' (treadmill) | 'OG' (overground) | ''
-%   .incline   'level' | 'incline' | '' (TD only)
-%   .speed     numeric km/h, e.g. 3.0  (NaN if absent)
-%   .raw       full stem without extension
+%   .date        'YYYYMMDD' string  ('' if absent)
+%   .source      'Robot' / 'Loadcell' / 'Motion'
+%   .subject     e.g. 'CBJ'
+%   .modality    'TD' (treadmill) | 'OG' (overground) | ''
+%   .incline     'level' | 'incline' | '' (TD only)
+%   .speed       numeric km/h, e.g. 3.0  (NaN if absent)
+%   .device      'walker' | '' (device worn)
+%   .attachment  'high' | 'middle' | 'low' | ''
+%   .angle       numeric degrees, 0 or 30  (NaN if absent)
+%   .raw         full stem without extension
 
     [~, stem] = fileparts(filename);
-    info.raw      = stem;
-    info.date     = '';
-    info.source   = '';
-    info.subject  = '';
-    info.modality = '';
-    info.incline  = '';
-    info.speed    = NaN;
+    info.raw        = stem;
+    info.date       = '';
+    info.source     = '';
+    info.subject    = '';
+    info.modality   = '';
+    info.incline    = '';
+    info.speed      = NaN;
+    info.device     = '';
+    info.attachment = '';
+    info.angle      = NaN;
 
     parts = strsplit(stem, '_');
     if isempty(parts), return; end
@@ -72,14 +79,29 @@ function info = parseFilename(filename)
             idx = idx + 1;
         end
 
-        % Speed: two consecutive tokens "X" "_" "Y" → X.Y km/h
-        % e.g. parts = {..., '3', '0', ...} → speed = 3.0
+        % Speed: two consecutive numeric tokens X_Y → X.Y km/h
         if idx + 1 <= numel(parts) && ...
            ~isempty(regexp(parts{idx},   '^\d+$', 'once')) && ...
            ~isempty(regexp(parts{idx+1}, '^\d+$', 'once'))
             info.speed = str2double(parts{idx}) + ...
                          str2double(parts{idx+1}) * 10^(-numel(parts{idx+1}));
-            % idx not advanced — remaining tokens ignored
+            idx = idx + 2;
         end
+    end
+
+    % --- Experimental condition tokens (TD and OG) ---
+    % walker_high_30 / walker_middle_0 / walker_low_30
+    if idx <= numel(parts) && strcmp(parts{idx}, 'walker')
+        info.device = 'walker';
+        idx = idx + 1;
+    end
+
+    if idx <= numel(parts) && ismember(parts{idx}, {'high','middle','low'})
+        info.attachment = parts{idx};
+        idx = idx + 1;
+    end
+
+    if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d+$', 'once'))
+        info.angle = str2double(parts{idx});
     end
 end

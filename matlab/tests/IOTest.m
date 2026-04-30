@@ -33,25 +33,30 @@ classdef IOTest < matlab.unittest.TestCase
 
         % ---------- parseFilename ----------
 
-        function testParse_Canonical(tc)
-            info = hwalker.io.parseFilename('Robot_S01_walk_fast_T03.csv');
-            tc.verifyEqual(info.source,    'Robot');
-            tc.verifyEqual(info.subject,   'S01');
-            tc.verifyEqual(info.condition, 'walk_fast');
-            tc.verifyEqual(info.trial,     3);
+        function testParse_Treadmill(tc)
+            info = hwalker.io.parseFilename('20260430_Robot_CBJ_TD_level_3_0.csv');
+            tc.verifyEqual(info.date,     '20260430');
+            tc.verifyEqual(info.source,   'Robot');
+            tc.verifyEqual(info.subject,  'CBJ');
+            tc.verifyEqual(info.modality, 'TD');
+            tc.verifyEqual(info.incline,  'level');
+            tc.verifyEqual(info.speed,    3.0, 'AbsTol', 1e-9);
         end
 
-        function testParse_NoTrial(tc)
-            info = hwalker.io.parseFilename('Robot_P02_treadmill.csv');
-            tc.verifyEqual(info.source,  'Robot');
-            tc.verifyEqual(info.subject, 'P02');
-            tc.verifyTrue(isnan(info.trial));
+        function testParse_Overground(tc)
+            info = hwalker.io.parseFilename('20260430_Robot_CBJ_OG.csv');
+            tc.verifyEqual(info.date,     '20260430');
+            tc.verifyEqual(info.source,   'Robot');
+            tc.verifyEqual(info.subject,  'CBJ');
+            tc.verifyEqual(info.modality, 'OG');
+            tc.verifyTrue(isnan(info.speed));
         end
 
-        function testParse_NoSource(tc)
-            info = hwalker.io.parseFilename('S05_walk_T01.csv');
-            tc.verifyEqual(info.subject, 'S05');
-            tc.verifyEqual(info.trial,   1);
+        function testParse_NoDate(tc)
+            info = hwalker.io.parseFilename('Robot_CBJ_TD_level_3_5.csv');
+            tc.verifyEmpty(info.date);
+            tc.verifyEqual(info.modality, 'TD');
+            tc.verifyEqual(info.speed,    3.5, 'AbsTol', 1e-9);
         end
 
         function testParse_EmptyFilename(tc)

@@ -71,6 +71,19 @@ classdef IOTest < matlab.unittest.TestCase
             end
         end
 
+        function testParse_TrialPresent(tc)
+            info = hwalker.io.parseFilename( ...
+                '20260430_Robot_CBJ_TD_level_3_0_walker_high_30_T02.csv');
+            tc.verifyEqual(info.trial, 2);
+            tc.verifyEqual(info.attachment, 'high');
+        end
+
+        function testParse_TrialAbsent(tc)
+            info = hwalker.io.parseFilename( ...
+                '20260430_Robot_CBJ_TD_level_3_0_walker_high_30.csv');
+            tc.verifyTrue(isnan(info.trial));
+        end
+
         function testParse_EmptyFilename(tc)
             info = hwalker.io.parseFilename('data.csv');
             tc.verifyEmpty(info.source);

@@ -20,10 +20,12 @@ function info = parseFilename(filename)
 %   .modality    'TD' (treadmill) | 'OG' (overground) | ''
 %   .incline     'level' | 'incline' | '' (TD only)
 %   .speed       numeric km/h, e.g. 3.0  (NaN if absent)
-%   .device      'walker' | '' (device worn)
-%   .attachment  'high' | 'middle' | 'low' | ''
-%   .angle       numeric degrees, 0 or 30  (NaN if absent)
-%   .raw         full stem without extension
+%   .device        'walker' | 'noassist' | ''
+%   .attachment    'high' | 'middle' | 'low' | ''
+%   .angle         numeric degrees, 0 or 30  (NaN if absent)
+%   .weightbearing 'wb' | 'nwb' | ''
+%   .trial         numeric (NaN if absent) — optional, T01 appended at end
+%   .raw           full stem without extension
 
     [~, stem] = fileparts(filename);
     info.raw           = stem;
@@ -37,6 +39,7 @@ function info = parseFilename(filename)
     info.attachment    = '';    % 'high' | 'middle' | 'low'  (walker only)
     info.angle         = NaN;   % 0 | 30  (walker only)
     info.weightbearing = '';    % 'wb' | 'nwb'  (noassist only)
+    info.trial         = NaN;   % numeric, e.g. 1 from T01 (optional)
 
     parts = strsplit(stem, '_');
     if isempty(parts), return; end
@@ -122,6 +125,16 @@ function info = parseFilename(filename)
         % weight bearing: wb / nwb
         if idx <= numel(parts) && ismember(parts{idx}, {'wb','nwb'})
             info.weightbearing = parts{idx};
+            idx = idx + 1;
+        end
+    end
+
+    % --- Trial number: optional T## at the end ---
+    % Works whether or not it appears: _T01 present → trial=1, absent → trial=NaN
+    if idx <= numel(parts)
+        trialTok = regexp(parts{end}, '^[Tt](\d+)$', 'tokens', 'once');
+        if ~isempty(trialTok)
+            info.trial = str2double(trialTok{1});
         end
     end
 end

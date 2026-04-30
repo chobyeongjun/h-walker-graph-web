@@ -1,7 +1,6 @@
 function results = analyzeFile(filepath_or_table, varargin)
 % hwalker.analyzeFile  Full analysis pipeline for one H-Walker CSV.
 %
-%   results = hwalker.analyzeFile()                       % UI 파일 선택
 %   results = hwalker.analyzeFile('/path/to/260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
 %   results = hwalker.analyzeFile(T)                      % pre-loaded table
 %   results = hwalker.analyzeFile(T, 'label','sync1_run') % table + custom label
@@ -47,17 +46,6 @@ function results = analyzeFile(filepath_or_table, varargin)
         results  = coreAnalysis(T, baseName, filepath, ...
                        p.Results.syncId, p.Results.syncWindow);
         return
-    end
-
-    % --- No argument: UI file picker ---
-    if nargin < 1 || isempty(filepath_or_table)
-        [fname, fdir] = uigetfile({'*.csv;*.CSV', 'CSV Files (*.csv)'}, ...
-            'Select H-Walker Robot CSV');
-        if isequal(fname, 0)
-            results = [];
-            return
-        end
-        filepath_or_table = fullfile(fdir, fname);
     end
 
     % --- File path: load, detect sync, branch ---

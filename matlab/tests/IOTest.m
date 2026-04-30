@@ -64,11 +64,20 @@ classdef IOTest < matlab.unittest.TestCase
 
         function testParse_AllAttachments(tc)
             for att = {'high','middle','low'}
-                info = hwalker.io.parseFilename( ...
-                    ['20260430_Robot_CBJ_TD_level_3_0_walker_' att{1} '_0.csv']);
-                tc.verifyEqual(info.attachment, att{1});
-                tc.verifyEqual(info.angle, 0);
+                for ang = {0, 30}
+                    fname = sprintf('20260430_Robot_CBJ_TD_level_3_0_walker_%s_%d.csv', att{1}, ang{1});
+                    info  = hwalker.io.parseFilename(fname);
+                    tc.verifyEqual(info.attachment, att{1});
+                    tc.verifyEqual(info.angle, ang{1});
+                end
             end
+        end
+
+        function testParse_InvalidAngleIgnored(tc)
+            % angle 45 is not a valid condition → angle stays NaN
+            info = hwalker.io.parseFilename( ...
+                '20260430_Robot_CBJ_TD_level_3_0_walker_high_45.csv');
+            tc.verifyTrue(isnan(info.angle));
         end
 
         function testParse_TrialPresent(tc)

@@ -59,8 +59,9 @@ function info = parseFilename(filename)
         idx = idx + 1;
     end
 
-    % --- Subject token: any alphanumeric (CBJ, S01, P02, …) ---
-    if idx <= numel(parts)
+    % --- Subject token: only when date or source was already found ---
+    % Guards against 'data.csv' being parsed as subject='data'
+    if idx <= numel(parts) && (~isempty(info.date) || ~isempty(info.source))
         tok = parts{idx};
         if ~isempty(regexp(tok, '^[A-Za-z][A-Za-z0-9]*$', 'once')) && ...
            ~ismember(tok, {'TD','OG'})
@@ -113,9 +114,10 @@ function info = parseFilename(filename)
             idx = idx + 1;
         end
 
-        % angle: 0 or 30
-        if idx <= numel(parts) && ~isempty(regexp(parts{idx}, '^\d+$', 'once'))
+        % angle: 0 or 30 (only accept known values)
+        if idx <= numel(parts) && ismember(parts{idx}, {'0','30'})
             info.angle = str2double(parts{idx});
+            idx = idx + 1;  % consume the token
         end
 
     elseif idx <= numel(parts) && strcmp(parts{idx}, 'noassist')

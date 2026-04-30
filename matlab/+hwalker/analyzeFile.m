@@ -1,7 +1,7 @@
 function result = analyzeFile(filepath)
 % hwalker.analyzeFile  Full analysis pipeline for one H-Walker CSV.
 %
-%   result = hwalker.analyzeFile('/path/to/Robot_S01_T01.csv')
+%   result = hwalker.analyzeFile('/path/to/20260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv')
 %
 % Computes per-side:
 %   stride times, GCP-based heel strikes, ZUPT stride lengths,

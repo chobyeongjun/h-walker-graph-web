@@ -53,7 +53,7 @@ function info = parseFilename(filename)
     end
 
     % --- Source token ---
-    knownSources = {'Robot','Motion','Loadcell','IMU','GRF'};
+    knownSources = {'Robot','Motion','Loadcell','IMU'};
     if idx <= numel(parts) && ismember(parts{idx}, knownSources)
         info.source = parts{idx};
         idx = idx + 1;

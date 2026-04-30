@@ -3,7 +3,7 @@ function t = timeAxis(T)
 %
 % Priority: Time_s / Timestamp / Time → Time_ms / time_ms → synthetic 111 Hz.
 
-    for col = {'Time_s','Timestamp','Time'}
+    for col = {'Time_s','Timestamp','Time','time'}
         if ismember(col{1}, T.Properties.VariableNames)
             t = double(T.(col{1})(:));
             if sum(isfinite(t)) >= 2, return; end

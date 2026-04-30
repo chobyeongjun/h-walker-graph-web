@@ -48,8 +48,18 @@ function cycles = findWindows(T, minDuration_s)
     hi = max(sync(valid));
     if hi - lo < 1e-9, return; end  % constant signal → no cycles
 
+    % Replace NaN with LOW to avoid phantom edges from missing samples
+    sync(~isfinite(sync)) = lo;
+
     threshold = (lo + hi) / 2.0;
     high = sync > threshold;
+
+    % Debounce: boxcar smooth to fill/remove pulses shorter than ~50 ms.
+    % Protects against one-sample dips/spikes from ADC noise or serial glitches.
+    fs_est = 1 / median(diff(t(isfinite(t))));
+    debounceN = max(3, round(fs_est * 0.05));  % 50 ms window
+    smoothed = conv(double(high), ones(debounceN, 1) / debounceN, 'same');
+    high = smoothed > 0.5;
 
     % Falling edges: diff(h)==-1 at index i means h(i+1) < h(i)
     % → first low sample is at index i+1 (1-based)

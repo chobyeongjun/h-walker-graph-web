@@ -11,14 +11,16 @@ classdef SyncTest < matlab.unittest.TestCase
 
         function testBasicOneCycle(tc)
             % One falling→rising→falling = one cycle
-            s = [1 1 1 0 0 1 1 1 0 0];
+            % Use realistic durations: 500ms HIGH, 200ms LOW at 100 Hz
+            s = [zeros(1,20) ones(1,50) zeros(1,20) ones(1,50) zeros(1,20)];
             T = makeSyncTable(s, 100);
             cycles = hwalker.sync.findWindows(T, 0);
             tc.verifyEqual(size(cycles,1), 1);
         end
 
         function testTwoCycles(tc)
-            s = [1 1 0 1 1 0 1 1 0 1 1 0];
+            % Two complete cycles with realistic durations
+            s = [zeros(1,20) ones(1,50) zeros(1,20) ones(1,50) zeros(1,20) ones(1,50) zeros(1,20)];
             T = makeSyncTable(s, 100);
             cycles = hwalker.sync.findWindows(T, 0);
             tc.verifyGreaterThanOrEqual(size(cycles,1), 2);

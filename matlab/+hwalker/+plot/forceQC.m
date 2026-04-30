@@ -35,18 +35,18 @@ function fig = forceQC(result, side, journal)
     if ~isempty(fp.des.mean)
         fill(ax, [x, fliplr(x)], ...
             [fp.des.mean + fp.des.std, fliplr(fp.des.mean - fp.des.std)], ...
-            cDes, 'FaceAlpha', 0.20, 'EdgeColor', 'none');
+            cDes, 'FaceAlpha', 0.20, 'EdgeColor', 'none', 'HandleVisibility', 'off');
         plot(ax, x, fp.des.mean, '-', 'Color', cDes, ...
-            'LineWidth', preset.strokePt, 'DisplayName', 'Desired');
+            'LineWidth', preset.strokePt, 'DisplayName', 'Desired Force');
     end
 
     % ---- Actual ±1 SD ----
     if ~isempty(fp.act.mean)
         fill(ax, [x, fliplr(x)], ...
             [fp.act.mean + fp.act.std, fliplr(fp.act.mean - fp.act.std)], ...
-            cAct, 'FaceAlpha', 0.20, 'EdgeColor', 'none');
+            cAct, 'FaceAlpha', 0.20, 'EdgeColor', 'none', 'HandleVisibility', 'off');
         plot(ax, x, fp.act.mean, '-', 'Color', cAct, ...
-            'LineWidth', preset.strokePt, 'DisplayName', 'Actual');
+            'LineWidth', preset.strokePt, 'DisplayName', 'Actual Force');
     end
 
     % ---- Axes labels ----

@@ -2,10 +2,25 @@ function fig = forceQC(result, side, journal)
 % hwalker.plot.forceQC  Normalized force profile — Desired vs Actual ±1 SD.
 %
 %   hwalker.plot.forceQC(result, 'R')
-%   hwalker.plot.forceQC(result, 'R', 'JNER')   % default: JNER
-%   % journal: 'IEEE' | 'Nature' | 'APA' | 'Elsevier' | 'MDPI' | 'JNER'
+%   hwalker.plot.forceQC(result, 'R', 'TRO')        % IEEE Trans on Robotics
+%   hwalker.plot.forceQC(result, 'L', 'JNER')       % rehab journal
+%   % journal: 'TRO'|'RAL'|'TNSRE'|'TMECH'|'ICRA'|'IROS'|'IJRR'|
+%   %          'SciRobotics'|'SoftRobotics'|'FrontNeurorobot'|'AuRo'|
+%   %          'IEEE'|'Nature'|'APA'|'Elsevier'|'MDPI'|'JNER'
 %
-% result = one element from hwalker.analyzeFile output
+% Inputs:
+%   result : single element from hwalker.analyzeFile output (e.g., results(1))
+%   side   : 'L' | 'R' (case-insensitive, only first letter matters)
+%   journal: any preset name (default 'JNER')
+%
+% Returns:
+%   fig    : figure handle (Visible='on'). Pass to hwalker.plot.exportFigure.
+%
+% Example — full pipeline:
+%   results = hwalker.analyzeFile('mydata.csv');
+%   fig     = hwalker.plot.forceQC(results(1), 'R', 'TRO');
+%   preset  = hwalker.plot.journalPreset('TRO');
+%   hwalker.plot.exportFigure(fig, 'Fig1.pdf', preset);
 
     if nargin < 3, journal = 'JNER'; end
     preset = hwalker.plot.journalPreset(journal);

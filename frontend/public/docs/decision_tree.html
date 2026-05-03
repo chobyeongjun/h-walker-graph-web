@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>H-Walker · 통계 검정 결정 트리</title>
+<style>
+  :root {
+    --bg:    #0B0E2E;
+    --fg:    #F5F5F0;
+    --muted: #8B8F8E;
+    --accent:#F09708;
+    --neon:  #00FFB2;
+    --info:  #7FB5E4;
+    --error: #f87171;
+    --para:  #0072B2;
+    --nonp:  #D55E00;
+    --post:  #009E73;
+    --branch:#F0E442;
+    --card:  rgba(255,255,255,0.04);
+    --border:rgba(255,255,255,0.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Pretendard,sans-serif;
+    line-height:1.55}
+  header{padding:32px 48px 8px;border-bottom:1px solid var(--border)}
+  h1{margin:0 0 4px;font-size:22px;letter-spacing:-0.01em}
+  .eyebrow{text-transform:uppercase;font-size:10px;letter-spacing:.22em;
+    color:var(--accent);margin-bottom:8px}
+  .sub{color:var(--muted);font-size:13px}
+
+  main{display:grid;grid-template-columns:1fr 360px;gap:24px;padding:24px 48px;max-width:1400px;margin:0 auto}
+  @media (max-width: 980px){main{grid-template-columns:1fr;padding:16px}}
+
+  /* Tree */
+  .tree{background:var(--card);border:1px solid var(--border);border-radius:8px;
+    padding:24px;overflow-x:auto}
+  .level{display:flex;gap:24px;margin:18px 0;align-items:stretch}
+  .branch{display:flex;flex-direction:column;flex:1;min-width:220px}
+  .node{padding:14px 16px;border-radius:6px;cursor:pointer;
+    transition:transform .15s, border-color .15s, background .15s;
+    border:1px solid var(--border);background:rgba(255,255,255,0.02);
+    margin-bottom:8px;font-size:13px}
+  .node:hover{transform:translateY(-1px);border-color:var(--accent);
+    background:rgba(240,151,8,0.06)}
+  .node.active{border-color:var(--accent);background:rgba(240,151,8,0.10)}
+  .node .lbl{font-weight:600;font-size:14px}
+  .node .meta{color:var(--muted);font-size:11px;margin-top:4px}
+
+  .node.parametric{border-left:3px solid var(--para)}
+  .node.nonparam   {border-left:3px solid var(--nonp)}
+  .node.post       {border-left:3px solid var(--post)}
+  .node.branch-q   {border-left:3px solid var(--branch)}
+  .node.start      {border-left:3px solid var(--neon)}
+
+  .arrow{color:var(--muted);text-align:center;margin:6px 0;font-size:11px;
+    text-transform:uppercase;letter-spacing:.18em}
+
+  /* Side panel */
+  aside{background:var(--card);border:1px solid var(--border);border-radius:8px;
+    padding:24px;position:sticky;top:24px;height:fit-content;max-height:calc(100vh - 48px);
+    overflow-y:auto}
+  aside h2{margin-top:0;font-size:14px;text-transform:uppercase;letter-spacing:.18em;
+    color:var(--accent)}
+  aside .empty{color:var(--muted);font-style:italic;font-size:13px}
+  aside h3{font-size:14px;margin:14px 0 6px}
+  aside p{font-size:13px;color:var(--fg);margin:6px 0}
+  aside code,aside pre{font-family:"JetBrains Mono",Menlo,Monaco,Consolas,monospace;
+    font-size:12px;background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px;
+    color:var(--neon)}
+  aside pre{padding:12px;display:block;overflow-x:auto;line-height:1.5;color:var(--fg)}
+  aside ul{margin:6px 0;padding-left:20px;font-size:13px}
+  aside li{margin:3px 0}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
+    margin-right:4px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em}
+  .badge.para   {background:rgba(0,114,178,0.18);color:var(--para)}
+  .badge.nonp   {background:rgba(213,94,0,0.18);color:var(--nonp)}
+  .badge.post   {background:rgba(0,158,115,0.18);color:var(--post)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;padding:10px;
+    background:rgba(0,0,0,.2);border-radius:6px}
+  .legend .item{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .legend .swatch{width:12px;height:12px;border-radius:3px}
+
+  footer{padding:24px 48px;color:var(--muted);font-size:12px;text-align:center;
+    border-top:1px solid var(--border);margin-top:40px}
+  a{color:var(--info);text-decoration:none}
+  a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">H-Walker MATLAB Toolbox</div>
+  <h1>통계 검정 결정 트리</h1>
+  <div class="sub">노드를 클릭하면 우측 패널에 해당 검정의 사용법, 가정, 코드 예시, 효과크기 가이드가 표시됩니다.</div>
+  <div class="legend">
+    <div class="item"><span class="swatch" style="background:var(--branch)"></span>분기 질문</div>
+    <div class="item"><span class="swatch" style="background:var(--para)"></span>모수 검정</div>
+    <div class="item"><span class="swatch" style="background:var(--nonp)"></span>비모수 검정</div>
+    <div class="item"><span class="swatch" style="background:var(--post)"></span>사후검정 / 보정</div>
+  </div>
+</header>
+
+<main>
+  <section class="tree" id="tree"></section>
+  <aside>
+    <h2>검정 정보</h2>
+    <div id="info" class="empty">트리에서 노드를 클릭해 보세요.</div>
+  </aside>
+</main>
+
+<footer>
+  <a href="https://github.com/arlab-hwalker/h-walker-graph-web">repo</a>
+  · 자동 추천: <code>hwalker.stats.decisionTree(groups, 'Design', 'between')</code>
+  · 같은 트리의 정적 버전: <a href="../../matlab/docs/STATS_DECISION_TREE.md">STATS_DECISION_TREE.md</a>
+</footer>
+
+<script>
+// =====================================================================
+// Decision tree data — mirrors matlab/+hwalker/+stats/decisionTree.m
+// =====================================================================
+const TREE = [
+  { lvl: 0, type: 'start',    id: 'start',
+    lbl: '내 데이터의 디자인은?',
+    meta: 'within / between / mixed' },
+
+  { lvl: 1, type: 'branch-q', id: 'within-k',
+    lbl: 'Within-subject — 조건 수 K?', meta: 'K = 2  vs  K ≥ 3' },
+  { lvl: 1, type: 'branch-q', id: 'between-k',
+    lbl: 'Between-subject — 그룹 수 K?', meta: 'K = 2  vs  K ≥ 3' },
+  { lvl: 1, type: 'branch-q', id: 'mixed',
+    lbl: 'Mixed (group × condition)', meta: 'fitrm + ranova' },
+
+  // Within K=2
+  { lvl: 2, type: 'parametric', id: 'paired-t',
+    lbl: 'paired t-test',
+    meta: '정규성 OK · K=2 within' },
+  { lvl: 2, type: 'nonparam',   id: 'wilcoxon',
+    lbl: 'Wilcoxon signed-rank',
+    meta: '정규성 위반 · K=2 within' },
+
+  // Within K>=3
+  { lvl: 2, type: 'parametric', id: 'rm-anova',
+    lbl: 'RM-ANOVA + Greenhouse-Geisser',
+    meta: '정규성 OK · K≥3 within' },
+  { lvl: 2, type: 'nonparam',   id: 'friedman',
+    lbl: 'Friedman test',
+    meta: '정규성 위반 · K≥3 within' },
+
+  // Between K=2
+  { lvl: 2, type: 'parametric', id: 'welch-t',
+    lbl: "Welch t-test",
+    meta: '정규성 OK · K=2 between' },
+  { lvl: 2, type: 'nonparam',   id: 'mannwhitney',
+    lbl: 'Mann-Whitney U',
+    meta: '정규성 위반 · K=2 between' },
+
+  // Between K>=3
+  { lvl: 2, type: 'parametric', id: 'one-way-anova',
+    lbl: 'One-way ANOVA',
+    meta: '정규성 OK · K≥3 between' },
+  { lvl: 2, type: 'nonparam',   id: 'kruskal',
+    lbl: 'Kruskal-Wallis',
+    meta: '정규성 위반 · K≥3 between' },
+
+  // Post-hoc
+  { lvl: 3, type: 'post', id: 'tukey',     lbl: 'Tukey HSD',
+    meta: '탐색적, 균형 설계' },
+  { lvl: 3, type: 'post', id: 'holm',      lbl: 'Holm-Bonferroni',
+    meta: '사전 등록 비교 (권장 default)' },
+  { lvl: 3, type: 'post', id: 'bonferroni',lbl: 'Bonferroni',
+    meta: '비교 수 적음 · 가장 보수적' },
+  { lvl: 3, type: 'post', id: 'fdr',       lbl: 'Benjamini-Hochberg FDR',
+    meta: '비교 수 많음 (≥10), exploratory' },
+];
+
+// =====================================================================
+// Detail content per node — used in side panel
+// =====================================================================
+const INFO = {
+  start: {
+    title: '디자인 결정',
+    body: `
+      <p>가장 먼저 정해야 할 것: <b>피험자 구성</b>.</p>
+      <ul>
+        <li><b>Within-subject</b>: 같은 사람이 모든 조건을 거침 (e.g. 보조 강도 baseline → low → high).</li>
+        <li><b>Between-subject</b>: 사람마다 다른 조건 (e.g. 환자 vs 대조군).</li>
+        <li><b>Mixed</b>: 그룹 + 조건 모두 (e.g. 환자 vs 대조군 × pre/post).</li>
+      </ul>
+      <pre>rec = hwalker.stats.decisionTree( ...
+       groups, 'Design', 'within');
+disp(rec.rationale);</pre>`
+  },
+
+  'within-k': {
+    title: 'Within-subject — 조건 수',
+    body: `
+      <p>같은 피험자가 K 개 조건을 거치는 디자인.</p>
+      <ul>
+        <li><b>K = 2</b>: paired t-test 또는 Wilcoxon signed-rank.</li>
+        <li><b>K ≥ 3</b>: RM-ANOVA (구형성 보정) 또는 Friedman.</li>
+      </ul>
+      <p>NaN 이 있는 row 는 listwise 삭제 (RM-ANOVA 는 balanced 요구).</p>`
+  },
+
+  'between-k': {
+    title: 'Between-subject — 그룹 수',
+    body: `
+      <p>각 피험자가 정확히 하나의 그룹에 속하는 디자인.</p>
+      <ul>
+        <li><b>K = 2</b>: Welch t-test (분산 동질성 가정 X) 또는 Mann-Whitney.</li>
+        <li><b>K ≥ 3</b>: One-way ANOVA + 사후검정 또는 Kruskal-Wallis + Dunn.</li>
+      </ul>
+      <p>등 NaN 은 그룹 단위로 listwise 처리.</p>`
+  },
+
+  'mixed': {
+    title: 'Mixed-design ANOVA',
+    body: `
+      <p>그룹 (between) × 조건 (within) 효과 + 상호작용.</p>
+      <p>Stats Toolbox 의 <code>fitrm</code> + <code>ranova</code> 가 표준.</p>
+      <pre>tbl = table(group, pre, post, ...
+       'VariableNames', {'group','t1','t2'});
+rm = fitrm(tbl, 't1-t2 ~ group', ...
+       'WithinDesign', table([1;2], 'VariableNames',{'time'}));
+ra = ranova(rm);
+disp(ra)</pre>
+      <p>현재 H-Walker 툴박스에는 wrapper 없음 (필요 시 추가 예정).</p>`
+  },
+
+  'paired-t': {
+    title: 'paired t-test',
+    badges: ['para'],
+    body: `
+      <p>두 조건 간 평균 차이 검정 (같은 피험자).</p>
+      <h3>가정</h3>
+      <ul>
+        <li>차이 (post − pre) 의 분포가 정규</li>
+        <li>샘플 무작위</li>
+      </ul>
+      <h3>실행</h3>
+      <pre>r = hwalker.stats.pairedTest(pre, post);
+fprintf('t(%d) = %.2f, p = %.3g\\n', ...
+        r.df_ttest, r.t_stat, r.p_ttest);
+fprintf('Cohen''s d_av = %.2f (CI [%.2f, %.2f])\\n', ...
+        r.cohens_d_variants.d_av, ...
+        r.ci_diff(1), r.ci_diff(2));</pre>
+      <h3>효과크기</h3>
+      <ul>
+        <li><code>d_av</code> = M_diff / mean(SD_pre, SD_post)  ← 권장 default (Cumming 2012)</li>
+        <li><code>d_z</code> = M_diff / SD_diff (Cohen 1988)</li>
+        <li><code>d_rm</code> = d_z × √(2(1−r))</li>
+      </ul>
+      <p>pairedTest 는 정규성 위반 시에도 Wilcoxon p 를 동시 보고하므로 두 가지를 비교 가능.</p>`
+  },
+
+  'wilcoxon': {
+    title: 'Wilcoxon signed-rank',
+    badges: ['nonp'],
+    body: `
+      <p>paired 디자인의 비모수 검정. 차이의 부호 + rank 로 검정.</p>
+      <h3>실행</h3>
+      <pre>[p, h, stats] = signrank(pre, post);
+% 또는 pairedTest 가 양쪽 다 보고:
+r = hwalker.stats.pairedTest(pre, post);
+disp(r.p_wilcoxon)</pre>
+      <h3>효과크기</h3>
+      <p><code>r = Z / √N</code> 직접 계산. 작음 .1 / 중간 .3 / 큼 .5.</p>`
+  },
+
+  'rm-anova': {
+    title: 'Repeated-Measures ANOVA',
+    badges: ['para'],
+    body: `
+      <p>같은 피험자, K ≥ 3 조건의 평균 차이 검정.</p>
+      <h3>가정</h3>
+      <ul>
+        <li>각 조건의 분포 정규</li>
+        <li>구형성 (sphericity) — 모든 쌍별 차이의 분산 동등</li>
+      </ul>
+      <h3>실행</h3>
+      <pre>r = hwalker.stats.anovaRM(Y_NxK, ...
+        'ConditionNames', {'baseline','low','high'});
+% 자동 추천 p 사용:
+fprintf('F = %.2f, %s = %.4f\\n', ...
+        r.F, r.recommended_label, r.recommended_p);
+fprintf('partial η² = %.3f\\n', r.eta2_partial);
+fprintf('Mauchly W = %.3f, p = %.3f, GG ε = %.2f\\n', ...
+        r.mauchly_W, r.mauchly_p, r.eps_GG);</pre>
+      <h3>구형성 위반 시</h3>
+      <ul>
+        <li>ε > 0.75 → Huynh-Feldt (덜 보수적)</li>
+        <li>ε ≤ 0.75 → Greenhouse-Geisser (더 보수적)</li>
+      </ul>
+      <p>recommended_p 가 자동으로 둘 중 하나 선택.</p>`
+  },
+
+  'friedman': {
+    title: 'Friedman test',
+    badges: ['nonp'],
+    body: `
+      <p>RM-ANOVA 의 비모수 대안. 각 피험자 내 rank 기반.</p>
+      <pre>p = friedman(Y_NxK, 1, 'off');</pre>
+      <p>K=3 이상 within 에서 정규성 심하게 깨질 때.</p>`
+  },
+
+  'welch-t': {
+    title: "Welch's t-test",
+    badges: ['para'],
+    body: `
+      <p>두 독립 그룹의 평균 비교. <b>분산 동질성 가정 없음</b> (Student t 보다 권장).</p>
+      <pre>[h, p, ci, stats] = ttest2(a, b, 'Vartype', 'unequal');
+fprintf('t(%.1f) = %.2f, p = %.3g\\n', stats.df, stats.tstat, p);
+% Cohen's d_s (pooled SD):
+sp = sqrt(((numel(a)-1)*var(a) + (numel(b)-1)*var(b)) / ...
+          (numel(a)+numel(b)-2));
+d  = (mean(b) - mean(a)) / sp;</pre>`
+  },
+
+  'mannwhitney': {
+    title: 'Mann-Whitney U',
+    badges: ['nonp'],
+    body: `
+      <p>두 독립 그룹의 비모수 비교. Wilcoxon rank-sum.</p>
+      <pre>[p, h, stats] = ranksum(a, b);</pre>
+      <p>효과크기: r = Z / √(N_a + N_b).</p>`
+  },
+
+  'one-way-anova': {
+    title: 'One-way ANOVA',
+    badges: ['para'],
+    body: `
+      <p>3+ 독립 그룹의 평균 비교.</p>
+      <h3>가정</h3>
+      <ul>
+        <li>각 그룹 정규</li>
+        <li>분산 동질 (Levene p ≥ α) — 위반 시 Welch ANOVA</li>
+      </ul>
+      <h3>실행</h3>
+      <pre>r = hwalker.stats.anova1({a, b, c}, ...
+        'GroupNames', {'baseline','low','high'});
+fprintf('F(%d, %d) = %.2f, p = %.3g\\n', ...
+        r.df_between, r.df_within, r.F, r.p);
+fprintf('ω² = %.3f, η² = %.3f\\n', r.omega2, r.eta2);
+fprintf('Levene p = %.3f → %s\\n', r.levene_p, ...
+        ternary(r.assumptions_met.homogeneity_ok,'OK','violated'));</pre>
+      <h3>유의 시 사후검정</h3>
+      <pre>ph = hwalker.stats.postHoc({a,b,c}, 'Method', 'tukey');
+disp(table(ph.pair_labels, ph.p_adj, ph.reject))</pre>`
+  },
+
+  'kruskal': {
+    title: 'Kruskal-Wallis',
+    badges: ['nonp'],
+    body: `
+      <p>One-way ANOVA 의 비모수 대안. rank 기반.</p>
+      <pre>p = kruskalwallis(allData, groupIdx, 'off');</pre>
+      <p>유의 후 사후검정: Dunn's test (BH-FDR 로 근사 가능).</p>`
+  },
+
+  'tukey': {
+    title: 'Tukey HSD',
+    badges: ['post'],
+    body: `
+      <p>모든 pairwise 비교, FWER 통제. 균형 설계 + 탐색적 분석에 적합.</p>
+      <pre>ph = hwalker.stats.postHoc(groups, 'Method', 'tukey');</pre>
+      <p>Studentized range 분포 사용. 비균형 → Tukey-Kramer 자동.</p>`
+  },
+
+  'holm': {
+    title: 'Holm-Bonferroni',
+    badges: ['post'],
+    body: `
+      <p>Bonferroni 의 step-down 개선. 같은 FWER 통제, 덜 보수적.</p>
+      <p><b>권장 default</b>: 사전 등록된 비교일 때.</p>
+      <pre>ph = hwalker.stats.postHoc(groups, 'Method', 'holm');</pre>`
+  },
+
+  'bonferroni': {
+    title: 'Bonferroni',
+    badges: ['post'],
+    body: `
+      <p>p_adj = min(p × m, 1). 가장 보수적, 비교 수 적을 때만.</p>
+      <pre>ph = hwalker.stats.postHoc(groups, 'Method', 'bonferroni');</pre>`
+  },
+
+  'fdr': {
+    title: 'Benjamini-Hochberg FDR',
+    badges: ['post'],
+    body: `
+      <p>FDR (false discovery rate) 통제. FWER 보다 약함, 비교 수 많을 때 (≥10) 유용.</p>
+      <pre>ph = hwalker.stats.postHoc(groups, 'Method', 'fdr');</pre>`
+  },
+};
+
+// =====================================================================
+// Render
+// =====================================================================
+const tree = document.getElementById('tree');
+const info = document.getElementById('info');
+
+const groups = {
+  start:    [TREE.find(n => n.id === 'start')],
+  level1:   TREE.filter(n => n.lvl === 1),
+  level2:   TREE.filter(n => n.lvl === 2),
+  posthoc:  TREE.filter(n => n.lvl === 3),
+};
+
+function nodeHTML(n) {
+  return `<div class="node ${n.type}" data-id="${n.id}">
+    <div class="lbl">${n.lbl}</div>
+    <div class="meta">${n.meta}</div>
+  </div>`;
+}
+
+tree.innerHTML = `
+  <div class="level">
+    <div class="branch">${nodeHTML(groups.start[0])}</div>
+  </div>
+  <div class="arrow">↓ design 분기</div>
+  <div class="level">
+    ${groups.level1.map(n => `<div class="branch">${nodeHTML(n)}</div>`).join('')}
+  </div>
+  <div class="arrow">↓ K + 정규성</div>
+  <div class="level">
+    ${groups.level2.map(n => `<div class="branch">${nodeHTML(n)}</div>`).join('')}
+  </div>
+  <div class="arrow">↓ ANOVA 유의 시 사후검정</div>
+  <div class="level">
+    ${groups.posthoc.map(n => `<div class="branch">${nodeHTML(n)}</div>`).join('')}
+  </div>
+`;
+
+tree.addEventListener('click', e => {
+  const node = e.target.closest('.node');
+  if (!node) return;
+  document.querySelectorAll('.node.active').forEach(n => n.classList.remove('active'));
+  node.classList.add('active');
+  const data = INFO[node.dataset.id];
+  if (!data) {
+    info.className = 'empty';
+    info.textContent = '(상세 정보 준비 중)';
+    return;
+  }
+  info.className = '';
+  const badges = (data.badges || []).map(b => {
+    const cls = b === 'para' ? 'para' : b === 'nonp' ? 'nonp' : 'post';
+    const label = b === 'para' ? 'parametric' : b === 'nonp' ? 'non-parametric' : 'post-hoc';
+    return `<span class="badge ${cls}">${label}</span>`;
+  }).join('');
+  info.innerHTML = `${badges}<h3>${data.title}</h3>${data.body}`;
+});
+
+// Auto-select start
+document.querySelector('.node[data-id="start"]').click();
+</script>
+
+</body>
+</html>

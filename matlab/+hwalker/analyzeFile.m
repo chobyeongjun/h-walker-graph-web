@@ -125,7 +125,18 @@ function result = coreAnalysis(T, label, filepath, syncId, syncWindow)
 
         % --- Stride times ---
         strideTimes_raw = double(diff(hsIdx)) / fs;
-        [strideTimes_valid, validMask] = hwalker.stride.filterIQR(strideTimes_raw);
+        [strideTimes_valid, validMask, qcReasons] = ...
+            hwalker.stride.filterIQR(strideTimes_raw);
+
+        % Stride-QC console line — reportable in Methods section
+        if qcReasons.nTotal > 0
+            fprintf(['    %s strideQC: kept %d/%d (excluded: ' ...
+                     '%d IQR-outlier, %d < %.2fs, %d > %.2fs)\n'], ...
+                side, qcReasons.nKept, qcReasons.nTotal, ...
+                qcReasons.nOutlierIQR, ...
+                qcReasons.nBelowBound, qcReasons.boundsRequested(1), ...
+                qcReasons.nAboveBound, qcReasons.boundsRequested(2));
+        end
 
         % NaN-aligned: all per-stride arrays share the same length
         strideTimes_aligned = nan(numel(strideTimes_raw), 1);
@@ -136,6 +147,7 @@ function result = coreAnalysis(T, label, filepath, syncId, syncWindow)
         sr.strideTimes    = strideTimes_aligned;
         sr.hsIndices      = hsIdx;
         sr.validMask      = validMask;
+        sr.qcReasons      = qcReasons;
 
         if ~isempty(strideTimes_valid)
             sr.strideTimeMean = mean(strideTimes_valid);
@@ -217,6 +229,11 @@ end
 function sr = emptyStride()
     sr.nStrides       = 0;   sr.strideTimesRaw = [];  sr.strideTimes = [];
     sr.hsIndices      = [];   sr.validMask       = [];
+    sr.qcReasons      = struct('nTotal', 0, 'nKept', 0, ...
+                               'nOutlierIQR', 0, 'nBelowBound', 0, ...
+                               'nAboveBound', 0, 'multiplier', 2.0, ...
+                               'boundsRequested', [0.3 5.0], ...
+                               'boundsEffective', [0.3 5.0]);
     sr.strideTimeMean = 0;    sr.strideTimeStd   = 0;
     sr.strideTimeCV   = 0;    sr.cadence         = 0;
     sr.stancePct      = [];   sr.swingPct        = [];

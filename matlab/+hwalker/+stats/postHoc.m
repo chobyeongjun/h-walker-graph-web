@@ -112,8 +112,23 @@ function result = postHoc(groups, varargin)
         case 'tukey'
             % q = |mean_diff| / SE_q  where SE_q = sqrt(MS_within / n_harmonic)
             % For unequal n, use harmonic mean. Tukey-Kramer adjustment.
-            q_stat = abs(mean_diff) ./ se_diff * sqrt(2);
-            p_adj = arrayfun(@(qv) studentized_range_sf(qv, k, df_within), q_stat);
+            % Guard se_diff=0 (zero pooled variance): q is undefined.
+            % Mean equal → p_adj=1; mean differs → p_adj=0.
+            q_stat = zeros(m, 1);
+            p_adj  = ones(m, 1);
+            for ii = 1:m
+                if se_diff(ii) < eps
+                    if abs(mean_diff(ii)) < eps
+                        p_adj(ii) = 1;
+                    else
+                        q_stat(ii) = Inf;
+                        p_adj(ii)  = 0;
+                    end
+                else
+                    q_stat(ii) = abs(mean_diff(ii)) / se_diff(ii) * sqrt(2);
+                    p_adj(ii)  = studentized_range_sf(q_stat(ii), k, df_within);
+                end
+            end
             tcrit = studentized_range_inv(1 - alpha, k, df_within);   % q*
             half  = tcrit .* se_diff / sqrt(2);
             ci_lower = mean_diff - half;

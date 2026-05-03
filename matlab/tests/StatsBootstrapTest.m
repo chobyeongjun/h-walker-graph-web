@@ -71,6 +71,16 @@ classdef StatsBootstrapTest < matlab.unittest.TestCase
             tc.verifyEqual(r.point_estimate, 1);
         end
 
+        function testBootstrap_DropsNaNFromNumericInput(tc)
+            % Codex pass 7: numeric input with NaN must NOT silently produce
+            % NaN CIs.  Drop NaN first, then bootstrap.
+            x = [1.0; 1.1; NaN; 1.05; NaN; 0.95; 1.02];
+            r = hwalker.stats.bootstrap(x, @mean, 'NBoot', 500, 'Seed', 42);
+            tc.verifyTrue(isfinite(r.point_estimate));
+            tc.verifyTrue(isfinite(r.ci_lower));
+            tc.verifyTrue(isfinite(r.ci_upper));
+        end
+
         function testBootstrap_TwoSampleJackknifesBothSamples(tc)
             % Codex finding #1: cell-array input must jackknife ALL samples,
             % not just the first.  Test by computing acceleration on (a, b)

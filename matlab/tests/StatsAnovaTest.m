@@ -82,6 +82,41 @@ classdef StatsAnovaTest < matlab.unittest.TestCase
             tc.verifyTrue(r.h);
         end
 
+        function testAnovaRM_AllIdenticalGivesP1(tc)
+            % Codex pass 2: anovaRM must return p=1 (not NaN) when F=0
+            Y = ones(10, 3);
+            r = hwalker.stats.anovaRM(Y);
+            tc.verifyEqual(r.F, 0);
+            tc.verifyEqual(r.p_uncorrected, 1);
+            tc.verifyEqual(r.p_GG, 1);
+            tc.verifyEqual(r.p_HF, 1);
+        end
+
+        function testAnovaRM_PerfectSeparationGivesP0(tc)
+            % Subjects identical within condition but conditions differ
+            n = 8;
+            Y = [ones(n,1)*1, ones(n,1)*2, ones(n,1)*3];
+            r = hwalker.stats.anovaRM(Y);
+            tc.verifyTrue(isinf(r.F));
+            tc.verifyEqual(r.p_uncorrected, 0);
+        end
+
+        function testPostHocTukey_AllIdenticalNoNaN(tc)
+            % Codex pass 2: Tukey q_stat = 0/0 must yield p_adj=1, not NaN
+            r = hwalker.stats.postHoc({ones(10,1), ones(10,1), ones(10,1)}, ...
+                'Method', 'tukey');
+            tc.verifyTrue(all(r.p_adj == 1));
+            tc.verifyTrue(all(~isnan(r.p_adj)));
+            tc.verifyTrue(all(~r.reject));
+        end
+
+        function testPostHocTukey_PerfectSeparationP0(tc)
+            r = hwalker.stats.postHoc({ones(10,1)*1, ones(10,1)*2, ones(10,1)*3}, ...
+                'Method', 'tukey');
+            tc.verifyTrue(all(r.p_adj == 0));
+            tc.verifyTrue(all(r.reject));
+        end
+
         % ============================================================
         %  anovaRM
         % ============================================================

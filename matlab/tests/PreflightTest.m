@@ -46,6 +46,18 @@ classdef PreflightTest < matlab.unittest.TestCase
             tc.verifyTrue(numel(r.critical) >= 5);  % many missing fields
         end
 
+        function testCriticalOnEmptyStrideSide(tc)
+            % Codex pass 7: empty result side must surface as CRITICAL,
+            % not silent warning.
+            r = dummyResult();
+            r.right.nStrides = 0;
+            preset = hwalker.plot.journalPreset('Nature');
+            report = hwalker.plot.preflightCheck(@hwalker.plot.forceQC, ...
+                {r, 'R'}, preset, 1);
+            tc.verifyFalse(report.ok);
+            tc.verifyTrue(any(contains(report.critical, 'nStrides == 0')));
+        end
+
     end
 end
 

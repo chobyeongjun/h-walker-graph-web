@@ -44,7 +44,9 @@ function result = bootstrap(x, statFn, varargin)
         rng(seed, 'twister');
     end
 
-    % --- Reject empty input early (would crash randi(0, ...)) ---
+    % --- Reject empty / drop NaN-only input ---
+    %  Codex pass 7 fix: numeric x with NaNs must be cleaned BEFORE
+    %  resampling, else CI silently collapses to NaN with @mean etc.
     if iscell(x)
         ns = cellfun(@numel, x);
         if any(ns == 0)
@@ -52,10 +54,25 @@ function result = bootstrap(x, statFn, varargin)
                 'All samples must be non-empty (got sizes [%s]).', ...
                 num2str(ns));
         end
+        % Best-effort: drop NaN within each numeric vector sample
+        for ii = 1:numel(x)
+            if isnumeric(x{ii})
+                x{ii} = x{ii}(isfinite(x{ii}));
+                if isempty(x{ii})
+                    error('hwalker:bootstrap:emptySample', ...
+                        'Sample %d has no finite observations after NaN removal.', ii);
+                end
+            end
+        end
     else
         if isempty(x) || all(~isfinite(x(:)))
             error('hwalker:bootstrap:emptySample', ...
                 'Input x must contain at least one finite observation.');
+        end
+        % Drop NaN/Inf entries to avoid silent CI corruption
+        finiteMask = isfinite(x(:));
+        if ~all(finiteMask)
+            x = x(finiteMask);
         end
     end
 

@@ -112,7 +112,8 @@ function report = preflightCheck(plotFnOrFig, argsOrEmpty, preset, nCols)
     if ~isempty(args)
         first = args{1};
         if isstruct(first) && numel(first) == 1
-            checkResultStruct(first, args, report);
+            % Codex pass 7 fix: capture the report mutation, don't drop it
+            report = checkResultStruct(first, args, report);
         elseif isstruct(first) && numel(first) > 1
             report.info{end+1} = sprintf( ...
                 'plotFn given a %d-element result struct array — only the first will be plotted unless plotFn iterates.', ...
@@ -181,9 +182,10 @@ function report = checkRenderedFigure(fig, preset, nCols, report)
 end
 
 
-function checkResultStruct(s, args, ~)
-    % Common fields we expect from analyzeFile output
-    % This is informational — we don't fail; just hint at empty data.
+function report = checkResultStruct(s, args, report)
+    % Common fields we expect from analyzeFile output.
+    % Codex pass 7 fix: previously this returned nothing, so empty-stride
+    % CRITICAL findings never reached report.critical → ok stayed true.
     if isfield(s, 'left') && isfield(s, 'right')
         sideHint = '';
         if numel(args) >= 2 && (ischar(args{2}) || isstring(args{2}))
@@ -197,8 +199,9 @@ function checkResultStruct(s, args, ~)
             end
             if ~isempty(subKey)
                 if isfield(s.(subKey), 'nStrides') && s.(subKey).nStrides == 0
-                    warning('hwalker:preflight:noStrides', ...
-                        '[CRITICAL] result.%s.nStrides == 0 — plot will be empty. Pick the other side or check sync window.', subKey);
+                    report.critical{end+1} = sprintf( ...
+                        'result.%s.nStrides == 0 — plot will be empty. Pick the other side or check sync window.', ...
+                        subKey);
                 end
             end
         end

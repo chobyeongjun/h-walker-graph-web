@@ -206,8 +206,14 @@ end
 
 
 function p = fdist_sf(F, df1, df2)
-    if ~isfinite(F) || F <= 0 || df1 <= 0 || df2 <= 0
+    if df1 <= 0 || df2 <= 0
         p = NaN; return
+    end
+    if F <= 0
+        p = 1; return         % no effect → p = 1
+    end
+    if isinf(F)
+        p = 0; return         % perfect separation → p = 0
     end
     if exist('fcdf', 'file') || exist('fcdf', 'builtin')
         p = 1 - fcdf(F, df1, df2);

@@ -32,10 +32,17 @@ function info = reproPackage(result, outputDir, varargin)
     params     = p.Results.Parameters;
     journals   = p.Results.JournalsUsed;
 
-    % --- Output directory ---
-    ts = datestr(now, 'yyyymmddTHHMMSS');               %#ok<DATST>
+    % --- Output directory (millisecond + collision suffix) ---
+    %  Codex pass 7 fix: second-resolution timestamp + parallel calls would
+    %  collide.  Use ms-resolution and append a counter if dir already exists.
+    ts = datestr(now, 'yyyymmddTHHMMSSFFF');             %#ok<DATST>
     if ~exist(outputDir, 'dir'), mkdir(outputDir); end
     runDir = fullfile(outputDir, ts);
+    suffix = 0;
+    while exist(runDir, 'dir')
+        suffix = suffix + 1;
+        runDir = fullfile(outputDir, sprintf('%s_%d', ts, suffix));
+    end
     mkdir(runDir);
 
     files = struct();
@@ -117,9 +124,8 @@ end
 function commit = gitCommit()
     commit = '';
     try
-        toolboxRoot = fileparts(fileparts(mfilename('fullpath')));    % .../matlab/+hwalker/+meta -> .../matlab
-        repoRoot    = fileparts(toolboxRoot);
-        if exist(fullfile(repoRoot, '.git'), 'dir')
+        repoRoot = findRepoRoot();
+        if ~isempty(repoRoot)
             [s, out] = system(sprintf('cd "%s" && git rev-parse HEAD', repoRoot));
             if s == 0
                 commit = strtrim(out);
@@ -132,9 +138,8 @@ end
 function st = gitStatus()
     st = '';
     try
-        toolboxRoot = fileparts(fileparts(mfilename('fullpath')));
-        repoRoot    = fileparts(toolboxRoot);
-        if exist(fullfile(repoRoot, '.git'), 'dir')
+        repoRoot = findRepoRoot();
+        if ~isempty(repoRoot)
             [s, out] = system(sprintf('cd "%s" && git status --porcelain', repoRoot));
             if s == 0
                 st = strtrim(out);
@@ -142,6 +147,24 @@ function st = gitStatus()
             end
         end
     catch
+    end
+end
+
+function root = findRepoRoot()
+% Walk up from this .m file's directory until a .git directory is found.
+% Works regardless of how the toolbox is installed:
+%   matlab/+hwalker/+meta/reproPackage.m → repo root is 4 levels up here,
+%   but other deployments may differ — walk to be safe.
+    root = '';
+    here = fileparts(mfilename('fullpath'));
+    for k = 1:8
+        if exist(fullfile(here, '.git'), 'dir') || exist(fullfile(here, '.git'), 'file')
+            root = here;
+            return
+        end
+        parent = fileparts(here);
+        if isempty(parent) || strcmp(parent, here), return; end
+        here = parent;
     end
 end
 

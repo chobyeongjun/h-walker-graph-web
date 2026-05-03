@@ -5,7 +5,7 @@ function si = symmetryIndex(leftVal, rightVal)
 %
 % Returns -1 when either side is missing (≤ 0).
 
-    if leftVal <= 0 || rightVal <= 0
+    if ~isfinite(leftVal) || ~isfinite(rightVal) || leftVal <= 0 || rightVal <= 0
         si = -1;
         return
     end

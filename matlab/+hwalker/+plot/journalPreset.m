@@ -9,6 +9,18 @@ function p = journalPreset(name)
 % Python-side `Preset` dataclass is the single source of truth; this file
 % is a verbatim mirror so MATLAB and the web-app render identical figures.
 %
+% CHOOSING THE NUMBERS — current journal author guidelines specify RANGES
+% (e.g., IEEE allows 7-10pt body; Elsevier accepts 300/500/1000 dpi). The
+% values below are the LAB STANDARD: a single concrete choice within each
+% allowed range, picked for legibility at print size. To use a different
+% combination for one figure, copy the returned struct and override fields.
+%
+% Verified against (codex web-search 2026-05-04):
+%   IEEE Author Center, Nature figure guide, APA 7 Purdue OWL,
+%   Elsevier artwork sizing, MDPI layout/style, JNER submission guidelines.
+% All values fall within currently published tolerances. Discrepancies of
+% ±1 mm reflect rounding (e.g., IEEE 2col 7.16in = 181.864 mm → rounded 181).
+%
 % Returned struct fields:
 %   name, full           string identifiers
 %   col1mm, col1h_mm     1-column width / height (mm)

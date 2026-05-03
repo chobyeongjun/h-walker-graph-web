@@ -80,6 +80,30 @@ classdef ReproTest < matlab.unittest.TestCase
             tc.verifyTrue(pkg.currentMatch.matlab);
         end
 
+        function testParallelCallsDontCollide(tc)
+            % Codex pass 7: ms-resolution timestamp + collision suffix.
+            % Call reproPackage twice within the same ms; both must succeed.
+            r = makeFakeResult();
+            info1 = hwalker.meta.reproPackage(r, tc.tmpDir);
+            info2 = hwalker.meta.reproPackage(r, tc.tmpDir);
+            tc.verifyNotEqual(info1.dir, info2.dir);
+            tc.verifyTrue(exist(info1.dir, 'dir') == 7);
+            tc.verifyTrue(exist(info2.dir, 'dir') == 7);
+        end
+
+        function testGitCommitNotEmpty(tc)
+            % Codex pass 5: reproPackage MUST capture a non-empty git commit
+            % when run inside a git repo.  Bug was: walked up wrong number
+            % of fileparts() calls and looked for .git in matlab/ instead
+            % of repo root.
+            r = makeFakeResult();
+            info = hwalker.meta.reproPackage(r, tc.tmpDir);
+            tc.verifyNotEmpty(info.git_commit, ...
+                'git_commit field must be non-empty when in a git repo');
+            tc.verifyEqual(numel(info.git_commit), 40, ...
+                'git_commit should be a 40-char SHA-1');
+        end
+
     end
 end
 

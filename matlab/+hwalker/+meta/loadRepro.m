@@ -91,13 +91,26 @@ end
 function commit = getCurrentGitCommit()
     commit = '';
     try
-        toolboxRoot = fileparts(fileparts(mfilename('fullpath')));
-        repoRoot    = fileparts(toolboxRoot);
-        if exist(fullfile(repoRoot, '.git'), 'dir')
+        repoRoot = findRepoRootLR();
+        if ~isempty(repoRoot)
             [s, out] = system(sprintf('cd "%s" && git rev-parse HEAD', repoRoot));
             if s == 0, commit = strtrim(out); end
         end
     catch
+    end
+end
+
+function root = findRepoRootLR()
+% Walk up from this .m file looking for a .git entry.
+    root = '';
+    here = fileparts(mfilename('fullpath'));
+    for k = 1:8
+        if exist(fullfile(here, '.git'), 'dir') || exist(fullfile(here, '.git'), 'file')
+            root = here; return
+        end
+        parent = fileparts(here);
+        if isempty(parent) || strcmp(parent, here), return; end
+        here = parent;
     end
 end
 

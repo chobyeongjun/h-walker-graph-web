@@ -8,6 +8,7 @@ function fi = fatigueIndex(values, pct)
 
     if nargin < 2, pct = 0.1; end
     values = values(:);
+    values = values(isfinite(values));   % drop NaN/Inf — codex pass 7 fix
     n = numel(values);
     if n < 10
         fi = 0;

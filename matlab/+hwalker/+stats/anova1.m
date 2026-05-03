@@ -174,6 +174,15 @@ end
 function p = fdist_sf(F, df1, df2)
 % Survival function of Snedecor's F (= 1 - CDF). Uses incomplete beta.
 % MATLAB has fcdf in the Stats Toolbox; this fallback works in base MATLAB.
+    if df1 <= 0 || df2 <= 0
+        p = NaN; return
+    end
+    if F <= 0
+        p = 1; return         % no effect → p = 1
+    end
+    if isinf(F)
+        p = 0; return         % perfect separation → p = 0
+    end
     if exist('fcdf', 'file') || exist('fcdf', 'builtin')
         p = 1 - fcdf(F, df1, df2);
     else

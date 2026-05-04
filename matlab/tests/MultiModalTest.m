@@ -214,6 +214,48 @@ classdef MultiModalTest < matlab.unittest.TestCase
             tc.verifyTrue(isfinite(r.rmse_overall_N));
         end
 
+        function testOrganizeStudy_Smoke(tc)
+            rawDir = fullfile(tc.tmpDir, 'rawSub01');
+            orgDir = fullfile(tc.tmpDir, 'organized');
+            mkdir(fullfile(rawDir, 'Robot'));
+            mkdir(fullfile(rawDir, 'Loadcell'));
+            mkdir(fullfile(rawDir, 'Motion'));
+
+            % Robot CSV with TWO sync cycles (findWindows requires falling+rising+falling)
+            % short test pulse [5,8s] then long active [12,22s]; pickCycle 'longest' → [12,22]
+            fs = 100; dur = 30; t = (0:1/fs:dur)'; n = numel(t);
+            sync = zeros(n,1);
+            sync(t >= 5  & t < 8 ) = 1;       % 3s test pulse
+            sync(t >= 12 & t < 22) = 1;       % 10s active window
+            T = table(t*1000, ...
+                zeros(n,1), zeros(n,1), ...
+                ones(n,1), zeros(n,1), ones(n,1), zeros(n,1), ...
+                25*sin(2*pi*t), 25*sin(2*pi*t)+1, ...
+                25*sin(2*pi*t), 25*sin(2*pi*t)+1, ...
+                sync, ...
+                'VariableNames', {'Time_ms','L_GCP','R_GCP','L_Ax','L_Ay','R_Ax','R_Ay', ...
+                                  'L_DesForce_N','L_ActForce_N','R_DesForce_N','R_ActForce_N','A7'});
+            writetable(T, fullfile(rawDir, 'Robot', 'robot_lkm_high_0.CSV'));
+
+            % Loadcell CSV with same sync window
+            ts = (0:1/fs:dur)' * 1000;
+            Tl = table(ts, 50+randn(n,1), 50+randn(n,1), 100+randn(n,1), sync, ...
+                'VariableNames', {'timestamp_ms','L_force_N','R_force_N','Total_force_N','a7'});
+            writetable(Tl, fullfile(rawDir, 'Loadcell', 'Loadcell_LKM_High_0.CSV'));
+
+            manifest = hwalker.experiment.organizeStudy(rawDir, orgDir, ...
+                'WhichCycle','longest', 'CopyMotion', false, 'CopyReference', false);
+
+            tc.verifyTrue(numel(manifest) >= 2);
+            % Robot output exists and Time_ms starts at 0
+            outR = fullfile(orgDir, 'Organized','Robot','high_0.csv');
+            tc.verifyTrue(exist(outR, 'file') == 2);
+            Tcut = readtable(outR);
+            tc.verifyEqual(Tcut.Time_ms(1), 0);
+            tc.verifyTrue(Tcut.Time_ms(end) >= 9000 && Tcut.Time_ms(end) <= 10100);   % ~10 s window
+            tc.verifyEqual(height(Tcut), 1000, 'AbsTol', 10);   % 100 Hz x 10 s
+        end
+
         function testOnsetReleaseRMSE_GCP_StrideAligned(tc)
             % Synthetic 2 strides @ 100 Hz; 50N pulse spanning 55-85% of each
             fs = 100; n = 200;

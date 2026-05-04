@@ -214,6 +214,35 @@ classdef MultiModalTest < matlab.unittest.TestCase
             tc.verifyTrue(isfinite(r.rmse_overall_N));
         end
 
+        function testOnsetReleaseRMSE_GCP_StrideAligned(tc)
+            % Synthetic 2 strides @ 100 Hz; 50N pulse spanning 55-85% of each
+            fs = 100; n = 200;
+            t = (0:1/fs:(n-1)/fs)';
+            % Stride 1: 0..1s. Stride 2: 1..2s.  hsIdx at 1, 101.
+            hsIdx = int32([1; 101; 201]);
+            validMask = true(2, 1);
+            des = zeros(n, 1);
+            act = zeros(n, 1);
+            for k = 1:2
+                % per-stride window 55..85 → samples 55..85 within stride
+                onsetSamp = (k-1)*100 + 56;
+                relSamp   = (k-1)*100 + 86;
+                des(onsetSamp:relSamp) = 50;
+                act(onsetSamp:relSamp) = 50 + 1.5*randn(relSamp-onsetSamp+1, 1);
+            end
+            T = table(t * 1000, des, act, ...
+                zeros(n,1), zeros(n,1), ...                     % L_GCP, R_GCP placeholder
+                'VariableNames', {'Time_ms','R_DesForce_N','R_ActForce_N','L_GCP','R_GCP'});
+
+            r = hwalker.force.onsetReleaseRMSE_GCP(T, 'R', hsIdx, validMask, ...
+                'OnsetPct', 55, 'ReleasePct', 85);
+            tc.verifyEqual(r.nStrides, 2);
+            tc.verifyEqual(r.window_pct, [55 85]);
+            tc.verifyTrue(all(r.peak_des_per_stride_N >= 49.0));
+            tc.verifyTrue(all(r.rmse_per_stride_N < 5.0));
+            tc.verifyTrue(isfinite(r.rmse_overall_N));
+        end
+
         function testOnsetReleaseRMSE_NoSegmentsBelowThreshold(tc)
             fs = 100; t = (0:1/fs:2)';
             T = table(t*1000, 0.1*ones(size(t)), zeros(size(t)), ...

@@ -25,9 +25,7 @@ function p = journalPreset(name, varargin)
 %
 % Use `hwalker.plot.listJournals` to print all available presets.
 %
-% Verified specs (CLAUDE.md + backend/services/publication_engine.py).
-% Python-side `Preset` dataclass is the single source of truth; this file
-% is a verbatim mirror so MATLAB and the web-app render identical figures.
+% Verified specs based on CLAUDE.md authoritative table.
 %
 % CHOOSING THE NUMBERS — current journal author guidelines specify RANGES
 % (e.g., IEEE allows 7-10pt body; Elsevier accepts 300/500/1000 dpi). The
@@ -106,7 +104,7 @@ function p = journalPreset(name, varargin)
         166   86   40
     ] / 255;
 
-    % ---------- Preset table (verbatim from publication_engine.py) ----------
+    % ---------- Preset table (LAB STANDARD values per journal guidelines) ----------
     presets.IEEE = makePreset( ...
         'IEEE', 'IEEE Transactions / Journals', ...
         88.9, 70.0,  181.0, 90.0,  NaN, NaN,  216.0, ...

@@ -8,7 +8,7 @@ function applyPreset(fig, ax, preset, nCols)
 %
 % Sets exact journal width × height (mm), font family, body / axis / legend
 % / title sizes (pt), stroke width, axes-spine width, grid width, color order,
-% text interpreter, and tick style. Matches publication_engine.py bit-for-bit.
+% text interpreter, and tick style.
 %
 % Throws hwalker:plot:noOneHalf if nCols=1.5 is requested for a journal
 % without a 1.5-column variant (only Elsevier supports it).

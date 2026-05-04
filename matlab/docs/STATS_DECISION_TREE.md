@@ -167,4 +167,4 @@ disp(table(ph.pair_labels, ph.mean_diff, ph.p_raw, ph.p_adj, ph.reject, ...
 ---
 
 *이 결정 트리는 `hwalker.stats.decisionTree` 의 자동 추천과 일치하며,
-인터랙티브 버전은 `frontend/public/docs/decision_tree.html` 에 있습니다.*
+인터랙티브 버전은 `matlab/docs/decision_tree.html` 에 있습니다 (브라우저로 직접 열기).*

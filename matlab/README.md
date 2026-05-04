@@ -112,7 +112,7 @@ install
 | MDPI | 85 × 65 | 170 × 90 | Palatino | 8 | 0.75 | 1000 | default |
 | JNER | 85 × 65 | 170 × 90 | Arial | 8 | 0.75 | 300 | Wong (CB-safe) |
 
-`backend/services/publication_engine.py` 의 Python `Preset` 과 **bit-for-bit 동일** (parity test 로 강제).
+CLAUDE.md authoritative table 과 일치 — `tests/PresetParityTest.m` 가 회귀 보호.
 
 ---
 
@@ -134,7 +134,7 @@ install
 
 - 사용자 가이드 (한국어, step-by-step): [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
 - 통계 결정 트리 (시각): [docs/STATS_DECISION_TREE.md](docs/STATS_DECISION_TREE.md)
-- 인터랙티브 결정 트리 (HTML): `../frontend/public/docs/decision_tree.html`
+- 인터랙티브 결정 트리 (HTML): `docs/decision_tree.html` (브라우저로 직접 열기)
 - 데모 스크립트: [examples/demo.m](examples/demo.m)
 - 함수별 상세: 각 `.m` 파일 doc block (`help hwalker.stats.anova1` 등)
 

@@ -348,7 +348,7 @@ demo
 ## 8. 더 알고 싶으면
 
 - 통계 결정 트리 (시각): [STATS_DECISION_TREE.md](STATS_DECISION_TREE.md)
-- 인터랙티브 결정 트리 (HTML): `frontend/public/docs/decision_tree.html`
+- 인터랙티브 결정 트리 (HTML): `matlab/docs/decision_tree.html` (브라우저로 직접 열기)
 - 알고리즘 디테일: 각 함수의 `help <function>` (모든 함수에 doc block 있음)
 - 코드 베이스 구조: `../README.md`
 - 검증 로그: `docs/verification/codex_pass_*.md` (codex 검증 라운드별)

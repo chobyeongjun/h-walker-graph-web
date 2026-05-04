@@ -15,10 +15,9 @@ H-Walker (cable-driven gait rehab robot) 실험 데이터를 **논문에 바로 
 ## 현재 상태 (2026-05-04 기준)
 
 - **Tests**: 149/149 passing (`runAllTests`)
-- **Python parity**: 23/23 (`pytest tests/backend/test_preset_parity.py`)
 - **Codex 10-pass**: 18 critical bug 발견 → 모두 수정
+- **Repo scope**: MATLAB ONLY. 이전 web app (frontend/backend/desktop) 는 2026-05-04 에 제거됨 (git history 에 보존).
 - **Branch**: `matlab-toolbox-paper-grade` on `chobyeongjun/h-walker-graph-web`
-- **Last commit**: `459e0b7` "matlab: multi-modal pipeline + Copilot canonical prompts + codex 10-pass complete"
 
 ---
 

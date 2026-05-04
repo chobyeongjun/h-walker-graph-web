@@ -1,6 +1,6 @@
 classdef PresetParityTest < matlab.unittest.TestCase
-% Verifies hwalker.plot.journalPreset matches publication_engine.py spec
-% (CLAUDE.md authoritative table) bit-for-bit.
+% Verifies hwalker.plot.journalPreset values match the CLAUDE.md
+% authoritative table — bit-for-bit constancy across releases.
 
     methods (TestClassSetup)
         function addToolboxPath(tc) %#ok<MANU>

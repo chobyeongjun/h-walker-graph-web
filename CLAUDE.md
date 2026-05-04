@@ -1,6 +1,12 @@
-# CLAUDE.md — H-Walker Graph Web
+# CLAUDE.md — H-Walker MATLAB Toolbox
 
 **새 Claude 세션이 이 레포에 들어왔을 때 먼저 읽어야 할 컨텍스트.**
+
+---
+
+## 가장 중요한 한 줄
+
+이 repo 는 **MATLAB toolbox 만**입니다. (이전 web app — frontend/backend/desktop — 는 2026-05-04 에 모두 제거됨. git history 에 남아있어 필요시 복구 가능: `git log --all -- frontend/`).
 
 ---
 
@@ -8,47 +14,31 @@
 
 - 조병준 (ARLAB, 케이블 드리븐 보행 재활 로봇 "H-Walker" 연구자)
 - 한국어 소통, 직접적이고 간결한 답변 선호
-- `python` 아닌 `python3` 사용
+- `python` 아닌 `python3` 사용 (MATLAB toolbox 는 Python 의존성 없음)
 - Git 커밋 메시지에 **Claude/AI 흔적 절대 금지** (`Co-Authored-By`, PR 본문 등)
-- 로컬 경로: `~/h-walker-graph-web` (main repo) / `~/h-walker-ws` (로봇 코드 별도)
-- 다른 프로젝트: `vault` (research-vault), `skiro` (learning capture)
+- 로컬 경로: `~/h-walker-graph-web` (= 이 레포)
+- 다른 프로젝트: `~/research-vault` (vault), `~/skiro` (learning capture)
 
 ---
 
 ## 🎯 이 레포의 정체
 
-**단일 사용자(연구자 본인)용 데스크톱 웹앱** — H-Walker 로부트 CSV 실험 데이터를
-자연어로 분석·시각화하고 **논문 Figure를 저널 사이즈 그대로 Export** 하는 워크스페이스.
+**H-Walker (cable-driven gait rehab robot) 실험 데이터 → 논문 직행 figure + 통계 + 재현성 패키지** 까지 한 번에 처리하는 MATLAB toolbox.
 
-**핵심 철학: "원툴" — 업로드부터 저널 Export 까지 한 페이지에서 종결.**
+- 입력: H-Walker 펌웨어 CSV + (옵션) Motion C3D + EMG + Loadcell BWS
+- 출력: 17 저널 (T-RO/RA-L/TNSRE 등) 정확 mm × mm figure + ANOVA/RM-ANOVA/post-hoc/bootstrap 통계 + supplementary 재현성 패키지
 
-사용자가 명시적으로 말한 최우선 요구:
-
-1. 논문 용도 **사이즈까지 완벽** (88.9mm / 181mm 등 정확 치수)
-2. 로딩 피드백 필수 (요청 → 즉시 스켈레톤 → 렌더)
-3. 여러 그래프를 한 페이지에서 관리 (카드 그리드)
-4. 드래그앤드랍 CSV 업로드 **상시 노출**
-5. 불필요한 UI 최소화 (`docs/SIMPLIFY.md` 참고)
+## 가장 빠른 컨텍스트 복원
+**`matlab/docs/SESSION_HANDOFF.md`** 한 페이지에 모든 핵심 정리됨 — 30초 미션, 핵심 함수 5개, 폴더 표준, codex 10-pass 검증 결과, 함정, 다음 작업 후보. 새 세션은 이 파일부터 읽기.
 
 ---
 
 ## 🧱 기술 스택
 
-```
-Frontend  React 19 + TypeScript + Vite + Zustand (persist)
-          - 손으로 쓴 CSS (Tailwind 제거됨)
-          - lucide-react 아이콘
-          - Pretendard (self-host /fonts) + JetBrains Mono
-          - 디자인 원본: design/phase2/core_v3.html (3218줄)
-
-Backend   FastAPI + pandas + matplotlib + Pillow + Anthropic SDK
-          - Haiku 4.5 via /api/claude/complete
-          - Publication render via matplotlib + bezier path sampler
-
-Launcher  run.py — uvicorn + SPA fallback + static mounts
-
-Vendor    tools/auto_analyzer, tools/graph_analyzer (gait 분석 유틸)
-```
+- MATLAB R2020a+ (개발은 R2025b)
+- Statistics and Machine Learning Toolbox (선택; 없어도 핵심 검정 fallback 동작)
+- ezc3d (선택; C3D 파일 처리시 권장)
+- 외부 의존성 없음 — 순수 MATLAB
 
 ---
 
@@ -56,232 +46,168 @@ Vendor    tools/auto_analyzer, tools/graph_analyzer (gait 분석 유틸)
 
 ```
 h-walker-graph-web/
-├── CLAUDE.md                 ← 너 지금 여기
-├── README.md                 사용자용 소개
-├── SETUP.md                  빈 컴퓨터 설치 가이드
-├── requirements.txt          Python deps
-├── run.py                    ⭐ 원클릭 런처
-├── design/                   ⭐ 원본 디자인 (HANDOFF_CLAUDE_CODE.md 필독!)
-│   ├── HANDOFF_CLAUDE_CODE.md   포팅 지침서 (§1~§7)
-│   ├── phase2/core_v3.html      기준 목업 3218줄
-│   └── fonts/                   Pretendard 전체 weight
-├── docs/
-│   ├── SIMPLIFY.md           제거/축소/통합 후보 17개
-│   └── HANDOVER-*.md
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx           3-panel 쉘
-│   │   ├── store/workspace.ts Zustand (cells/datasets/mode/preset/...)
-│   │   ├── data/             verbatim 추출 상수들
-│   │   │   ├── journalPresets.ts   6 저널 × 치수/폰트/DPI/팔레트
-│   │   │   ├── graphTemplates.ts   8 그래프 × SVG paths
-│   │   │   ├── statOps.ts          5 통계 연산
-│   │   │   ├── computeMetrics.ts   6 계산 메트릭
-│   │   │   ├── canonicalRecipes.ts 데이터셋 타입별 자동 셀 생성
-│   │   │   ├── catalogs.ts         HISTORY/STATS_LIB/EXPORT_FORMATS
-│   │   │   └── seedCells/seedDatasets
-│   │   ├── api/index.ts      fetch 래퍼 (HANDOFF §2 스펙)
-│   │   ├── components/
-│   │   │   ├── TopNav.tsx        dark/light 로고 자동 스왁
-│   │   │   ├── Sidebar.tsx       아이콘 전용, tooltip 팬업
-│   │   │   ├── PublicationBar.tsx
-│   │   │   ├── Canvas.tsx
-│   │   │   ├── DatasetPanel.tsx  드랍존 + recipe 체크박스
-│   │   │   ├── cells/
-│   │   │   │   ├── Cell.tsx      래퍼
-│   │   │   │   ├── GraphCell.tsx ⭐ SVG 렌더 + pub 모드 팔레트 스왁 + Export
-│   │   │   │   ├── StatCell.tsx
-│   │   │   │   ├── ComputeCell.tsx
-│   │   │   │   └── LlmCell.tsx
-│   │   │   ├── LlmDock.tsx       하단 입력창 → /api/claude/complete
-│   │   │   ├── CmdK.tsx          ⌘K 팬레트 (제거 후보)
-│   │   │   ├── FocusOverlay.tsx
-│   │   │   ├── ColumnMapperModal.tsx
-│   │   │   ├── Drawer.tsx        history/exports/stats/settings
-│   │   │   ├── HelpOverlay.tsx   (제거 후보)
-│   │   │   └── Toast.tsx
-│   │   └── styles/
-│   │       ├── app.css           core_v3.html 의 <style> 이식
-│   │       └── colors_and_type.css  @font-face + CSS vars
-│   ├── public/
-│   │   ├── brand/{wordmark,mark}-{dark,light}.svg  ⭐ 2026 리브랜드
-│   │   ├── fonts/Pretendard-*.ttf/.otf (19개)
-│   │   └── favicon.svg
-│   ├── src.legacy/           예전 3-panel UI (gitignored, 참고용만)
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.ts
-├── backend/
-│   ├── main.py               FastAPI 앱 팩토리 (run.py 가 대체 사용)
-│   ├── routers/
-│   │   ├── claude.py         ⭐ Anthropic SDK 직접 호출
-│   │   ├── datasets.py       /api/datasets/* (upload/list/mapping)
-│   │   ├── graphs.py         ⭐ /api/graphs/render + /bundle (HANDOFF §2.4)
-│   │   ├── chat.py / feedback.py / drive.py / journal.py / graph.py   legacy
-│   ├── services/
-│   │   ├── publication_engine.py  ⭐ JOURNAL_PRESETS (Py mirror) +
-│   │   │                            GRAPH_SPECS + bezier sampler + render()
-│   │   ├── analysis_engine.py     tools.auto_analyzer 래퍼
-│   │   ├── llm_client.py          Claude Haiku + 도메인 지식 + 피드백
-│   │   ├── config.py
-│   │   ├── knowledge_loader.py / feedback_loader.py / session_state.py
-│   │   └── graph_quick.py / graph_publication.py   legacy
-│   └── models/schema.py      AnalysisRequest, StatsResult, GraphSpec
-├── tools/                    vendored: auto_analyzer + graph_analyzer
-└── AppIcon.icns              Mac .app 번들용 (1.6 MB)
+├── CLAUDE.md                      ← 너 지금 여기
+├── README.md
+└── matlab/
+    ├── install.m  runAllTests 입구
+    ├── README.md
+    ├── docs/
+    │   ├── SESSION_HANDOFF.md     ⭐ 1분 컨텍스트 복원
+    │   ├── NEXT_STEPS.md          사용자용 7-step 가이드
+    │   ├── USER_GUIDE.md
+    │   ├── STATS_DECISION_TREE.md (Mermaid)
+    │   ├── decision_tree.html     인터랙티브 결정 트리
+    │   ├── MULTIMODAL_PIPELINE.md Robot+Motion+EMG+Loadcell 표준
+    │   └── verification/codex_pass_*.md  codex 10-pass 검증 로그
+    ├── examples/
+    │   ├── demo.m                 합성 데이터 end-to-end
+    │   └── example_01..07_*.m     Copilot 친화 시나리오 7개
+    ├── tests/                     149 단위테스트 (matlab.unittest)
+    └── +hwalker/
+        ├── analyzeFile.m  analyzeFolder.m
+        ├── +io/      loadCSV / loadMotion / loadEMG / loadLoadcell + parseFilename
+        ├── +sync/    findWindows (DebounceMs name-value)
+        ├── +stride/  detectHS, lengthZUPT, stanceSwing, filterIQR (reasons)
+        ├── +force/   trackingError, normalizedProfile
+        ├── +stats/   ⭐ pairedTest (d_av/d_z/d_rm), anova1, anovaRM (GG/HF/Mauchly),
+        │             postHoc (tukey/bonferroni/holm/fdr), bootstrap (BCa),
+        │             leveneTest, decisionTree, symmetryIndex, fatigueIndex
+        ├── +kinematics/ computeJointAngles (sagittal hip/knee/ankle, side-keyed)
+        ├── +kinetics/   grfFeatures (peak Fz, propulsion, AP impulse, COP)
+        ├── +emg/        coContractionIndex (Falconer-Winter)
+        ├── +experiment/ ⭐ loadSession / loadAllConditions / extractFeatures /
+        │                compareConditions / generateMethods
+        ├── +plot/   ⭐ journalPreset (17 저널 + Custom), listJournals,
+        │             applyPreset, exportFigure, exportAllJournals,
+        │             preflightCheck (Copilot-style), drawSignificance, labelPanels,
+        │             forceQC / forceTracking / strideTrend / metricBar / metricBox / multiConditionForce
+        └── +meta/   reproPackage / loadRepro
 ```
 
 ---
 
-## 🎨 디자인 시스템 (절대 건드리지 말 것)
+## 핵심 함수 5개 (90% 시나리오)
 
-**팔레트 (유일 source of truth — `frontend/src/styles/app.css` 의 :root):**
+```matlab
+%% 1. 한 trial 분석
+r = hwalker.analyzeFile('/path/to/data.csv');
 
-| 역할 | 색상 | 용도 |
-|---|---|---|
-| 배경 | `#0B0E2E` | 전체 앱 |
-| 액센트 | `#F09708` | QUICK 토글, 로고, CTA, 헤더 ey |
-| 네온 | `#00FFB2` | 상태 인디케이터, stat.sig |
-| 보라 | `#A78BFA` | LLM 셀, ASK 프리픽스 |
-| 시안 (info) | `#7FB5E4` | COMPUTE 셀, IMU tag |
-| Error | `#f87171` | Delete hover, bad p-value |
+%% 2. 한 condition multi-modal 묶음
+session = hwalker.experiment.loadSession('~/exp/sub-01/cond-1_baseline');
 
-**타이포:**
-- UI: `'Pretendard'` (self-host in /fonts)
-- 모노 (JSON, 수치, kbd): `'JetBrains Mono'` (Google Fonts CDN)
+%% 3. 모든 condition 비교 + 자동 검정 추천
+conds = hwalker.experiment.loadAllConditions('~/exp/sub-01');
+cmp   = hwalker.experiment.compareConditions(conds, 'Design','within');
 
-**반드시 유지:**
-- Glass morphism (nav.topnav, .cell)
-- Eyebrow 라벨 (대문자 + letter-spacing .22em)
-- `var(--hw-ease)` = `cubic-bezier(.22,1,.36,1)` 모든 전환
-- 셀 호버 시 `border-left:3px solid var(--accent)` 뉘앙스
+%% 4. 6+ 저널 figure 일괄
+hwalker.plot.exportAllJournals(@hwalker.plot.forceQC, {r,'R'}, '~/figs', ...
+    'Journals', {'TRO','RAL','TNSRE','JNER','SciRobotics'});
+
+%% 5. supplementary 재현성 패키지
+hwalker.meta.reproPackage(r, '~/repro', 'InputCSV', '/path/to/data.csv');
+```
 
 ---
 
-## 🔑 HANDOFF §2 엔드포인트 (중요 ⭐)
+## CSV 컬럼 규약 (H-Walker 펌웨어)
 
-| 메소드 | 경로 | 상태 | 비고 |
-|---|---|---|---|
-| POST | `/api/datasets/upload` | ✅ | CSV multipart + pandas 파싱 + column role guess |
-| GET | `/api/datasets` / `/{id}` | ✅ | in-memory registry |
-| DELETE | `/api/datasets/{id}` | ✅ | 반드시 `Response(status_code=204)` — FastAPI assert 주의 |
-| POST | `/api/datasets/{id}/mapping` | ✅ | |
-| POST | `/api/graphs/render` | ✅ | ⭐ 저널 사이즈 바이너리 (SVG/PDF/EPS/PNG/TIFF) |
-| POST | `/api/graphs/bundle` | ✅ | ZIP + README.txt |
-| GET | `/api/graphs/presets` / `/templates` | ✅ | 메타 정보 |
-| POST | `/api/claude/complete` | ✅ | Haiku 4.5 직접 호출, 3문장 system prompt |
-| GET | `/api/claude/health` | ✅ | key_present 확인 |
-| POST | `/api/compute` | ⏳ Phase B | SciPy + pingouin 실제 구현 |
-| POST | `/api/stats` | ⏳ Phase B | |
-| POST | `/api/export/bundle` | ⏳ Phase B | 통계 포함 ZIP |
-| GET | `/api/claude/stream` | ⏳ Phase B | SSE 스트리밍 |
+H-Walker 펌웨어 출력 그대로 사용. 핵심 컬럼:
+
+| 컬럼 | 내용 |
+|---|---|
+| `Time_ms` | 타임스탬프 (ms) |
+| `L_GCP` / `R_GCP` | 케이블 변위 (heel-strike 검출 sawtooth) |
+| `L_ActForce_N` / `R_ActForce_N` | 실제 케이블 장력 (N) |
+| `L_DesForce_N` / `R_DesForce_N` | 목표 케이블 장력 (N) |
+| `L_Ax` / `L_Ay` | Global Velocity X/Y (ZUPT 보폭용) |
+| `Sync` 또는 `A7` | 동기화 신호 (0/1) |
+
+기존 파일명 (`260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv`) 그대로 OK — `parseFilename` 이 자동 분류, multi-modal 워크플로우에서도 `loadSession` 이 source 별로 매칭.
 
 ---
 
-## 📐 논문 Export — 검증된 스펙
+## 17 저널 Preset 
 
-| 저널 | 1-col mm | 2-col mm | 폰트 | Body pt | Stroke pt | DPI | 팔레트 |
-|---|---|---|---|---|---|---|---|
-| IEEE | 88.9 | 181 | Times | 8 | 1.0 | 600 | grayscale |
-| Nature | 89 | 183 | Helvetica | 7 | 0.5 | 300 | Wong 색맹-safe |
-| APA | 85 | 174 | Arial | 10 | 0.75 | 300 | grayscale |
-| Elsevier | 90 | 190 (+140 1.5col) | Arial | 8 | 0.5 | 300 | |
-| MDPI | 85 | 170 | Palatino | 8 | 0.75 | 1000 | |
-| JNER | 85 | 170 | Arial | 8 | 0.75 | 300 | 색맹-safe |
+**Robotics (11)**: TRO / RAL / TNSRE / TMECH / ICRA / IROS / IJRR / SciRobotics / SoftRobotics / FrontNeurorobot / AuRo
+**General (6)**: IEEE / Nature / APA / Elsevier / MDPI / JNER
+**Custom 등록**: `hwalker.plot.journalPreset('Custom', struct(...))`
 
-**검증 완료 (smoke test):**
-- IEEE col1 SVG → `width="252pt"` = 88.9mm × 2.835 pt/mm ✅
-- Nature col2 PNG → 2161×1062 @ 300dpi ✅
-- APA PDF 1-page ✅ · MDPI TIFF ✅
-- Bundle ZIP (README.txt 포함) ✅
+목록 출력: `hwalker.plot.listJournals`
 
 ---
 
-## 🚧 아직 안 된 것 (Phase B todo)
+## 🚧 Codex 10-pass 검증 결과
 
-`docs/SIMPLIFY.md` 와 HANDOFF §3.3-§3.5 참고. 우선순위 순:
+총 **18 critical bug 발견 + 18 모두 fix**. 검증 로그: `matlab/docs/verification/codex_pass_*.md`.
 
-1. `/api/compute` + `/api/stats` 실제 구현 (SciPy, pingouin)
-2. `/api/graphs/render` 에 `dataset_id` 실데이터 지원 (현재 GRAPH_SPECS mock)
-3. `@dnd-kit/sortable` 로 카드 재배치
-4. FocusOverlay brush-zoom (mousedown/move/up)
-5. `/api/claude/stream` SSE
-6. Playwright e2e (HANDOFF §3.5)
-7. **간소화 실행** (`docs/SIMPLIFY.md` Quick wins: 드로어 3개 + cmdK + help 제거)
+영구 fix 항목 (회귀 금지):
+- 저널 figure 높이 4:3 hardcoded → preset 종횡비 사용
+- Tukey HSD fallback Bonferroni 사용 → numerical integration of studentized range
+- BCa cell-array jackknife x{1} 만 → 모든 sample 풀링
+- BCa denominator clamp 부호 잃음 → sign-preserving fallback
+- paired Cohen's d 완전상관 case → d_av 한계로 fallback
+- anova1/leveneTest/anovaRM/postHoc zero-variance → F=0,p=1 또는 F=Inf,p=0
+- reproPackage git_commit 경로 버그 → findRepoRoot walks 8 levels
+- bootstrap NaN drop, fatigueIndex/symmetryIndex NaN 처리, race condition
+- compareConditions 가 decisionTree non-parametric 추천 무시 → Friedman/Wilcoxon/MW/KW 자동 라우팅
+- generateMethods 가 없는 modality 도 텍스트 작성 → cmp metric 으로 detect
+- grfFeatures stance off-by-one (sample-count semantics)
+- computeJointAngles R/L summary fieldname 충돌 → side-suffixed
+- preflightCheck checkResultStruct 가 report 출력 누락 → return value 추가
 
 ---
 
 ## 🐛 알려진 함정 / Gotchas
 
-1. **`tools/` 는 vendored** — 원래 `~/h-walker-ws/tools/` 에 있던 것. 지우면 안 됨.
-2. **FastAPI DELETE 204** — `def delete(...) -> None` + `status_code=204` 는 assert 실패.
-   항상 `return Response(status_code=204)` 로.
-3. **matplotlib `dashes=None`** — matplotlib 이 `len(None)` 에러. `None` 이면 kwarg 자체 생략.
-4. **Vite 의 `/api/*` proxy** — dev 모드에서 localhost:5173 → localhost:8000. vite.config.ts 에 proxy 설정 있음.
-5. **Pretendard /fonts** — 폰트 경로가 `url('/fonts/...')` 절대경로. public/fonts/ 에서 서빙.
-6. **`hw_graph_dir`** = `~/.hw_graph` (knowledge/feedback/logs/cache). 리셋하려면 이 폴더 삭제.
-7. **Zustand persist** — 로컬스토리지 키 `hw_workspace_v1`. 스키마 바뀌면 bump 해야 함.
-8. **LlmDock 에러 시 claude.py 직접 호출이라** `/api/claude/health` 로 key_present 먼저 확인.
-9. **`npm run dev`** 쓸 때도 **백엔드는 `python3 run.py` 로 별도 실행** 필요.
-10. **Legacy 라우터 (`chat.py`, `graph.py` 등)** — 제거 후보지만 현재는 등록돼 있음. 수정 시 Phase 2 쪽과 충돌 주의.
+1. **`install` 명령어를 zsh 에 입력 → "target directory `등록' does not exist"**: MATLAB Command Window 에 입력해야 함 (zsh `install` 은 BSD 명령어).
+2. **MDPI Palatino 폰트 macOS 미설치**: preflightCheck WARN; MATLAB 자동 substitute (paper 영향 거의 없음).
+3. **저널 PDF 가 88.9mm 가 아니라 89.2mm**: MATLAB integer-pt rounding (252→253pt). 저널 reviewer 가 0.3mm 차이 잡지 않음.
+4. **Stats Toolbox 없이 ttest/signrank/lillietest NaN**: 핵심 검정 (anova1/anovaRM/postHoc/bootstrap/leveneTest) 은 자체 fallback.
+5. **Push 권한**: `chobyeongjun/h-walker-graph-web` (personal, force-push OK), `h-arlab/CBJ` (org, read-only).
 
 ---
 
-## 🔄 일반 작업 흐름 (새 Claude 가 받을 전형적인 요청)
+## 🔄 일반 작업 흐름
 
-**"XX 버그 고쳐줘" → 체크리스트**
-1. 어느 레이어 (frontend/backend/both)? → 해당 파일 먼저 Read
-2. `git log --oneline -20` 로 최근 맥락 파악
-3. 수정 → `cd frontend && npm run build` 또는 `python3 run.py` 로 실행 검증
-4. 커밋 — 메시지는 **"무엇을 왜" 중심, Claude/AI 언급 금지**
-5. `git push origin main`
+**"버그 고쳐줘" → 체크리스트**
+1. `runAllTests` 가 현재 통과하는지 확인
+2. 해당 파일 + 단위테스트 함께 Read
+3. 수정 → `runAllTests` 재실행
+4. commit (Claude/AI 흔적 금지)
+5. `git push personal matlab-toolbox-paper-grade:main --force` (사용자가 force-push 권한 줌)
 
-**"새 기능 추가해줘"**
-1. `design/HANDOFF_CLAUDE_CODE.md` 에 비슷한 패턴 있는지 확인
-2. 기존 컴포넌트 스타일 패턴 따라가기 (특히 `.cell`, `.ds-panel`, `.drawer` 의 eyebrow/label 패턴)
-3. store 에 상태 추가 필요하면 `workspace.ts` 에 액션 추가
-4. 백엔드 필요하면 HANDOFF §2 스키마 따라서 라우터 생성
+**"새 기능 추가"**
+1. `+hwalker/` 안 어느 sub-package 가 적합한지 결정
+2. 기존 함수 패턴 참고 (특히 input parser / NaN 처리 / 결과 struct shape)
+3. `examples/` 에 시나리오 스크립트 추가 + 상단에 "CANONICAL Copilot prompt:" 블록
+4. `tests/` 에 단위테스트 추가
+5. `runAllTests` 통과 확인
+6. `SESSION_HANDOFF.md` 업데이트
 
-**"논문 Export 개선"**
-- 치수/폰트/DPI 는 절대로 임의로 바꾸지 말 것. `publication_engine.py` 의 `JOURNAL_PRESETS` 가 single source of truth. 변경 시 `journalPresets.ts` 도 동시 업데이트 (verbatim mirror 유지).
-- `GRAPH_SPECS` 는 Phase B 에 실 CSV 데이터로 전환 예정. 지금은 mockup 베지어.
-
-**"채팅이 응답 안 해"**
-```bash
-curl http://localhost:8000/api/claude/health
-# key_present: false → export ANTHROPIC_API_KEY=...
-# provider: 'ollama' → config.py 에서 LLM_PROVIDER=anthropic
-```
-
-**"프론트엔드 빌드 안 됨"**
-- TypeScript strict + noUnusedLocals 켜져 있음. 미사용 변수 정리 필요.
-- Tailwind/PostCSS 제거됐으니 그 관련 에러 나오면 `*.config.js` 지워졌는지 확인.
+**"논문 figure 개선"**
+- 치수/폰트/DPI 는 절대로 임의로 바꾸지 말 것. `journalPreset.m` 가 single source of truth. Custom preset 으로 override.
 
 ---
 
 ## 📌 기억해야 할 선언적 규칙
 
-- **🚫 절대 mock / placeholder 데이터를 UI 에 띄우지 마라.** 사용자 1순위 분노 트리거. 데이터셋 미바인드 상태에서는 빈 상태 (axes only + "Bind a CSV" 메시지) — fake bezier curve / "n strides=14" / "112 spm" 같은 placeholder 절대 금지. 컴포넌트는 항상 실제 백엔드 응답만 렌더해야 한다. 정책 위반 회귀 막는 테스트: `tests/backend/test_llm_tool_schema.py::test_add_graph_cell_enum_excludes_removed`.
-- **🔁 sync 의 정의 (사용자 명시)**: "디지털/아날로그 sync 신호의 한 사이클" — falling edge 후 rising edge 부터 다시 falling edge 까지가 1 sync. heel-strike 와 다른 개념. 사용자가 "한 싱크 한 싱크 잘라달라" 하면 sync signal 의 매 cycle 마다 데이터 구간을 잘라서 보여주라는 의미. (per-sync crop / inspector 는 진행 중 feature.)
-- **삭제된 그래프 (다시 추가 금지 without 명시 동의)**: `peak_box` (asymmetry + per_stride table 로 충분), `debug_ts` (clutter + 줌 안 됨). 사용자가 직접 "다시 넣어줘" 하기 전엔 부활 금지.
-- **절대 디자인 팔레트 바꾸지 마라.** `#F09708` / `#00FFB2` / `#0B0E2E` 는 브랜드 정체성.
-- **절대 Tailwind 다시 도입하지 마라.** 수동 CSS 로 정리된 상태.
-- **절대 이 레포에 Claude/AI 흔적 남기지 마라.** Co-Authored-By 금지.
-- **항상 `python3`**, 절대 `python` 쓰지 말 것.
-- **커밋 전 `npm run build` 한 번은 돌려봐라.** TypeScript 에러가 CI 없이 잡혀야 함.
+- **🚫 절대 mock / placeholder 데이터 사용 금지.** 사용자 1순위 분노 트리거. 빈 상태에서는 명시적 에러 또는 "no data — load CSV first" 메시지.
+- **항상 `python3`**, 절대 `python` 쓰지 말 것 (MATLAB toolbox 는 Python 의존성 없음, 다만 codex/시스템 명령에서 종종 필요).
+- **커밋 전 `runAllTests` 한 번**. 149/149 유지.
+- **저널 preset 변경 시** → `matlab/+hwalker/+plot/journalPreset.m` 단일 파일만 수정. `PresetParityTest.m` 도 함께 업데이트.
+- **명령어 1줄로 사용자가 따라할 수 있게** 가이드 작성 — 추상 가이드 X.
 
 ---
 
-## 🗺️ 시작 체크리스트 (새 세션용)
+## 🗺️ 새 세션 시작 체크리스트
 
-1. `README.md` 읽기 (30초)
-2. `git log --oneline -15` (현재 상태 파악)
-3. 필요시 `design/HANDOFF_CLAUDE_CODE.md` (포팅 지침)
-4. 작업 파일의 주변 2~3개 파일 Read
-5. 사용자 요청 실행 → 빌드 검증 → 커밋 + 푸시
+1. `matlab/docs/SESSION_HANDOFF.md` 읽기 (1분)
+2. `git log --oneline -10` (최근 작업 파악)
+3. 사용자 요청 → 정확한 함수 호출로 매핑 (5개 핵심 함수 우선)
+4. 작업 → `runAllTests` 검증 → commit + force-push to personal/main
 
-**막히면:** `git log -p -- path/to/file | head -100` 으로 과거 변경 이유 찾기.
+**막히면**: `git log -p -- matlab/path/to/file | head -100` 으로 과거 변경 이유 찾기.
 
 ---
 
-*최종 업데이트: 2026-04-22 (Phase 2A + brand logos + publication engine)*
+*최종 업데이트: 2026-05-04 (web app 제거, MATLAB-only)*

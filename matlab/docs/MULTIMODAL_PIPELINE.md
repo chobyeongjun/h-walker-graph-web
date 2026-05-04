@@ -9,7 +9,11 @@
 
 ## 1. 폴더 구조 (강제 표준)
 
-이 구조 그대로 따라야 toolbox 가 자동으로 매칭함.
+각 condition 폴더 안에 **3-4개 데이터 파일**:
+- robot.csv (필수)
+- motion.c3d (motion + 보통 force/EMG 가 같이 들어있음)
+- emg.csv (EMG 가 motion 시스템과 별도일 때만)
+- loadcell.csv (BWS)
 
 ```
 ~/h-walker-experiments/                    ← root (사용자가 정함, 어디든 OK)
@@ -21,19 +25,18 @@
 │       ├── sub-01/                         ← 피험자 1
 │       │   ├── meta.json                   ← 키, 몸무게, 나이, 우세발 등
 │       │   │
-│       │   ├── cond-baseline/              ← 보조 OFF
-│       │   │   ├── robot.csv               ← H-Walker 펌웨어 출력
-│       │   │   ├── motion.c3d              ← (또는 motion.csv) MoCap+Force
-│       │   │   ├── emg.csv                 ← EMG 다채널
-│       │   │   ├── force.csv               ← (motion.c3d 에 포함되면 생략 가능)
-│       │   │   ├── loadcell.csv            ← BWS 로드셀
+│       │   ├── cond-1_baseline/            ← 보조 OFF
+│       │   │   ├── robot.csv               ← H-Walker 펌웨어 출력 [필수]
+│       │   │   ├── motion.c3d              ← Vicon/Qualisys (markers + force + EMG)
+│       │   │   ├── emg.csv                 ← Delsys 등 EMG 별도 시스템일 때만 [옵션]
+│       │   │   ├── loadcell.csv            ← BWS 로드셀 [옵션, 있으면]
 │       │   │   └── notes.md                ← 손으로 적은 trial 메모
 │       │   │
-│       │   ├── cond-low_assist/            ← 보조 LOW
-│       │   │   └── (같은 5개 파일)
+│       │   ├── cond-2_low_assist/          ← 보조 LOW
+│       │   │   └── (같은 파일들)
 │       │   │
-│       │   └── cond-high_assist/           ← 보조 HIGH
-│       │       └── (같은 5개 파일)
+│       │   └── cond-3_high_assist/         ← 보조 HIGH
+│       │       └── (같은 파일들)
 │       │
 │       ├── sub-02/  ...
 │       ├── sub-03/  ...
@@ -51,14 +54,18 @@
 │           └── repro/                      ← 재현성 패키지
 ```
 
-### 명명 규약 (절대 변경 금지)
+### 명명 규약
 
 | 항목 | 규칙 | 예 |
 |---|---|---|
-| 피험자 | `sub-NN` (zero-padded) | `sub-01`, `sub-12` |
-| 조건 폴더 | `cond-<name>` (소문자, 언더스코어) | `cond-baseline`, `cond-high_assist` |
-| 파일명 | 고정된 5개: `robot.csv`, `motion.c3d` (or `.csv`), `emg.csv`, `force.csv`, `loadcell.csv` | |
+| 피험자 폴더 | `sub-NN` (zero-padded) | `sub-01`, `sub-12` |
+| 조건 폴더 | `cond-<name>` (소문자, 언더스코어) | `cond-1_baseline`, `cond-3_high_assist` |
+| 파일명 | **둘 중 어느 쪽이든 OK** (자동 인식): | |
+| ├─ 표준 (권장) | `robot.csv` / `motion.c3d` (또는 `.csv`/`.tsv`) / `emg.csv` / `loadcell.csv` | |
+| └─ 기존 H-Walker 패턴 | `260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv` 같은 형식도 그대로 인식 | `*_Robot_*.csv`, `*_Loadcell_*.csv`, `*_Motion_*.{csv,c3d,tsv}` |
 | 메타 | `meta.json` per subject, `notes.md` per condition | |
+
+→ 본인이 이미 가지고 있는 파일명 (예: `260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv`) 그대로 폴더에 넣으면 `loadSession` 이 `parseFilename` 으로 자동 분류함. 파일명 바꿀 필요 없음.
 
 ### `meta.json` 형식
 

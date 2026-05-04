@@ -69,14 +69,29 @@ function session = loadSession(condDir, varargin)
     end
 
     % ============================================================
-    %  File presence check
+    %  File presence check — supports BOTH naming conventions:
+    %    1. Standard fixed names (recommended):
+    %         robot.csv / motion.c3d / emg.csv / loadcell.csv
+    %    2. Legacy H-Walker filename pattern (auto-detected):
+    %         260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv
+    %         260430_Loadcell_CBJ_TD_...csv
+    %         260430_Motion_CBJ_TD_...csv  (or .c3d / .tsv)
+    %  Either works — pick whichever you already have.
     % ============================================================
-    files = struct();
+    files = struct('robot','', 'motion','', 'force','', 'emg','', 'loadcell','');
+
+    % First: try standard names
     files.robot    = pickFirst(condDir, {'robot.csv'});
     files.motion   = pickFirst(condDir, {'motion.c3d','motion.tsv','motion.csv'});
     files.force    = pickFirst(condDir, {'force.csv','grf.csv'});
     files.emg      = pickFirst(condDir, {'emg.csv'});
     files.loadcell = pickFirst(condDir, {'loadcell.csv','bws.csv'});
+
+    % Fallback: scan every csv / c3d / tsv and classify by parseFilename source
+    if isempty(files.robot) || isempty(files.loadcell) || isempty(files.motion)
+        files = scanByLegacyPattern(condDir, files);
+    end
+
     session.qc.files_present = files;
 
     if isempty(files.robot)
@@ -183,5 +198,65 @@ function f = pickFirst(dir_, candidates)
             f = cand;
             return
         end
+    end
+end
+
+
+function files = scanByLegacyPattern(dir_, files)
+% Auto-classify files in `dir_` using hwalker.io.parseFilename.
+% Recognises legacy H-Walker filenames such as
+%   260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv
+%   260430_Loadcell_CBJ_TD_level_0_5_walker_high_0.csv
+%   260430_Motion_CBJ_TD_level_0_5_walker_high_0.csv  (or .c3d/.tsv)
+% Whichever side (Robot/Motion/Loadcell) is filled in by the legacy
+% scan only when the standard-named slot is still empty.
+    % Scan CSV
+    listing = dir(fullfile(dir_, '*.csv'));
+    for i = 1:numel(listing)
+        full = fullfile(dir_, listing(i).name);
+        try
+            info = hwalker.io.parseFilename(listing(i).name);
+        catch
+            info = struct('source','');
+        end
+        switch lower(getfieldOr(info, 'source', ''))
+            case 'robot'
+                if isempty(files.robot),    files.robot    = full; end
+            case 'loadcell'
+                if isempty(files.loadcell), files.loadcell = full; end
+            case 'motion'
+                if isempty(files.motion),   files.motion   = full; end
+        end
+        % Heuristic: filenames containing 'emg' (case-insensitive)
+        if isempty(files.emg) && ~isempty(regexpi(listing(i).name, '(^|[_-])emg([_-]|\.)', 'once'))
+            files.emg = full;
+        end
+        % Heuristic: 'force' or 'grf'
+        if isempty(files.force) && ~isempty(regexpi(listing(i).name, '(^|[_-])(force|grf)([_-]|\.)', 'once'))
+            files.force = full;
+        end
+        % Heuristic: 'loadcell' or 'bws'
+        if isempty(files.loadcell) && ~isempty(regexpi(listing(i).name, '(^|[_-])(loadcell|bws)([_-]|\.)', 'once'))
+            files.loadcell = full;
+        end
+    end
+    % Scan C3D / TSV for motion (these formats unambiguously identify motion data)
+    if isempty(files.motion)
+        for ext = {'*.c3d','*.tsv'}
+            listing = dir(fullfile(dir_, ext{1}));
+            if ~isempty(listing)
+                files.motion = fullfile(dir_, listing(1).name);
+                return
+            end
+        end
+    end
+end
+
+
+function v = getfieldOr(s, name, default)
+    if isstruct(s) && isfield(s, name) && ~isempty(s.(name))
+        v = s.(name);
+    else
+        v = default;
     end
 end

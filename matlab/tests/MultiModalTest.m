@@ -167,5 +167,55 @@ classdef MultiModalTest < matlab.unittest.TestCase
                 'hwalker:loadSession:noRobot');
         end
 
+        function testLoadSession_LegacyFilenamePattern(tc)
+            % Legacy H-Walker filename: 260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv
+            % loadSession should auto-detect via parseFilename when standard names absent.
+            condDir = fullfile(tc.tmpDir, 'sub-01', 'cond-baseline');
+            mkdir(condDir);
+            fs = 100; dur = 3;
+            t  = (0:1/fs:dur)';
+            n  = numel(t);
+            T = table(t * 1000, ...
+                       zeros(n,1), zeros(n,1), ...
+                       ones(n,1), zeros(n,1), ones(n,1), zeros(n,1), ...
+                       25 * sin(2*pi*1*t), 25*sin(2*pi*1*t)+1, ...
+                       25 * sin(2*pi*1*t), 25*sin(2*pi*1*t)+1, ...
+                       double(t>1 & t<2), ...
+                'VariableNames', {'Time_ms','L_GCP','R_GCP','L_Ax','L_Ay','R_Ax','R_Ay', ...
+                                  'L_DesForce_N','L_ActForce_N','R_DesForce_N','R_ActForce_N','Sync'});
+            % Save with LEGACY filename — NOT robot.csv
+            legacyName = '260430_Robot_CBJ_TD_level_0_5_walker_high_0.csv';
+            writetable(T, fullfile(condDir, legacyName));
+
+            % Should still auto-detect this as the robot file
+            session = hwalker.experiment.loadSession(condDir);
+            tc.verifyTrue(contains(session.qc.files_present.robot, 'Robot'));
+            tc.verifyTrue(isstruct(session.robot));
+        end
+
+        function testLoadSession_LoadcellLegacyName(tc)
+            condDir = fullfile(tc.tmpDir, 'sub-01', 'cond-baseline');
+            mkdir(condDir);
+            % Standard robot.csv
+            fs = 100; t = (0:1/fs:3)'; n = numel(t);
+            Trobot = table(t * 1000, zeros(n,1), zeros(n,1), ...
+                ones(n,1), zeros(n,1), ones(n,1), zeros(n,1), ...
+                25*sin(2*pi*t), 25*sin(2*pi*t)+1, 25*sin(2*pi*t), 25*sin(2*pi*t)+1, ...
+                double(t>1 & t<2), ...
+                'VariableNames', {'Time_ms','L_GCP','R_GCP','L_Ax','L_Ay','R_Ax','R_Ay', ...
+                                  'L_DesForce_N','L_ActForce_N','R_DesForce_N','R_ActForce_N','Sync'});
+            writetable(Trobot, fullfile(condDir, 'robot.csv'));
+
+            % Loadcell with LEGACY name
+            legacyName = '260430_Loadcell_CBJ_TD_level_0_5_walker_high_0.csv';
+            Tlc = table((0:0.001:5)', 200 + 5*randn(5001,1), ...
+                'VariableNames', {'Time_s','Force_N'});
+            writetable(Tlc, fullfile(condDir, legacyName));
+
+            session = hwalker.experiment.loadSession(condDir, 'BodyMassKg', 70);
+            tc.verifyTrue(contains(session.qc.files_present.loadcell, 'Loadcell'));
+            tc.verifyTrue(isstruct(session.loadcell));
+        end
+
     end
 end

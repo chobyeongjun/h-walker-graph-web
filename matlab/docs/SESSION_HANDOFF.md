@@ -21,6 +21,27 @@ H-Walker (cable-driven gait rehab robot) 실험 데이터를 **논문에 바로 
 
 ---
 
+## 한 쪽만 분석하기 (R-only / L-only)
+
+```matlab
+%% 한 session 의 R 만
+f = hwalker.experiment.extractFeatures(session, 'Side', 'R');
+
+%% 모든 condition 비교 — 모두 R 기준
+cmp = hwalker.experiment.compareConditions(conds, 'Design','within', 'Side','R');
+
+%% 그래프도 R 만
+fig = hwalker.plot.forceQC(r, 'R', 'TRO');
+```
+
+`'Side'` option 동작:
+- 로봇/스트라이드 metric: R 행만 통과
+- EMG: 채널명이 `L_*` / `Left*` 인 것 자동 제외 (prefix 없는 trunk 등은 유지)
+- Motion: side-keyed 필드 (`knee_peak_flex_R`) 만 사용
+- GRF: `grf(1)` (사용자 setup 에서 R plate 가 1번이라 가정)
+
+---
+
 ## 핵심 함수 5개 (90% 의 사용 시나리오)
 
 ```matlab

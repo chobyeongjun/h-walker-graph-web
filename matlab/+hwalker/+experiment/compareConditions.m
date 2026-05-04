@@ -25,10 +25,12 @@ function cmp = compareConditions(conditions, varargin)
     addParameter(p, 'Design',  'within', @(x) any(strcmpi(x, {'within','between','mixed'})));
     addParameter(p, 'Alpha',   0.05);
     addParameter(p, 'Planned', false, @islogical);
+    addParameter(p, 'Side',    'both', @(x) any(strcmpi(x, {'L','R','both'})));
     parse(p, varargin{:});
     design  = lower(p.Results.Design);
     alpha   = p.Results.Alpha;
     planned = p.Results.Planned;
+    sideOpt = p.Results.Side;
 
     K = numel(conditions);
     if K < 2
@@ -38,10 +40,10 @@ function cmp = compareConditions(conditions, varargin)
 
     condNames = arrayfun(@(s) s.condition, conditions, 'UniformOutput', false);
 
-    % Extract features for each condition
+    % Extract features for each condition (Side option pass-through)
     features = cell(K, 1);
     for k = 1:K
-        features{k} = hwalker.experiment.extractFeatures(conditions(k));
+        features{k} = hwalker.experiment.extractFeatures(conditions(k), 'Side', sideOpt);
     end
 
     % Union of metric names across conditions

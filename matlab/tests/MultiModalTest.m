@@ -193,6 +193,37 @@ classdef MultiModalTest < matlab.unittest.TestCase
             tc.verifyTrue(isstruct(session.robot));
         end
 
+        function testExtractFeatures_SideRightOnly(tc)
+            % Robot result with both sides should yield only R rows when Side='R'
+            condDir = fullfile(tc.tmpDir, 'sub-01', 'cond-baseline');
+            mkdir(condDir);
+            fs = 100; t = (0:1/fs:3)'; n = numel(t);
+            T = table(t * 1000, ...
+                       zeros(n,1), zeros(n,1), ...
+                       ones(n,1), zeros(n,1), ones(n,1), zeros(n,1), ...
+                       25*sin(2*pi*t), 25*sin(2*pi*t)+1, ...
+                       25*sin(2*pi*t), 25*sin(2*pi*t)+1, ...
+                       double(t>1 & t<2), ...
+                'VariableNames', {'Time_ms','L_GCP','R_GCP','L_Ax','L_Ay','R_Ax','R_Ay', ...
+                                  'L_DesForce_N','L_ActForce_N','R_DesForce_N','R_ActForce_N','Sync'});
+            writetable(T, fullfile(condDir, 'robot.csv'));
+            session = hwalker.experiment.loadSession(condDir);
+
+            % both sides (default)
+            f_both = hwalker.experiment.extractFeatures(session, 'Side', 'both');
+            % R only
+            f_r = hwalker.experiment.extractFeatures(session, 'Side', 'R');
+            if ~isempty(f_r) && isfield(f_r, 'side')
+                tc.verifyTrue(all(strcmp(f_r.side, 'R')));
+                tc.verifyLessThanOrEqual(numel(f_r.side), numel(f_both.side));
+            end
+            % L only
+            f_l = hwalker.experiment.extractFeatures(session, 'Side', 'L');
+            if ~isempty(f_l) && isfield(f_l, 'side')
+                tc.verifyTrue(all(strcmp(f_l.side, 'L')));
+            end
+        end
+
         function testLoadSession_LoadcellLegacyName(tc)
             condDir = fullfile(tc.tmpDir, 'sub-01', 'cond-baseline');
             mkdir(condDir);

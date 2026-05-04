@@ -1,7 +1,18 @@
-function f = extractFeatures(session)
+function f = extractFeatures(session, varargin)
 % hwalker.experiment.extractFeatures  Compute per-stride scalar features for one session.
 %
 %   f = hwalker.experiment.extractFeatures(session)
+%   f = hwalker.experiment.extractFeatures(session, 'Side', 'R')   % R only
+%   f = hwalker.experiment.extractFeatures(session, 'Side', 'L')
+%   f = hwalker.experiment.extractFeatures(session, 'Side', 'both') % default
+%
+% 'Side' option (default 'both'):
+%   - 'R'    : keep only stride rows with side='R' (drop L)
+%              motion features auto-pulled from knee_peak_flex_R etc.
+%              EMG channels auto-filtered to those starting with 'R'/'R_'/'Right'
+%              GRF: uses grf(1) only (assumes single primary plate)
+%   - 'L'    : symmetric — only L
+%   - 'both' : original behaviour, both sides as separate rows
 %
 % Returns struct with column-vector fields, one row per stride:
 %   .stride_idx           1..N
@@ -31,6 +42,11 @@ function f = extractFeatures(session)
 %   --- BWS (if loadcell present) ---
 %   .bws_pct_per_stride
 
+    p = inputParser;
+    addParameter(p, 'Side', 'both', @(x) any(strcmpi(x, {'L','R','both'})));
+    parse(p, varargin{:});
+    sideOpt = upper(p.Results.Side(1));
+
     f = struct();
 
     % --- Robot per-side features ---
@@ -40,10 +56,17 @@ function f = extractFeatures(session)
         rPrime = session.robot;
     end
 
-    sideLR = {'L', 'R'};
-    rows = [];
+    if strcmp(sideOpt, 'B')
+        sideLR = {'L', 'R'};
+    elseif strcmp(sideOpt, 'R')
+        sideLR = {'R'};
+    else
+        sideLR = {'L'};
+    end
 
-    for si = 1:2
+    rows = [];
+    nSides = numel(sideLR);
+    for si = 1:nSides
         side = sideLR{si};
         sideField = lower(side); if strcmp(sideField,'l'), sideField = 'left'; else, sideField = 'right'; end
         sf = rPrime.(sideField);
@@ -119,9 +142,20 @@ function f = extractFeatures(session)
     end
 
     % --- EMG features ---
+    %  When 'Side' is R or L, auto-skip channels whose name does not start
+    %  with the matching prefix (R_, L_, Right, Left).  Channels without
+    %  side prefix (e.g., 'TrunkErectorSpinae') are kept regardless.
     if ~isempty(session.emg)
         for ch = 1:numel(session.emg.channel_names)
-            chName = matlab.lang.makeValidName(session.emg.channel_names{ch});
+            origName = session.emg.channel_names{ch};
+            if ~strcmp(sideOpt, 'B')
+                hasOpposite = startsWith(origName, opposite(sideOpt), 'IgnoreCase', true) || ...
+                              startsWith(origName, [opposite(sideOpt) '_'], 'IgnoreCase', true) || ...
+                              (strcmp(opposite(sideOpt),'L') && startsWith(origName,'Left','IgnoreCase',true)) || ...
+                              (strcmp(opposite(sideOpt),'R') && startsWith(origName,'Right','IgnoreCase',true));
+                if hasOpposite, continue; end
+            end
+            chName = matlab.lang.makeValidName(origName);
             avgFld  = sprintf('emg_%s_avg_pctMVC',  chName);
             peakFld = sprintf('emg_%s_peak_pctMVC', chName);
             for k = 1:numel(rows)
@@ -207,4 +241,8 @@ function m = nanmean1(x)
     if isempty(x), m = NaN; return; end
     x = x(isfinite(x));
     if isempty(x), m = NaN; else, m = mean(x); end
+end
+
+function o = opposite(s)
+    if strcmp(s, 'R'), o = 'L'; else, o = 'R'; end
 end

@@ -52,7 +52,7 @@ function example_07_multimodal_session()
     % ======================================================================
     % STEP 2 — extract per-stride scalar features from this single session
     % ======================================================================
-    feats_one = hwalker.experiment.extractFeatures(session);
+    feats_one = hwalker.experiment.extractFeatures(session, 'Side', 'R');
     fprintf('Stride count: %d\n', numel(feats_one.stride_idx));
     fprintf('Mean stride time: %.3f ± %.3f s\n', ...
         mean(feats_one.stride_time_s), std(feats_one.stride_time_s));
@@ -71,7 +71,10 @@ function example_07_multimodal_session()
     cmp = hwalker.experiment.compareConditions(conditions, ...
         'Design',  'within', ...   % same subject across conditions
         'Alpha',   0.05, ...
-        'Planned', false);
+        'Planned', false, ...
+        'Side',    'R');           % R-only analysis (force/EMG/motion all filtered to R)
+    %  Use 'Side','both' (default) to keep L+R separate rows;
+    %  use 'Side','L' for left-only.
 
     % ======================================================================
     % STEP 4 — print key results table for the paper Results section

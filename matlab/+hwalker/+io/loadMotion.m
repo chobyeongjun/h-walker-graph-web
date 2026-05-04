@@ -11,7 +11,10 @@ function motion = loadMotion(filepath, varargin)
 % Auto-detects format:
 %   .c3d  → uses ezc3d MATLAB binding if available (recommended); falls back
 %           to a minimal native parser sufficient for marker + GRF channels.
-%   .tsv  → Qualisys QTM export (header + ROW data).
+%   .mat  → Qualisys QTM "Export to Matlab" file (preferred for QTM users).
+%           Reads .Trajectories.Labeled.{Data,Labels,Frequency},
+%           .Force (per plate), .Analog (EMG channels).
+%   .tsv  → Qualisys QTM TSV export (header + ROW data).
 %   .csv  → Generic table; columns matching marker name conventions auto-grouped.
 %
 % Returns struct:
@@ -73,11 +76,12 @@ function motion = loadMotion(filepath, varargin)
     [~, ~, ext] = fileparts(filepath);
     switch lower(ext)
         case '.c3d', motion = loadC3D(filepath, motion, p.Results);
+        case '.mat', motion = loadQualisysMAT(filepath, motion, p.Results);
         case '.tsv', motion = loadQualisysTSV(filepath, motion, p.Results);
         case '.csv', motion = loadGenericCSV(filepath, motion, p.Results);
         otherwise
             error('hwalker:loadMotion:badExt', ...
-                'Unsupported extension ''%s''. Use .c3d, .tsv, or .csv.', ext);
+                'Unsupported extension ''%s''. Use .c3d, .mat, .tsv, or .csv.', ext);
     end
 
     % Filter + fill gaps + QC
@@ -199,6 +203,67 @@ function motion = loadC3DNative(filepath, motion)
         motion.marker_names{end+1} = labels{i};
     end
     % NOTE: This native parser is BEST-EFFORT.  For production, install ezc3d.
+end
+
+
+function motion = loadQualisysMAT(filepath, motion, ~)
+% Qualisys "Export to Matlab" struct.  The .mat contains a single field
+% (named after the trial) which is itself a struct with sub-structs
+% Trajectories / Force / Analog / RigidBodies / Frames / FrameRate.
+    s = load(filepath);
+    fns = fieldnames(s);
+    if numel(fns) == 1
+        T = s.(fns{1});                  % unwrap trial-named field
+    else
+        T = s;                            % already a struct (rare)
+    end
+
+    % --- Markers ---
+    if isfield(T, 'Trajectories') && isfield(T.Trajectories, 'Labeled')
+        L = T.Trajectories.Labeled;
+        if isfield(L, 'Frequency')
+            motion.fs_marker = L.Frequency;
+        elseif isfield(T, 'FrameRate')
+            motion.fs_marker = T.FrameRate;
+        else
+            motion.fs_marker = 200;       % Qualisys default
+        end
+        nFr = size(L.Data, 3);
+        motion.t_marker = (0:nFr-1)' / motion.fs_marker;
+        labels = L.Labels;
+        for i = 1:numel(labels)
+            pts = squeeze(L.Data(1:3, i, :))';     % N x 3 (mm)
+            nm  = matlab.lang.makeValidName(labels{i});
+            motion.markers.(nm) = pts;
+            motion.marker_names{end+1} = labels{i};
+        end
+    end
+
+    % --- Force plates ---
+    if isfield(T, 'Force') && ~isempty(T.Force)
+        for k = 1:numel(T.Force)
+            fp = T.Force(k);
+            if isfield(fp, 'Frequency'), motion.fs_grf = fp.Frequency; end
+            if isfield(fp, 'Force')
+                F = fp.Force;
+                plate.Fx = F(1, :)';
+                plate.Fy = F(2, :)';
+                plate.Fz = F(3, :)';
+            end
+            if isfield(fp, 'COP'),    plate.COPx = fp.COP(1,:)';  plate.COPy = fp.COP(2,:)'; end
+            if isfield(fp, 'Moment'), plate.Mz   = fp.Moment(3,:)'; end
+            if ~isnan(motion.fs_grf)
+                nFrA = numel(plate.Fz);
+                plate.t = (0:nFrA-1)' / motion.fs_grf;
+            end
+            if k == 1, motion.grf = plate; else, motion.grf(k) = plate; end %#ok<AGROW>
+        end
+    end
+
+    % --- Analog (EMG) ---
+    %  We DO NOT inject EMG into motion.analog automatically — the toolbox
+    %  expects EMG via loadEMG.  Caller can extract from T.Analog manually
+    %  if needed:   T.Analog.Data / T.Analog.Labels / T.Analog.Frequency
 end
 
 

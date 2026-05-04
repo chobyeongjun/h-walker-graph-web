@@ -193,6 +193,26 @@ classdef MultiModalTest < matlab.unittest.TestCase
             tc.verifyTrue(isstruct(session.robot));
         end
 
+        function testLoadMotion_QualisysMatStub(tc)
+            % Build a minimal Qualisys-style .mat and verify loadMotion reads it
+            matFile = fullfile(tc.tmpDir, 'trial.mat');
+            fs = 200;  nFr = 600;
+            xyz = randn(3, 4, nFr);            % 4 markers × 3 coords × N frames
+            trial.Trajectories.Labeled.Data      = xyz;
+            trial.Trajectories.Labeled.Labels    = {'RKNE','RANK','LKNE','LANK'};
+            trial.Trajectories.Labeled.Frequency = fs;
+            trial.FrameRate = fs;
+            save(matFile, '-struct', 'trial', '-v7.3');                  %#ok<NASGU>
+            % Wrap in trial-name field as Qualisys does
+            S = struct(); S.LKM_High_0 = trial;
+            save(matFile, '-struct', 'S');
+
+            motion = hwalker.io.loadMotion(matFile);
+            tc.verifyEqual(motion.fs_marker, fs);
+            tc.verifyEqual(numel(motion.marker_names), 4);
+            tc.verifyTrue(isfield(motion.markers, 'RKNE'));
+        end
+
         function testExtractFeatures_SideRightOnly(tc)
             % Robot result with both sides should yield only R rows when Side='R'
             condDir = fullfile(tc.tmpDir, 'sub-01', 'cond-baseline');

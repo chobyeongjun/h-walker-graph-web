@@ -193,6 +193,36 @@ classdef MultiModalTest < matlab.unittest.TestCase
             tc.verifyTrue(isstruct(session.robot));
         end
 
+        function testOnsetReleaseRMSE_BasicSegments(tc)
+            % Build synthetic robot table with 3 active segments
+            fs = 100; dur = 6;
+            t = (0:1/fs:dur)';
+            n = numel(t);
+            des = zeros(n, 1);
+            % 3 trapezoidal pulses: peak 50N
+            for s = [1.0, 3.0, 5.0]
+                in = (t >= s & t < s + 0.5);
+                des(in) = 50;
+            end
+            act = des + 2*randn(n, 1);   % small noise
+            T = table(t * 1000, des, act, 'VariableNames', ...
+                {'Time_ms', 'R_DesForce_N', 'R_ActForce_N'});
+            r = hwalker.force.onsetReleaseRMSE(T, 'R', 'Threshold', 1, 'SegMinDurMs', 50);
+            tc.verifyEqual(r.nSegments, 3);
+            tc.verifyTrue(all(r.peak_des_per_seg_N == 50));
+            tc.verifyTrue(all(r.rmse_per_seg_N < 4));    % small-noise RMSE
+            tc.verifyTrue(isfinite(r.rmse_overall_N));
+        end
+
+        function testOnsetReleaseRMSE_NoSegmentsBelowThreshold(tc)
+            fs = 100; t = (0:1/fs:2)';
+            T = table(t*1000, 0.1*ones(size(t)), zeros(size(t)), ...
+                'VariableNames', {'Time_ms','R_DesForce_N','R_ActForce_N'});
+            r = hwalker.force.onsetReleaseRMSE(T, 'R', 'Threshold', 1.0);
+            tc.verifyEqual(r.nSegments, 0);
+            tc.verifyTrue(isnan(r.rmse_overall_N));
+        end
+
         function testLoadMotion_QualisysMatStub(tc)
             % Build a minimal Qualisys-style .mat and verify loadMotion reads it
             matFile = fullfile(tc.tmpDir, 'trial.mat');

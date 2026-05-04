@@ -190,10 +190,25 @@ function result = coreAnalysis(T, label, filepath, syncId, syncWindow)
 
         % --- Force tracking ---
         ft = hwalker.force.trackingError(T, side, hsIdx, validMask);
+        % Onset-Release RMSE — only over windows where DesForce > threshold
+        try
+            ft_or = hwalker.force.onsetReleaseRMSE(T, side, ...
+                'Threshold', 1.0, 'Restrict', 'all', 'SegMinDurMs', 100);
+            ft.onsetRelease = ft_or;
+        catch ME
+            warning('hwalker:analyzeFile:onsetReleaseFail', ...
+                '%s side onset-release RMSE failed: %s', side, ME.message);
+        end
         result.([sf 'Force']) = ft;
         if ft.rmse > 0
-            fprintf('    %s force: RMSE=%.2f N, MAE=%.2f N, peak=%.2f N\n', ...
-                side, ft.rmse, ft.mae, ft.peakError);
+            extra = '';
+            if isfield(ft, 'onsetRelease') && ft.onsetRelease.nSegments > 0
+                extra = sprintf('  | onset-release: RMSE=%.2f N over %d seg, latency=%.1f ms', ...
+                    ft.onsetRelease.rmse_overall_N, ft.onsetRelease.nSegments, ...
+                    nanmean1(ft.onsetRelease.latency_onset_ms));
+            end
+            fprintf('    %s force: RMSE=%.2f N, MAE=%.2f N, peak=%.2f N%s\n', ...
+                side, ft.rmse, ft.mae, ft.peakError, extra);
         end
 
         % --- Normalized force profiles ---
@@ -245,6 +260,15 @@ end
 function ft = emptyForce()
     ft.rmse = 0; ft.mae = 0; ft.peakError = 0;
     ft.rmsePerStride = []; ft.maePerStride = [];
+    ft.onsetRelease = struct('nSegments', 0, 'rmse_overall_N', NaN, ...
+        'mae_overall_N', NaN, 'segments', zeros(0,2), ...
+        'rmse_per_seg_N', [], 'latency_onset_ms', []);
+end
+
+function m = nanmean1(x)
+    if isempty(x), m = NaN; return; end
+    x = x(isfinite(x));
+    if isempty(x), m = NaN; else, m = mean(x); end
 end
 
 function fp = emptyProfile()

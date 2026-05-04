@@ -9,6 +9,11 @@ function example_02_anova_3conditions()
 %   "one-way ANOVA + Tukey HSD 어떻게 해?"
 %   "RM-ANOVA 구형성 보정 (Greenhouse-Geisser)"
 %   "어떤 검정을 써야할지 자동 추천 받고 싶어"
+%
+% CANONICAL Copilot prompt:
+%   "Call hwalker.stats.decisionTree(groups, 'Design', 'between') first
+%    for the recommendation, then hwalker.stats.anova1(groups) and
+%    hwalker.stats.postHoc(groups, 'Method', 'tukey')."
 
     % --- Step 1: load YOUR data per condition ---
     %   Pattern: one cell per group, each cell is a column vector of metric values

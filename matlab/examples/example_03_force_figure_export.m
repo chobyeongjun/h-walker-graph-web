@@ -8,6 +8,11 @@ function example_03_force_figure_export()
 %   "force tracking 그래프를 모든 robotics 저널 사이즈로 내보내고 싶어"
 %   "IEEE T-RO + RA-L + ICRA + JNER 한번에 PDF 출력"
 %   "이 figure 를 Nature 2-col 사이즈로 만들어줘"
+%
+% CANONICAL Copilot prompt:
+%   "Call hwalker.plot.exportAllJournals(@hwalker.plot.forceQC, ...
+%    {result, 'R'}, outputDir, 'Journals', {'TRO','RAL','TNSRE'}, ...
+%    'Formats', {'PDF','PNG'}, 'NCols', 2)."
 
     % --- Step 1: load + analyze YOUR data ---
     results = hwalker.analyzeFile('~/data/your_subject.csv');

@@ -5,6 +5,9 @@ function example_04_significance_brackets()
 %   "bar chart 위에 유의도 표시 (asterisks) 추가"
 %   "L vs R 차이 위에 ** 별표 그리고 싶어"
 %   "metric bar + p-value bracket"
+%
+% CANONICAL Copilot prompt:
+%   "Use hwalker.plot.metricBar then hwalker.plot.drawSignificance(ax, x1, x2, yTop, p, 'Style', 'asterisk', 'Preset', preset)."
 
     % --- Step 1: load + analyze your data ---
     pre  = hwalker.analyzeFile('~/data/pre.csv');

@@ -5,6 +5,10 @@ function example_05_multipanel_with_labels()
 %   "4개 panel 에 a, b, c, d 자동으로 붙이고 싶어"
 %   "subplot 마다 lowercase bold label"
 %   "Nature 스타일 multi-panel figure"
+%
+% CANONICAL Copilot prompt:
+%   "Use subplot then loop applyPreset over each axes, then call
+%    hwalker.plot.labelPanels(fig, 'Style', 'lowercase-bold', 'Preset', preset)."
 
     % --- Step 1: load your data ---
     r = hwalker.analyzeFile('~/data/your_subject.csv');

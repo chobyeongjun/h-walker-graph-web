@@ -8,6 +8,10 @@ function example_01_paired_t_test()
 %   "내 데이터에서 pre/post 조건의 stride time 차이가 유의한지 검정하고 싶어"
 %   "paired t-test 어떻게 해? Cohen's d 까지 보고 싶어"
 %   "before-after 비교 통계 + 95% CI 출력"
+%
+% CANONICAL Copilot prompt:
+%   "Use hwalker.stats.pairedTest(pre, post) to get t, p, Cohen's d_av,
+%    95% CI of the difference."
 
     % --- Step 1: load YOUR pre/post CSVs (replace these paths) ---
     pre_results  = hwalker.analyzeFile('~/data/subject01_pre.csv');

@@ -5,6 +5,10 @@ function example_06_repro_for_supplementary()
 %   "논문 supplementary 에 첨부할 재현성 패키지 만들고 싶어"
 %   "input CSV hash + git commit + 결과 보존"
 %   "이 분석을 1년 뒤에도 그대로 재현하려면"
+%
+% CANONICAL Copilot prompt:
+%   "Call hwalker.meta.reproPackage(results, outputDir, 'InputCSV', csvPath)
+%    and later hwalker.meta.loadRepro(savedDir) for round-trip verification."
 
     csvPath = '~/data/your_subject.csv';
 

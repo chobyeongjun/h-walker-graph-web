@@ -39,11 +39,14 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
     p = inputParser;
     addParameter(p, 'WhichCycle',    'longest', ...
         @(x) (ischar(x) && any(strcmpi(x, {'longest','all','first'}))) || isnumeric(x));
+    addParameter(p, 'WhichSegment',  'last', ...
+        @(x) (ischar(x) && any(strcmpi(x, {'last','longest','first'}))) || isnumeric(x));
     addParameter(p, 'CopyMotion',    true,  @islogical);
     addParameter(p, 'CopyReference', true,  @islogical);
     addParameter(p, 'MinDurationS',  0.5,   @(x) isnumeric(x) && isscalar(x));
     parse(p, varargin{:});
-    whichCycle = p.Results.WhichCycle;
+    whichCycle   = p.Results.WhichCycle;
+    whichSeg     = p.Results.WhichSegment;
 
     if ~exist(rawDir, 'dir')
         error('hwalker:organizeStudy:badRaw', 'rawDir not found: %s', rawDir);
@@ -79,6 +82,8 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
         src = fullfile(rawRobotDir, fn);
         try
             T = hwalker.io.loadCSV(src);
+            % --- Multi-segment detection (Teensy reset / user record-start) ---
+            T = pickContiguousSegment(T, whichSeg, key);
             t  = hwalker.io.timeAxis(T);
             cycles = hwalker.sync.findWindows(T, 'MinDurationS', p.Results.MinDurationS);
             row = pickCycle(cycles, whichCycle);
@@ -128,6 +133,30 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
             src = fullfile(rawLCDir, fn);
             try
                 Tl = readtable(src, 'VariableNamingRule', 'preserve');
+                % Multi-segment detect on loadcell timestamp_ms too
+                if ismember('timestamp_ms', Tl.Properties.VariableNames)
+                    tsRaw = double(Tl.timestamp_ms);
+                    dtL = diff(tsRaw);
+                    bj = find(dtL < -1000);
+                    if ~isempty(bj)
+                        bounds = [0; bj; height(Tl)];
+                        nSeg = numel(bounds)-1;
+                        dursL = arrayfun(@(i) (tsRaw(bounds(i+1)) - tsRaw(bounds(i)+1))/1000, 1:nSeg);
+                        if isnumeric(whichSeg)
+                            pick = max(min(round(whichSeg), nSeg), 1);
+                        else
+                            switch lower(whichSeg)
+                                case 'last', pick = nSeg;
+                                case 'first', pick = 1;
+                                case 'longest', [~, pick] = max(dursL);
+                                otherwise, pick = nSeg;
+                            end
+                        end
+                        fprintf('   ⚠ %s loadcell: %d segments (durs=%s s); using seg %d\n', ...
+                            matched, nSeg, mat2str(round(dursL)), pick);
+                        Tl = Tl(bounds(pick)+1:bounds(pick+1), :);
+                    end
+                end
                 ts = double(Tl.timestamp_ms);
                 tl = (ts - ts(1)) / 1000;     % seconds, t=0 at file start
                 if ismember('a7', Tl.Properties.VariableNames)
@@ -259,6 +288,42 @@ end
 
 
 % ====================================================================
+function T = pickContiguousSegment(T, which, label)
+% Detect Time_ms backward jumps (Teensy reset / multi-trial cat)
+% and return only the chosen contiguous segment.
+    if ~ismember('Time_ms', T.Properties.VariableNames), return; end
+    tm = double(T.Time_ms);
+    dt = diff(tm);
+    backJump = find(dt < -1000);
+    if isempty(backJump), return; end
+
+    bounds = [0; backJump; height(T)];
+    nSeg = numel(bounds) - 1;
+    durs = zeros(nSeg, 1);
+    sIdx = zeros(nSeg, 1);
+    eIdx = zeros(nSeg, 1);
+    for i = 1:nSeg
+        sIdx(i) = bounds(i) + 1;
+        eIdx(i) = bounds(i+1);
+        durs(i) = (tm(eIdx(i)) - tm(sIdx(i))) / 1000;
+    end
+
+    if isnumeric(which)
+        pick = max(min(round(which), nSeg), 1);
+    else
+        switch lower(which)
+            case 'last',     pick = nSeg;
+            case 'first',    pick = 1;
+            case 'longest', [~, pick] = max(durs);
+            otherwise,       pick = nSeg;
+        end
+    end
+    fprintf('   ⚠ %s: %d segments detected (durs=%s s); using seg %d (%.1fs)\n', ...
+        label, nSeg, mat2str(round(durs')'), pick, durs(pick));
+    T = T(sIdx(pick):eIdx(pick), :);
+end
+
+
 function row = pickCycle(cycles, whichCycle)
     if isempty(cycles), row = []; return; end
     if isnumeric(whichCycle)

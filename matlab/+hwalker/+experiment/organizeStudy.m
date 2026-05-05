@@ -39,8 +39,9 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
     p = inputParser;
     addParameter(p, 'WhichCycle',    'longest', ...
         @(x) (ischar(x) && any(strcmpi(x, {'longest','all','first'}))) || isnumeric(x));
-    addParameter(p, 'WhichSegment',  'last', ...
-        @(x) (ischar(x) && any(strcmpi(x, {'last','longest','first'}))) || isnumeric(x));
+    addParameter(p, 'WhichSegment',  'sync-complete', ...
+        @(x) (ischar(x) && any(strcmpi(x, ...
+            {'sync-complete','last','longest','first'}))) || isnumeric(x));
     addParameter(p, 'CopyMotion',    true,  @islogical);
     addParameter(p, 'CopyReference', true,  @islogical);
     addParameter(p, 'MinDurationS',  0.5,   @(x) isnumeric(x) && isscalar(x));
@@ -289,8 +290,21 @@ end
 
 % ====================================================================
 function T = pickContiguousSegment(T, which, label)
-% Detect Time_ms backward jumps (Teensy reset / multi-trial cat)
-% and return only the chosen contiguous segment.
+% Detect Time_ms backward jumps (Teensy reset / record stop+start) and
+% return only the chosen contiguous segment.
+%
+% 'which' selection rules:
+%   'sync-complete' (default) — pick the segment that contains a complete
+%                                 sync cycle (≥1 rising followed by ≥1
+%                                 falling on the A7 column). If multiple
+%                                 segments qualify, the longest among them
+%                                 wins. Rationale: only segments where the
+%                                 user actually toggled sync OFF after
+%                                 toggling it ON are paper trials.
+%   'last'    — last segment in the file
+%   'longest' — longest by duration
+%   'first'   — first segment
+%   integer N — that index
     if ~ismember('Time_ms', T.Properties.VariableNames), return; end
     tm = double(T.Time_ms);
     dt = diff(tm);
@@ -300,27 +314,61 @@ function T = pickContiguousSegment(T, which, label)
     bounds = [0; backJump; height(T)];
     nSeg = numel(bounds) - 1;
     durs = zeros(nSeg, 1);
+    syncOK = false(nSeg, 1);
     sIdx = zeros(nSeg, 1);
     eIdx = zeros(nSeg, 1);
     for i = 1:nSeg
         sIdx(i) = bounds(i) + 1;
         eIdx(i) = bounds(i+1);
         durs(i) = (tm(eIdx(i)) - tm(sIdx(i))) / 1000;
+        % Test if this segment has at least one rising followed by a falling
+        if ismember('A7', T.Properties.VariableNames)
+            seg = double(T.A7(sIdx(i):eIdx(i)));
+            ok = isfinite(seg);
+            if any(ok) && (max(seg(ok)) - min(seg(ok))) > 1e-6
+                thr = (min(seg(ok)) + max(seg(ok))) / 2;
+                hi = seg > thr;
+                d = diff(int8(hi));
+                rs = find(d == 1);
+                fl = find(d == -1);
+                % Need at least one falling that comes AFTER a rising
+                if ~isempty(rs) && ~isempty(fl) && any(fl > rs(1))
+                    syncOK(i) = true;
+                end
+            end
+        end
     end
 
     if isnumeric(which)
         pick = max(min(round(which), nSeg), 1);
+        method = sprintf('seg %d (manual index)', pick);
     else
         switch lower(which)
-            case 'last',     pick = nSeg;
-            case 'first',    pick = 1;
-            case 'longest', [~, pick] = max(durs);
-            otherwise,       pick = nSeg;
+            case 'sync-complete'
+                if any(syncOK)
+                    cand = find(syncOK);
+                    [~, j] = max(durs(cand));
+                    pick = cand(j);
+                    method = sprintf('seg %d (longest with complete sync cycle)', pick);
+                else
+                    [~, pick] = max(durs);
+                    method = sprintf('seg %d (NO sync-complete seg → fallback longest)', pick);
+                end
+            case 'last',    pick = nSeg;          method = 'seg last';
+            case 'first',   pick = 1;             method = 'seg first';
+            case 'longest', [~, pick] = max(durs); method = sprintf('seg %d (longest)', pick);
+            otherwise,      pick = nSeg;          method = 'seg last';
         end
     end
-    fprintf('   ⚠ %s: %d segments detected (durs=%s s); using seg %d (%.1fs)\n', ...
-        label, nSeg, mat2str(round(durs')'), pick, durs(pick));
+    syncMark = arrayfun(@(b) ternary(b,'✓','×'), syncOK, 'UniformOutput', false);
+    durStr = strjoin(arrayfun(@(i) sprintf('%ds%s', round(durs(i)), syncMark{i}), ...
+        1:nSeg, 'UniformOutput', false), ', ');
+    fprintf('   ⚠ %s: %d segments [%s] → %s\n', label, nSeg, durStr, method);
     T = T(sIdx(pick):eIdx(pick), :);
+end
+
+function v = ternary(cond, a, b)
+    if cond, v = a; else, v = b; end
 end
 
 

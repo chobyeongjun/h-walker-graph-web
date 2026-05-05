@@ -102,8 +102,9 @@ function manifest = uploadToARLAB(rawDir, varargin)
         T_ORG     = fullfile(T_PAPER, 'Organized_Data');
     end
 
-    rawOut = fullfile(subjectDir, 'Raw');
-    orgOut = subjectDir;   % organizeStudy creates orgOut/Organized/ inside
+    rawOut    = fullfile(subjectDir, 'Raw');
+    orgOut    = subjectDir;   % organizeStudy creates orgOut/Organized/ inside
+    rootMeta  = fullfile(subjectDir, 'meta.json');
 
     % ---- Step 1: rename into <SubjectDir>/Raw/ ----
     fprintf('\n=== [1/3] rename → %s ===\n', rawOut);
@@ -131,13 +132,8 @@ function manifest = uploadToARLAB(rawDir, varargin)
             'Group',    char(p.Results.Group), ...
             'WeightKg', p.Results.WeightKg, ...
             'RenameMap', rmStruct);
-
-        % --- Propagate meta.json to Subject-root and into Raw/ ---
-        srcMeta = fullfile(subjectDir, 'Organized', 'meta.json');
-        if exist(srcMeta, 'file')
-            copyfile(srcMeta, fullfile(subjectDir, 'meta.json'));
-            copyfile(srcMeta, fullfile(rawOut, 'meta.json'));
-        end
+        % organizeStudy writes meta.json directly to subjectDir root.
+        % No duplicates inside Raw/ or Organized/.
     else
         fprintf('  ⚠ DryRun — skipped\n');
     end
@@ -152,16 +148,16 @@ function manifest = uploadToARLAB(rawDir, varargin)
     else
         if p.Results.PushArchive && ~isempty(T_ARCHIVE)
             pushFolder(srcRaw, fullfile(T_ARCHIVE, subjectDirName), ...
-                'archive (06_MotionData/Robot)');
+                'archive (06_MotionData/Robot)', rootMeta);
         end
         if p.Results.PushPaper
             if ~isempty(T_RAW)
                 pushFolder(srcRaw, fullfile(T_RAW, subjectDirName), ...
-                    'Paper_Works/00_Raw');
+                    'Paper_Works/00_Raw', rootMeta);
             end
             if ~isempty(T_ORG) && exist(srcOrg, 'dir')
                 pushFolder(srcOrg, fullfile(T_ORG, subjectDirName), ...
-                    'Paper_Works/Organized_Data');
+                    'Paper_Works/Organized_Data', rootMeta);
             end
         end
     end
@@ -202,7 +198,10 @@ function root = locateARLABRoot()
 end
 
 
-function pushFolder(src, dst, label)
+function pushFolder(src, dst, label, rootMeta)
+% Copy src/* into dst, then drop a copy of rootMeta (the subject-root
+% meta.json) into dst as well so the split-archive folder is self-describing.
+    if nargin < 4, rootMeta = ''; end
     fprintf('\n→ push [%s]\n', label);
     fprintf('   src: %s\n', src);
     fprintf('   dst: %s\n', dst);
@@ -218,6 +217,9 @@ function pushFolder(src, dst, label)
     end
     if ~exist(dst, 'dir'), mkdir(dst); end
     copyfile(fullfile(src, '*'), dst);
+    if ~isempty(rootMeta) && exist(rootMeta, 'file')
+        copyfile(rootMeta, fullfile(dst, 'meta.json'));
+    end
     n = numel(dir(dst)) - 2;   % minus . and ..
     fprintf('   ✓ pushed (%d entries)\n', max(n,0));
 end

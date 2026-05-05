@@ -34,6 +34,7 @@ function meta = writeMeta(targetDir, varargin)
     addParameter(p, 'Existing',      '',  @(x)ischar(x)||isstring(x));
     addParameter(p, 'Cuts',          [],  @(x)isstruct(x)||isempty(x));
     addParameter(p, 'RenameMap',     [],  @(x)isstruct(x)||istable(x)||isempty(x));
+    addParameter(p, 'OutputFile',    '',  @(x)ischar(x)||isstring(x));
     parse(p, varargin{:});
 
     if ~exist(targetDir, 'dir')
@@ -101,7 +102,13 @@ function meta = writeMeta(targetDir, varargin)
     end
 
     % --- Write ---
-    outFile = fullfile(targetDir, 'meta.json');
+    if isempty(char(p.Results.OutputFile))
+        outFile = fullfile(targetDir, 'meta.json');
+    else
+        outFile = char(p.Results.OutputFile);
+        outDir  = fileparts(outFile);
+        if ~isempty(outDir) && ~exist(outDir, 'dir'), mkdir(outDir); end
+    end
     txt = jsonencode(meta, 'PrettyPrint', true);
     fid = fopen(outFile, 'w');
     if fid < 0, error('hwalker:writeMeta:writeFail', 'cannot write %s', outFile); end

@@ -81,21 +81,23 @@ function manifest = renameRawToStandard(rawDir, outputDir, varargin)
     fprintf('   date=%s  subject=%s  speed=%s  group=%s\n', Date, Subject, Speed, Group);
     fprintf('========================================\n');
 
-    % Output dirs
+    % Output dirs (Reference is shared across modalities)
+    refDir = fullfile(outputDir, 'Reference');
     if ~p.Results.DryRun
         for d = {outputDir, fullfile(outputDir,'Robot'), ...
-                 fullfile(outputDir,'Loadcell'), fullfile(outputDir,'Motion')}
+                 fullfile(outputDir,'Loadcell'), fullfile(outputDir,'Motion'), ...
+                 refDir}
             if ~exist(d{1}, 'dir'), mkdir(d{1}); end
         end
     end
 
     rows = {};
     rows = processModality(rows, fullfile(rawDir,'Robot'),    'Robot',    'csv', ...
-        Date, Subject, Speed, groupTok, fullfile(outputDir,'Robot'), p.Results.DryRun);
+        Date, Subject, Speed, groupTok, fullfile(outputDir,'Robot'),    refDir, p.Results.DryRun);
     rows = processModality(rows, fullfile(rawDir,'Loadcell'), 'Loadcell', 'csv', ...
-        Date, Subject, Speed, groupTok, fullfile(outputDir,'Loadcell'), p.Results.DryRun);
+        Date, Subject, Speed, groupTok, fullfile(outputDir,'Loadcell'), refDir, p.Results.DryRun);
     rows = processModality(rows, fullfile(rawDir,'Motion'),   'Motion',   '',    ...
-        Date, Subject, Speed, groupTok, fullfile(outputDir,'Motion'), p.Results.DryRun);
+        Date, Subject, Speed, groupTok, fullfile(outputDir,'Motion'),   refDir, p.Results.DryRun);
 
     % Copy meta.json if exists
     metaSrc = fullfile(rawDir, 'meta.json');
@@ -110,9 +112,7 @@ function manifest = renameRawToStandard(rawDir, outputDir, varargin)
         manifest = cell2table(rows, ...
             'VariableNames', {'modality','raw_name','new_name','condition','trial_num'});
     end
-    if ~p.Results.DryRun && height(manifest) > 0
-        writetable(manifest, fullfile(outputDir, '_rename_map.csv'));
-    end
+    % rename_map info is consumed by organizeStudy → meta.json (no CSV).
 
     % Optional: also sync to Google Drive folder
     gdrive = char(p.Results.GoogleDrivePath);
@@ -144,7 +144,7 @@ end
 
 % ====================================================================
 function rows = processModality(rows, srcDir, modality, requiredExt, ...
-    Date, Subject, Speed, groupTok, dstDir, dryRun)
+    Date, Subject, Speed, groupTok, dstDir, refDir, dryRun)
     if ~exist(srcDir, 'dir'), return; end
 
     if ~isempty(requiredExt)
@@ -166,9 +166,9 @@ function rows = processModality(rows, srcDir, modality, requiredExt, ...
 
         if startsWith(lower(base), 'mvc') || contains(lower(base), 'static')
             if ~dryRun
-                copyfile(fullfile(srcDir, fn), fullfile(dstDir, fn));
+                copyfile(fullfile(srcDir, fn), fullfile(refDir, fn));
             end
-            fprintf(' [%s]    %-50s → (reference, kept)\n', modality, fn);
+            fprintf(' [%s]    %-50s → Reference/%s\n', modality, fn, fn);
             rows(end+1, :) = {modality, fn, fn, '<reference>', NaN};               %#ok<AGROW>
             continue
         end

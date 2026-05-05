@@ -248,7 +248,8 @@ classdef MultiModalTest < matlab.unittest.TestCase
 
             tc.verifyTrue(numel(manifest) >= 2);
             % Robot output exists and Time_ms starts at 0
-            outR = fullfile(orgDir, 'Organized','Robot','high_0.csv');
+            % Layout: Organized/Robot/robot_<cond>.csv (modality prefix on filename)
+            outR = fullfile(orgDir, 'Organized','Robot','robot_high_0.csv');
             tc.verifyTrue(exist(outR, 'file') == 2);
             Tcut = readtable(outR);
             tc.verifyEqual(Tcut.Time_ms(1), 0);

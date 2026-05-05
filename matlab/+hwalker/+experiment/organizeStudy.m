@@ -45,6 +45,12 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
     addParameter(p, 'CopyMotion',    true,  @islogical);
     addParameter(p, 'CopyReference', true,  @islogical);
     addParameter(p, 'MinDurationS',  0.5,   @(x) isnumeric(x) && isscalar(x));
+    addParameter(p, 'Subject',       '',    @(x)ischar(x)||isstring(x));
+    addParameter(p, 'Date',          '',    @(x)ischar(x)||isstring(x));
+    addParameter(p, 'Speed',         '',    @(x)ischar(x)||isstring(x));
+    addParameter(p, 'Group',         '',    @(x)ischar(x)||isstring(x));
+    addParameter(p, 'WeightKg',      NaN,   @(x)isnumeric(x)&&isscalar(x));
+    addParameter(p, 'RenameMap',     [],    @(x)isstruct(x)||istable(x)||isempty(x));
     parse(p, varargin{:});
     whichCycle   = p.Results.WhichCycle;
     whichSeg     = p.Results.WhichSegment;
@@ -54,13 +60,18 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
     end
 
     outRoot = fullfile(organizedDir, 'Organized');
-    out_M = fullfile(outRoot, 'Motion');
     out_R = fullfile(outRoot, 'Robot');
     out_L = fullfile(outRoot, 'Loadcell');
+    out_M = fullfile(outRoot, 'Motion');
     out_F = fullfile(outRoot, 'Reference');
-    for d = {outRoot, out_M, out_R, out_L, out_F}
+    for d = {outRoot, out_R, out_L, out_M, out_F}
         if ~exist(d{1}, 'dir'), mkdir(d{1}); end
     end
+
+    % Pre-pass: count distinct trials per condition across all modalities.
+    % Used to decide whether the file name gets a trial suffix
+    % ("noassist_wb_01.csv") or stays bare ("high_0.csv").
+    trialsPerCond = scanTrials(rawDir);
 
     manifest = struct('trial',{},'modality',{},'src',{},'dst',{}, ...
         'cycleStart_s',{},'cycleEnd_s',{},'cycleDur_s',{}, ...
@@ -99,7 +110,8 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
                 fprintf(' [Robot]    %-20s cycle %.2f-%.2f s (%.2fs) → %d samples\n', ...
                     key, cs, ce, ce-cs, sum(mask));
             end
-            dst = fullfile(out_R, [key '.csv']);
+            shortName = condFileName(key, trialsPerCond);
+            dst = fullfile(out_R, ['robot_' shortName '.csv']);
             writetable(Tcut, dst);
             manifest(end+1) = mkrow(key,'Robot',src,dst,cs,ce, ...
                 height(T), height(Tcut), ~isempty(row), '');     %#ok<AGROW>
@@ -193,7 +205,8 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
                 if ~cycleOK
                     fprintf(' [Loadcell] %-20s no sync cycle, copying full\n', matched);
                 end
-                dst = fullfile(out_L, [matched '.csv']);
+                shortName = condFileName(matched, trialsPerCond);
+                dst = fullfile(out_L, ['loadcell_' shortName '.csv']);
                 writetable(Tl, dst);
                 manifest(end+1) = mkrow(matched,'Loadcell',src,dst,cs,ce, ...
                     NaN, height(Tl), cycleOK, '');                       %#ok<AGROW>
@@ -203,67 +216,178 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
         end
     end
 
-    % ---------- Motion (and Reference: MVC_*, Static) ----------
+    % ---------- Motion (analysis-ready formats only — .qtm stays in Raw) ----------
     rawMDir = fullfile(rawDir, 'Motion');
     if exist(rawMDir, 'dir') && p.Results.CopyMotion
-        mFiles = [dir(fullfile(rawMDir, '*.qtm')); ...
-                  dir(fullfile(rawMDir, '*.mat')); ...
+        mFiles = [dir(fullfile(rawMDir, '*.mat')); ...
                   dir(fullfile(rawMDir, '*.c3d')); ...
                   dir(fullfile(rawMDir, '*.tsv'))];
         for i = 1:numel(mFiles)
             fn = mFiles(i).name;
             isMVC    = startsWith(lower(fn), 'mvc');
             isStatic = contains(lower(fn), 'static');
-            isRef    = isMVC || isStatic;
             src = fullfile(rawMDir, fn);
-            if isRef
+            if isMVC || isStatic
+                % Reference inside raw Motion/ (legacy layout) → copy to Reference/
                 if p.Results.CopyReference
                     dst = fullfile(out_F, fn);
                     copyfile(src, dst);
-                    manifest(end+1) = mkrow(fn,'Reference',src,dst,NaN,NaN,NaN,NaN,false,'reference (raw)'); %#ok<AGROW>
+                    manifest(end+1) = mkrow(fn,'Reference',src,dst,NaN,NaN,NaN,NaN,false,'reference'); %#ok<AGROW>
                 end
             else
-                % Unified extractor — handles legacy LKM_* and new H-Walker_* naming
                 key = extractTrialKey(fn);
                 [~, ~, ext] = fileparts(fn);
-                dst = fullfile(out_M, [key, lower(ext)]);
+                shortName = condFileName(key, trialsPerCond);
+                outName = ['motion_' shortName lower(ext)];
+                dst = fullfile(out_M, outName);
                 copyfile(src, dst);
-                fprintf(' [Motion]   %-20s copy (%s)\n', key, ext);
+                fprintf(' [Motion]   %-20s → Motion/%s\n', key, outName);
                 manifest(end+1) = mkrow(key,'Motion',src,dst,NaN,NaN,NaN,NaN,false, ...
-                    'copy as-is — toolbox cuts during loadMotion'); %#ok<AGROW>
+                    'analysis-ready motion'); %#ok<AGROW>
             end
         end
     end
 
-    % ---------- Trial index CSV + README ----------
-    Tm = struct2table(manifest);
-    writetable(Tm, fullfile(organizedDir, '_trial_index.csv'));
+    % ---------- Reference folder (raw/Reference/ → Organized/Reference/) ----------
+    %  .qtm intentionally skipped: Organized/ holds analysis-ready data only.
+    rawRefDir = fullfile(rawDir, 'Reference');
+    if exist(rawRefDir, 'dir') && p.Results.CopyReference
+        rFiles = [dir(fullfile(rawRefDir, '*.mat')); ...
+                  dir(fullfile(rawRefDir, '*.csv')); ...
+                  dir(fullfile(rawRefDir, '*.c3d')); ...
+                  dir(fullfile(rawRefDir, '*.tsv'))];
+        for i = 1:numel(rFiles)
+            fn  = rFiles(i).name;
+            src = fullfile(rawRefDir, fn);
+            dst = fullfile(out_F, fn);
+            copyfile(src, dst);
+            manifest(end+1) = mkrow(fn,'Reference',src,dst,NaN,NaN,NaN,NaN,false,'reference'); %#ok<AGROW>
+        end
+    end
 
-    fid = fopen(fullfile(organizedDir, 'README.md'), 'w');
-    if fid > 0
-        fprintf(fid, '# Organized Data — %s\n\n', date);
-        fprintf(fid, 'Generated by `hwalker.experiment.organizeStudy`\n\n');
-        fprintf(fid, 'Source raw: `%s`\n\n', rawDir);
-        fprintf(fid, '## Folders\n');
-        fprintf(fid, '- `Organized/Robot/<trial>.csv`     sync-cut, t=0 at first rising edge\n');
-        fprintf(fid, '- `Organized/Loadcell/<trial>.csv`  sync-cut on own clock, t=0\n');
-        fprintf(fid, '- `Organized/Motion/<trial>.qtm`    raw copy (toolbox cuts on load if .mat)\n');
-        fprintf(fid, '- `Organized/Reference/`            MVC_*.qtm + Static.qtm (no sync cut)\n\n');
-        fprintf(fid, '## Trial index\n\n');
-        fprintf(fid, 'See `_trial_index.csv` for trial → modality → cycle window mapping.\n\n');
-        fprintf(fid, '## Next step\n');
-        fprintf(fid, '```matlab\n');
-        fprintf(fid, 'cd ~/h-walker-graph-web/matlab; install\n');
-        fprintf(fid, '%% loadSession on Organized/  (treats it like a single condition folder)\n');
-        fprintf(fid, '%% Per-trial: hwalker.analyzeFile(''Organized/Robot/high_0.csv'')\n');
-        fprintf(fid, '```\n');
-        fclose(fid);
+    % --- Write meta.json (single source of truth — absorbs trial-index info) ---
+    try
+        existingMeta = '';
+        if exist(fullfile(rawDir, 'meta.json'), 'file')
+            existingMeta = fullfile(rawDir, 'meta.json');
+        end
+        hwalker.experiment.writeMeta(outRoot, ...
+            'Subject',   char(p.Results.Subject), ...
+            'Date',      char(p.Results.Date), ...
+            'Speed',     char(p.Results.Speed), ...
+            'Group',     char(p.Results.Group), ...
+            'WeightKg',  p.Results.WeightKg, ...
+            'Existing',  existingMeta, ...
+            'Cuts',      manifestToCuts(manifest, trialsPerCond), ...
+            'RenameMap', p.Results.RenameMap);
+    catch ME
+        warning('hwalker:organizeStudy:metaFail', ...
+            'meta.json write failed: %s', ME.message);
     end
 
     fprintf('\n=== Done ===\n');
-    fprintf('  trials processed: %d\n', numel(unique({manifest.trial})));
-    fprintf('  manifest entries: %d\n', numel(manifest));
-    fprintf('  index: %s/_trial_index.csv\n', organizedDir);
+    fprintf('  trials processed : %d\n', numel(unique({manifest.trial})));
+    fprintf('  manifest entries : %d\n', numel(manifest));
+    fprintf('  meta.json        : %s/meta.json\n', outRoot);
+end
+
+
+function cuts = manifestToCuts(manifest, trialsPerCond)
+% Convert internal manifest array to JSON-friendly struct array.
+    cuts = struct('condition',{},'trial',{},'modality',{}, ...
+                  'cycle_start_s',{},'cycle_end_s',{},'cycle_dur_s',{}, ...
+                  'n_samples_in',{},'n_samples_out',{},'sync_ok',{},'note',{});
+    for i = 1:numel(manifest)
+        m = manifest(i);
+        if strcmp(m.modality, 'Reference'), continue; end
+        [c, t] = splitCondTrial(m.trial);
+        cuts(end+1).condition = c;                     %#ok<AGROW>
+        if isnan(t)
+            if isKey(trialsPerCond, c) && numel(trialsPerCond(c)) >= 1
+                cuts(end).trial = trialsPerCond(c);
+                cuts(end).trial = cuts(end).trial(1);
+            else
+                cuts(end).trial = 1;
+            end
+        else
+            cuts(end).trial = t;
+        end
+        cuts(end).modality       = m.modality;
+        cuts(end).cycle_start_s  = m.cycleStart_s;
+        cuts(end).cycle_end_s    = m.cycleEnd_s;
+        cuts(end).cycle_dur_s    = m.cycleDur_s;
+        cuts(end).n_samples_in   = m.nSamplesIn;
+        cuts(end).n_samples_out  = m.nSamplesOut;
+        cuts(end).sync_ok        = m.syncOK;
+        cuts(end).note           = m.note;
+    end
+end
+
+
+% ====================================================================
+function trialsPerCond = scanTrials(rawDir)
+% Pre-pass: build map cond → list of distinct trial numbers seen across
+% all modalities. Used to decide whether the cond's output folder needs
+% a "_NN" suffix (multi-trial) or stays bare ("high_0", single trial).
+    trialsPerCond = containers.Map('KeyType','char','ValueType','any');
+    listings = [
+        dir(fullfile(rawDir, 'Robot',    '*.CSV'))
+        dir(fullfile(rawDir, 'Robot',    '*.csv'))
+        dir(fullfile(rawDir, 'Loadcell', '*.CSV'))
+        dir(fullfile(rawDir, 'Loadcell', '*.csv'))
+        dir(fullfile(rawDir, 'Motion',   '*.qtm'))
+        dir(fullfile(rawDir, 'Motion',   '*.mat'))
+        dir(fullfile(rawDir, 'Motion',   '*.c3d'))
+        dir(fullfile(rawDir, 'Motion',   '*.tsv'))
+    ];
+    for i = 1:numel(listings)
+        fn = listings(i).name;
+        if startsWith(lower(fn), 'mvc'), continue; end
+        if contains(lower(fn), 'static'), continue; end
+        key = extractTrialKey(fn);
+        [c, t] = splitCondTrial(key);
+        if ~isKey(trialsPerCond, c), trialsPerCond(c) = []; end
+        arr = trialsPerCond(c);
+        if ~isnan(t) && ~ismember(t, arr)
+            trialsPerCond(c) = [arr, t];
+        end
+    end
+end
+
+
+function name = condFileName(key, trialsPerCond)
+% Given a key like 'high_0_01' or 'noassist_wb_02', return the short
+% file name (without extension). Drop the trial suffix when there's only
+% one trial for that cond ("high_0"), keep it when multiple ("noassist_wb_01").
+    [c, t] = splitCondTrial(key);
+    if isKey(trialsPerCond, c) && numel(trialsPerCond(c)) > 1 && ~isnan(t)
+        name = sprintf('%s_%02d', c, t);
+    else
+        name = c;
+    end
+end
+
+
+function [cond, trialN] = splitCondTrial(key)
+% Split a key into (cond, trial). Examples:
+%   'high_0_01'      → ('high_0',      1)
+%   'high_30_01'     → ('high_30',     1)
+%   'noassist_wb_02' → ('noassist_wb', 2)
+%   'high_0'         → ('high_0',     NaN)   (no trial suffix)
+%   'high_30'        → ('high_30',    NaN)   (angle 30, not trial 30)
+%   'high'           → ('high',       NaN)
+%
+% Rule: trial suffix is recognized only when the LAST token is exactly
+% 2 digits AND there are >= 2 tokens preceding it. This prevents the
+% angle (last single token like '30') from being mis-parsed as a trial.
+    parts = strsplit(key, '_');
+    if numel(parts) >= 3 && ~isempty(regexp(parts{end}, '^\d{2}$', 'once'))
+        cond   = strjoin(parts(1:end-1), '_');
+        trialN = str2double(parts{end});
+    else
+        cond   = key;
+        trialN = NaN;
+    end
 end
 
 

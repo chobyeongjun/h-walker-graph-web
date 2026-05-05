@@ -77,14 +77,11 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
     trialKeys = {};
     for i = 1:numel(robotFiles)
         fn = robotFiles(i).name;
-        key = regexprep(fn, '^robot_lkm_(.+)\.(CSV|csv)$', '$1');
-        if strcmp(key, fn), key = regexprep(fn, '\.(CSV|csv)$', ''); end
+        key = extractTrialKey(fn);
         trialKeys{end+1} = key;                                          %#ok<AGROW>
         src = fullfile(rawRobotDir, fn);
         try
             T = hwalker.io.loadCSV(src);
-            % Multi-segment detection — delegate to public helper
-            fprintf(' [Robot]    %-20s', key);
             [T, ~] = hwalker.experiment.pickSegment(T, whichSeg);
             t  = hwalker.io.timeAxis(T);
             cycles = hwalker.sync.findWindows(T, 'MinDurationS', p.Results.MinDurationS);
@@ -118,18 +115,11 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
         lcFiles = dir(fullfile(rawLCDir, '*.CSV'));    % macOS case-insensitive
         for i = 1:numel(lcFiles)
             fn = lcFiles(i).name;
-            % match by any trial key
-            matched = '';
-            for k = 1:numel(trialKeys)
-                if contains(lower(fn), lower(trialKeys{k}))
-                    matched = trialKeys{k};  break
-                end
-            end
-            if isempty(matched)
-                % derive own trial key (e.g., noassist_wb_1)
-                matched = regexprep(fn, '^Loadcell_LKM_(.+)\.(CSV|csv)$', '$1');
-                if strcmp(matched, fn), matched = regexprep(fn, '\.(CSV|csv)$', ''); end
-                matched = lower(matched);
+            % Use unified trial-key extractor (handles both legacy + new naming)
+            matched = extractTrialKey(fn);
+            % If extracted key already in robot trialKeys, reuse for matching;
+            % otherwise add it (e.g. loadcell-only noassist trials)
+            if ~ismember(matched, trialKeys)
                 trialKeys{end+1} = matched;                             %#ok<AGROW>
             end
             src = fullfile(rawLCDir, fn);
@@ -233,20 +223,8 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
                     manifest(end+1) = mkrow(fn,'Reference',src,dst,NaN,NaN,NaN,NaN,false,'reference (raw)'); %#ok<AGROW>
                 end
             else
-                % match trial key
-                key = '';
-                for k = 1:numel(trialKeys)
-                    base = regexprep(fn, '\.(qtm|mat|c3d|tsv)$', '');
-                    base = regexprep(base, '^LKM_', '');
-                    if strcmpi(base, trialKeys{k})
-                        key = trialKeys{k}; break
-                    end
-                end
-                if isempty(key)
-                    base = regexprep(fn, '^LKM_', '');
-                    base = regexprep(base, '\.(qtm|mat|c3d|tsv)$', '');
-                    key = lower(base);
-                end
+                % Unified extractor — handles legacy LKM_* and new H-Walker_* naming
+                key = extractTrialKey(fn);
                 [~, ~, ext] = fileparts(fn);
                 dst = fullfile(out_M, [key, lower(ext)]);
                 copyfile(src, dst);
@@ -370,6 +348,27 @@ end
 
 function v = ternary(cond, a, b)
     if cond, v = a; else, v = b; end
+end
+
+
+function key = extractTrialKey(fn)
+% Map a raw filename to a stable trial key (e.g., 'high_0', 'noassist_wb_02').
+% Recognizes:
+%   robot_lkm_high_0.CSV                         → 'high_0'
+%   Loadcell_LKM_High_30.CSV                     → 'high_30'
+%   LKM_low_45.qtm                               → 'low_45'
+%   LKM_noassist_wb_2.qtm                        → 'noassist_wb_02'
+%   260504_Robot_LKM_TD_level_1_0_H-Walker_high_0_01.csv  → 'high_0_01'
+    base = regexprep(fn, '\.[^.]*$', '');     % strip extension
+    s = lower(base);
+    s = regexprep(s, '^\d{6}_(robot|loadcell|motion|emg)_[a-z]+_td_level_\d+_\d+_h-walker_(.*)$', '$2');
+    if contains(s, 'parkinson_')
+        s = regexprep(s, '^parkinson_', '');
+    end
+    s = regexprep(s, '^robot_lkm_', '');
+    s = regexprep(s, '^loadcell_lkm_', '');
+    s = regexprep(s, '^lkm_', '');
+    key = s;
 end
 
 

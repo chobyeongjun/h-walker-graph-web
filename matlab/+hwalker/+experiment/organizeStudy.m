@@ -352,19 +352,18 @@ end
 
 
 function key = extractTrialKey(fn)
-% Map a raw filename to a stable trial key (e.g., 'high_0', 'noassist_wb_02').
+% Map a raw filename to a stable trial key.
 % Recognizes:
-%   robot_lkm_high_0.CSV                         → 'high_0'
-%   Loadcell_LKM_High_30.CSV                     → 'high_30'
-%   LKM_low_45.qtm                               → 'low_45'
-%   LKM_noassist_wb_2.qtm                        → 'noassist_wb_02'
-%   260504_Robot_LKM_TD_level_1_0_H-Walker_high_0_01.csv  → 'high_0_01'
+%   robot_lkm_high_0.CSV                                       → 'high_0'
+%   Loadcell_LKM_High_30.CSV                                   → 'high_30'
+%   LKM_low_45.qtm                                             → 'low_45'
+%   LKM_noassist_wb_2.qtm                                      → 'noassist_wb_02'
+%   260504_Robot_LKM_TD_level_1_0_H-Walker_high_0_01.csv       → 'high_0_01'
+%   260504_Robot_LKM_TD_level_1_0_H-Walker_high_0.csv          → 'high_0'        (omit-trial mode)
+%   260512_Robot_PSM_TD_level_1_0_H-Walker_Parkinson_high_0.csv → 'high_0'
     base = regexprep(fn, '\.[^.]*$', '');     % strip extension
     s = lower(base);
-    s = regexprep(s, '^\d{6}_(robot|loadcell|motion|emg)_[a-z]+_td_level_\d+_\d+_h-walker_(.*)$', '$2');
-    if contains(s, 'parkinson_')
-        s = regexprep(s, '^parkinson_', '');
-    end
+    s = regexprep(s, '^\d{6}_(robot|loadcell|motion|emg)_[a-z]+_td_level_\d+_\d+_h-walker(_parkinson|_stroke|_sci)?_(.*)$', '$3');
     s = regexprep(s, '^robot_lkm_', '');
     s = regexprep(s, '^loadcell_lkm_', '');
     s = regexprep(s, '^lkm_', '');

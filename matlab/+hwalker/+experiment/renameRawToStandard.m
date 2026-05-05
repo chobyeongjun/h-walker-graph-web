@@ -1,40 +1,45 @@
 function manifest = renameRawToStandard(rawDir, outputDir, varargin)
-% hwalker.experiment.renameRawToStandard  Copy raw files into standard-named tree.
+% hwalker.experiment.renameRawToStandard  Copy raw files into standard-named "upload" tree.
 %
+%   manifest = hwalker.experiment.renameRawToStandard(rawDir)              % outputDir auto = <rawDir>_upload
 %   manifest = hwalker.experiment.renameRawToStandard(rawDir, outputDir, ...
-%       'Date',    '260504', ...
-%       'Subject', 'LKM', ...
-%       'Speed',   '1_0', ...    % 1.0 m/s
-%       'Group',   '');           % '' (healthy) or 'Parkinson'
+%       'Date',          '260504', ...
+%       'Subject',       'LKM', ...
+%       'Speed',         '1_0', ...
+%       'Group',         '', ...
+%       'GoogleDrivePath', '~/Library/CloudStorage/GoogleDrive-x/My Drive/H-Walker/2026-05')
 %
-% Pattern (per user spec, 2026-05-05):
-%
+% Pattern (user spec 2026-05-05):
 %   <YYMMDD>_<Source>_<Subject>_TD_level_<speed_int>_<speed_dec>_H-Walker[_<Group>]_<cond>_<TrialNum>.<ext>
 %
-% e.g.
-%   260504_Robot_LKM_TD_level_1_0_H-Walker_high_0_01.csv
-%   260504_Loadcell_LKM_TD_level_1_0_H-Walker_noassist_wb_02.csv
-%   260512_Robot_PSM_TD_level_1_0_H-Walker_Parkinson_high_0_01.csv
+% Always emits a 2-digit trial number (_01, _02, ...).
+%
+% Default outputDir = "<rawDir>_upload" (sibling folder, public-share-ready).
+%
+% Optional GoogleDrivePath: if given, the entire outputDir is also copied
+% there for cloud sync (macOS Google Drive app picks it up automatically).
 %
 % Behavior:
 %   - rawDir/ stays untouched (read-only).
-%   - outputDir/Robot, /Loadcell, /Motion are created (mkdir if absent).
-%   - Each raw file is COPIED to outputDir/<modality>/<new_name>.<ext>.
+%   - outputDir/Robot, /Loadcell, /Motion, /Reference are created.
 %   - meta.json from rawDir is also copied.
-%   - MVC_*.qtm and *Static*.qtm are copied to outputDir/Motion/ unchanged
-%     (reference trials, not subject to the H-Walker naming).
-%   - A `_rename_map.csv` is written so the user can audit raw → renamed
-%     mapping.
-%
-% Returns manifest table: Source modality | raw filename | new filename | trial | cond.
+%   - MVC_*.qtm and *Static*.qtm copied as-is (reference trials).
+%   - _rename_map.csv written for audit.
 
     p = inputParser;
-    addParameter(p, 'Date',    '');
-    addParameter(p, 'Subject', '');
-    addParameter(p, 'Speed',   '1_0');
-    addParameter(p, 'Group',   '');
-    addParameter(p, 'DryRun',  false, @islogical);
+    addParameter(p, 'Date',            '');
+    addParameter(p, 'Subject',         '');
+    addParameter(p, 'Speed',           '1_0');
+    addParameter(p, 'Group',           '');
+    addParameter(p, 'DryRun',          false, @islogical);
+    addParameter(p, 'GoogleDrivePath', '',    @(x) ischar(x) || isstring(x));
     parse(p, varargin{:});
+
+    if nargin < 2 || isempty(outputDir)
+        % default: sibling folder with _upload suffix
+        if endsWith(rawDir, filesep), rawDir = rawDir(1:end-1); end
+        outputDir = [rawDir '_upload'];
+    end
 
     if ~exist(rawDir, 'dir')
         error('hwalker:renameRawToStandard:noRaw', 'rawDir not found: %s', rawDir);
@@ -109,9 +114,28 @@ function manifest = renameRawToStandard(rawDir, outputDir, varargin)
         writetable(manifest, fullfile(outputDir, '_rename_map.csv'));
     end
 
+    % Optional: also sync to Google Drive folder
+    gdrive = char(p.Results.GoogleDrivePath);
+    if ~isempty(gdrive) && ~p.Results.DryRun
+        [~, baseName] = fileparts(outputDir);
+        gdriveDst = fullfile(gdrive, baseName);
+        fprintf('\n→ Syncing to Google Drive: %s\n', gdriveDst);
+        if ~exist(gdrive, 'dir')
+            warning('hwalker:renameRawToStandard:noGDrive', ...
+                'GoogleDrivePath %s does not exist; skipping sync.', gdrive);
+        else
+            if ~exist(gdriveDst, 'dir'), mkdir(gdriveDst); end
+            copyfile(fullfile(outputDir, '*'), gdriveDst);
+            fprintf('  ✓ %d files synced to Google Drive\n', height(manifest));
+        end
+    end
+
     fprintf('\n=== Done ===\n');
     fprintf('  files: %d\n', height(manifest));
-    fprintf('  map: %s/_rename_map.csv\n', outputDir);
+    fprintf('  out:   %s\n', outputDir);
+    if ~isempty(gdrive)
+        fprintf('  gdrive: %s\n', gdrive);
+    end
     if p.Results.DryRun
         fprintf('  ⚠ DryRun mode — nothing actually copied.\n');
     end
@@ -126,21 +150,20 @@ function rows = processModality(rows, srcDir, modality, requiredExt, ...
     if ~isempty(requiredExt)
         listing = dir(fullfile(srcDir, ['*.' upper(requiredExt)]));
     else
-        % Motion: any of qtm / mat / c3d / tsv
         listing = [dir(fullfile(srcDir, '*.qtm')); ...
                    dir(fullfile(srcDir, '*.mat')); ...
                    dir(fullfile(srcDir, '*.c3d')); ...
                    dir(fullfile(srcDir, '*.tsv'))];
     end
 
-    % Group condition→trial counts so trial_num auto-increments per condition
+    % Standardized-name regex (used to strip prefix when input is already standard)
+    %  Group-token whitelist — only known patient groups; healthy=no token.
+    stdPattern = '^\d{6}_(Robot|Loadcell|Motion|EMG)_[A-Za-z]+_TD_level_\d+_\d+_H-Walker(_Parkinson|_Stroke|_SCI)?_';
     seen = containers.Map('KeyType','char','ValueType','double');
-
     for i = 1:numel(listing)
         fn = listing(i).name;
         [~, base, ext] = fileparts(fn);
 
-        % Reference files (MVC, Static): copy as-is, no rename
         if startsWith(lower(base), 'mvc') || contains(lower(base), 'static')
             if ~dryRun
                 copyfile(fullfile(srcDir, fn), fullfile(dstDir, fn));
@@ -150,10 +173,9 @@ function rows = processModality(rows, srcDir, modality, requiredExt, ...
             continue
         end
 
-        % Extract condition + raw trial-num suffix from the existing name
-        [cond, rawTrial] = extractCondition(base);
-
-        % Determine trial number
+        % Strip standardized prefix to get cond[_trial] tail (legacy and std unified)
+        stripped = regexprep(base, stdPattern, '');
+        [cond, rawTrial] = extractCondition(stripped);
         if ~isnan(rawTrial)
             trialNum = rawTrial;
         else
@@ -205,7 +227,14 @@ function [cond, trialNum] = extractCondition(base)
         trialNum = NaN;
         return
     end
-    % shank mount + angle (high_0, mid_30, low_45)
+    % shank mount + angle WITH trial number (high_0_01, mid_30_02)
+    tk = regexp(s, '^(high|mid|low)_(\d+)_(\d+)$', 'tokens', 'once');
+    if ~isempty(tk)
+        cond = sprintf('%s_%s', tk{1}, tk{2});
+        trialNum = str2double(tk{3});
+        return
+    end
+    % shank mount + angle WITHOUT trial number (high_0, mid_30, low_45)
     tk = regexp(s, '^(high|mid|low)_(\d+)$', 'tokens', 'once');
     if ~isempty(tk)
         cond = sprintf('%s_%s', tk{1}, tk{2});

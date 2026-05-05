@@ -83,8 +83,9 @@ function manifest = organizeStudy(rawDir, organizedDir, varargin)
         src = fullfile(rawRobotDir, fn);
         try
             T = hwalker.io.loadCSV(src);
-            % --- Multi-segment detection (Teensy reset / user record-start) ---
-            T = pickContiguousSegment(T, whichSeg, key);
+            % Multi-segment detection — delegate to public helper
+            fprintf(' [Robot]    %-20s', key);
+            [T, ~] = hwalker.experiment.pickSegment(T, whichSeg);
             t  = hwalker.io.timeAxis(T);
             cycles = hwalker.sync.findWindows(T, 'MinDurationS', p.Results.MinDurationS);
             row = pickCycle(cycles, whichCycle);
